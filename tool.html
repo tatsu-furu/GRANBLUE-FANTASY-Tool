@@ -15,9 +15,9 @@
             <h2>1. 編成登録 / 保存ロード</h2>
             
             <fieldset id="save-load-section">
-                <legend>保存 / ロード</legend>
+                <legend>保存 / ロード (スロット)</legend>
                 <div>
-                    <label for="save-slot-name">スロット名 (例: スパバハ用)</label>
+                    <label for="save-slot-name">スロット名</label>
                     <input type="text" id="save-slot-name">
                 </div>
                 <div>
@@ -31,6 +31,12 @@
                     <button id="load-btn" class="btn" style="flex: 1;">ロード</button>
                     <button id="delete-btn" class="btn" style="flex: 1;">削除</button>
                 </div>
+
+                <legend style="margin-top: 15px; grid-column: 1 / -1; text-align: center;">ファイル共有 (バックアップ)</legend>
+                <button id="export-btn" class="btn">現在のデータをファイルへ保存 (Export)</button>
+                
+                <input type="file" id="import-file-input" accept=".json, text/plain">
+                <label for="import-file-input" class="btn import-btn-label">ファイルから読込 (Import)</label>
             </fieldset>
 
             <fieldset>
@@ -177,7 +183,7 @@
         const STORAGE_KEY_PREFIX = 'gbfMoveMakerV5_slot_';
         const STORAGE_KEY_CURRENT = 'gbfMoveMakerV5_currentWork';
 
-        // --- ★V7: データ構造の定義 ---
+        // --- データ構造の定義 ---
         const getDefaultWorkData = () => ({
             setup: {
                 characters: ["主人公", "", "", "", "", "", "", "", ""],
@@ -188,7 +194,7 @@
                 currentTurn: 1,
                 history: "--- TURN 1 ---",
                 selectedCharIndex: 0,
-                turnMemos: {} // ★V7: ターンメモ
+                turnMemos: {} 
             },
             slotName: ""
         });
@@ -196,7 +202,6 @@
         // --- グローバル変数 ---
         let currentWorkData = getDefaultWorkData();
         let savedSlotNames = [];
-        
         let currentPlaybackTurn = 1;
         let totalPlaybackTurns = 1;
 
@@ -219,8 +224,12 @@
         const deleteBtn = document.getElementById('delete-btn');
         const clearAllDataBtn = document.getElementById('clear-all-data-btn');
         
+        // ★V11: Export/Importボタン
+        const exportBtn = document.getElementById('export-btn');
+        const importFileInput = document.getElementById('import-file-input');
+        
         const turnCounter = document.getElementById('turn-counter');
-        const turnMemoInput = document.getElementById('turn-memo-input'); // ★V7
+        const turnMemoInput = document.getElementById('turn-memo-input'); 
         const charSelectContainer = document.getElementById('char-select-container');
         const actionButtons = document.querySelectorAll('.action-btn');
         const summonButtonsContainer = document.getElementById('summon-buttons-container');
@@ -239,7 +248,7 @@
         const playbackNavCenter = document.getElementById('playback-nav-center');
         const backToEditBtn = document.getElementById('back-to-edit-btn');
 
-        // --- ★V7: データ保存/ロード関数 (V7と同じ) ---
+        // --- データ保存/ロード関数 (V7と同じ) ---
         
         function saveCurrentWork() {
             currentWorkData.setup.characters = charInputs.map(input => input.value);
@@ -293,8 +302,6 @@
             turnCounter.textContent = `TURN ${currentWorkData.state.currentTurn}`;
             historyTextarea.value = currentWorkData.state.history;
             historyTextarea.scrollTop = historyTextarea.scrollHeight;
-            
-            // ★V8: V7のロジックを継続
             turnMemoInput.value = currentWorkData.state.turnMemos[currentWorkData.state.currentTurn] || '';
         }
 
@@ -302,7 +309,7 @@
             extraSubInputs.style.display = (count === 5) ? 'grid' : 'none';
         }
 
-        // --- イベントリスナー (V7と同じ) ---
+        // --- イベントリスナー ---
 
         // 1. 「ムーブ入力画面へ」ボタン
         setupCompleteBtn.addEventListener('click', () => {
@@ -377,7 +384,6 @@
             }
         });
 
-        // ===== 修正点 3/3 (JavaScriptロジック修正) =====
         // 7. アクションボタン (アビ、攻撃など)
         actionButtons.forEach(btn => {
             btn.addEventListener('click', () => {
@@ -386,32 +392,19 @@
                 const charName = currentWorkData.setup.characters[charIndex] || `キャラ${charIndex + 1}`;
 
                 if (action.startsWith('攻撃')) {
-                    // (1) 現在のターンのメモを保存
                     currentWorkData.state.turnMemos[currentWorkData.state.currentTurn] = turnMemoInput.value;
-                    
-                    // (2) 履歴に「攻撃」ログを追加
                     logToHistory(`[${action}]`);
-                    
-                    // (3) ターンを進める
                     currentWorkData.state.currentTurn++;
                     turnCounter.textContent = `TURN ${currentWorkData.state.currentTurn}`;
-                    
-                    // (4) 履歴に「次のターン」の見出しを追加
                     logToHistory(`--- TURN ${currentWorkData.state.currentTurn} ---`);
-                    
-                    // (V9) メモ欄を強制的にリセット(空)にする
-                    turnMemoInput.value = ''; 
-                    
-                    // (5) 状態を保存
+                    turnMemoInput.value = ''; // V9
                     saveCurrentWork();
                 
-                // ★オールポーションを全体アクションとして処理
                 } else if (action === 'オールポーション') {
-                    logToHistory(`[${action}]`); // キャラ名なしでログ
+                    logToHistory(`[${action}]`); // V10
 
                 } else {
-                    // キャラ紐付きのアクション (アビ, ガード, キュアポ)
-                    logToHistory(`[${charName}] ${action}`);
+                    logToHistory(`[${charName}] ${action}`); // V10
                 }
             });
         });
@@ -466,6 +459,79 @@
             }, 2000);
         }
         
+        // --- ★V11: Export / Import リスナー ---
+        
+        // 12. [Export] ボタン
+        exportBtn.addEventListener('click', () => {
+            saveCurrentWork(); // 念のため最新の状態を保存
+            
+            const jsonString = JSON.stringify(currentWorkData, null, 2); // 読みやすく整形
+            const blob = new Blob([jsonString], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            // スロット名があればそれをファイル名に、なければデフォルト名
+            let fileName = currentWorkData.slotName || 'gbf-move-data';
+            if (!fileName.endsWith('.json')) {
+                fileName += '.json';
+            }
+            a.download = fileName;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+        
+        // 13. [Import] ボタン (ファイルが選択されたら)
+        importFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    
+                    // 読み込んだデータが正しい形式か簡易チェック
+                    if (json && json.setup && json.state) {
+                        currentWorkData = json; // データを上書き
+                        
+                        // 互換性担保
+                        if (!currentWorkData.state.turnMemos) {
+                            currentWorkData.state.turnMemos = {};
+                        }
+                        
+                        saveCurrentWork(); // 「現在の作業」として保存
+                        loadSetupDataToDOM(); // 画面に反映
+                        loadStateDataToDOM();
+                        
+                        alert(`ファイル「${file.name}」をロードしました。\n編成画面で内容を確認してください。`);
+                        goToSetupPhase(); // 確認のため編成画面に戻る
+                        
+                    } else {
+                        alert('エラー: 無効なファイル形式です。');
+                    }
+                } catch (error) {
+                    console.error('ファイル読み込みエラー:', error);
+                    alert('エラー: ファイルの読み込みに失敗しました。\n(JSON形式ではありません)');
+                }
+                
+                // 同じファイルを連続で読み込めるようにするため、inputの値をリセット
+                event.target.value = null;
+            };
+            
+            reader.onerror = () => {
+                alert('エラー: ファイルの読み込みに失敗しました。');
+                event.target.value = null;
+            };
+            
+            reader.readAsText(file);
+        });
+
         // --- 再生モード関連のリスナー ---
         
         gotoPlaybackBtn.addEventListener('click', () => {

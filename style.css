@@ -294,3 +294,29 @@ textarea:focus {
     margin: 10px 0;
     text-align: right;
 }
+
+/* --- ★V11: インポート/エクスポートボタン --- */
+
+/* 保存/ロードエリアのレイアウトを調整 */
+#save-load-section {
+    grid-template-columns: 1fr 1fr 1fr 1fr; /* 4列に変更 */
+    gap: 10px 15px;
+}
+
+/* ファイル入力ボタンを隠す */
+#import-file-input {
+    display: none;
+}
+
+/* ファイル入力をボタンのように見せる */
+.import-btn-label {
+    grid-column: 1 / -1; /* 横幅いっぱいに広げる */
+    background-color: #3f51b5; /* インポート (藍色) */
+    text-align: center;
+    padding: 10px 15px;
+}
+
+#export-btn {
+    grid-column: 1 / -1; /* 横幅いっぱいに広げる */
+    background-color: #00796b; /* エクスポート (緑系) */
+}
