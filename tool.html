@@ -406,64 +406,95 @@
             .catch(err => { showCopyFeedback('コピーに失敗しました', false); });
         });
         exportBtn.addEventListener('click', () => {
-            saveCurrentWork(); const jsonString = JSON.stringify(currentWorkData, null, 2);
-            const blob = new Blob([jsonString], {type: 'application/json'}); const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url;
+            // 最新の作業内容を取得
+            saveCurrentWork();
+
+            // currentWorkData を初期化（もし未定義なら）
+            currentWorkData.characters = currentWorkData.characters || [];
+            currentWorkData.stones = currentWorkData.stones || [];
+            currentWorkData.notes = currentWorkData.notes || [];
+
+            // 画像やキャラ情報を Base64 化
+            currentWorkData.characters.forEach(char => {
+                if(char.img && char.img instanceof HTMLImageElement){
+                    const canvas = document.createElement('canvas');
+                    canvas.width = char.img.width;
+                    canvas.height = char.img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(char.img, 0, 0);
+                    char.imageData = canvas.toDataURL(); // Base64 に変換
+                    delete char.img; // 元の img は削除して軽量化
+                }
+            });
+
+            // JSON に変換してダウンロード
+            const jsonString = JSON.stringify(currentWorkData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
             let fileName = currentWorkData.slotName || 'gbf-move-data';
             a.download = fileName.endsWith('.json') ? fileName : fileName + '.json';
-            a.click(); URL.revokeObjectURL(url);
+            a.click();
+
+            URL.revokeObjectURL(url);
         });
+
+
         importFileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0]; if (!file) return; const reader = new FileReader();
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
             reader.onload = (e) => {
                 try {
                     const json = JSON.parse(e.target.result);
+
+                    // setup 構造が存在するか確認
                     if (json && json.setup && json.state) {
-                        currentWorkData = json; if (!currentWorkData.state.turnMemos) { currentWorkData.state.turnMemos = {}; }
-                        saveCurrentWork(); loadSetupDataToDOM(); loadStateDataToDOM();
-                        alert(`ファイル「${file.name}」をロードしました。\n編成画面で内容を確認してください。`); goToSetupPhase();
-                    } else { alert('エラー: 無効なファイル形式です。'); }
-                } catch (error) { console.error('ファイル読み込みエラー:', error); alert('エラー: ファイルの読み込みに失敗しました。'); }
+                        // 旧フォーマットの不要フィールドを削除
+                        if (json.characters && json.characters.length === 0) delete json.characters;
+                        if (json.summons && json.summons.length === 0) delete json.summons;
+                        if (json.notes && json.notes.length === 0) delete json.notes;
+
+                        // currentWorkData に統合（setup優先）
+                        currentWorkData = {
+                            ...getDefaultWorkData(),
+                            ...json,
+                            setup: {
+                                ...getDefaultWorkData().setup,
+                                ...json.setup
+                            },
+                            state: {
+                                ...getDefaultWorkData().state,
+                                ...json.state
+                            }
+                        };
+
+                        // 反映
+                        loadSetupDataToDOM();
+                        loadStateDataToDOM();
+
+                        alert(`ファイル「${file.name}」をロードしました。\n編成画面で内容を確認してください。`);
+                        goToSetupPhase();
+                    } else {
+                        alert('エラー: 無効なファイル形式です。');
+                    }
+                } catch (error) {
+                    console.error('ファイル読み込みエラー:', error);
+                    alert('エラー: ファイルの読み込みに失敗しました。');
+                }
+
                 event.target.value = null;
             };
-            reader.onerror = () => { alert('エラー: ファイルの読み込みに失敗しました。'); event.target.value = null; };
+
+            reader.onerror = () => {
+                alert('エラー: ファイルの読み込みに失敗しました。');
+                event.target.value = null;
+            };
+
             reader.readAsText(file);
-        });
-        resetSetupBtn.addEventListener('click', () => {
-            if (confirm('現在の編成入力欄（キャラクター、召喚石）とムーブ履歴を完全にリセットしますか？\n(保存済みスロットは維持されます)')) {
-                // デフォルトデータ取得
-                const defaultSetup = getDefaultWorkData().setup;
-
-                // 編成情報を初期化
-                currentWorkData.setup.characters = [...defaultSetup.characters];
-                currentWorkData.setup.summons = [...defaultSetup.summons];
-                currentWorkData.setup.subCount = defaultSetup.subCount;
-                currentWorkData.setup.overallMemo = "";
-                currentWorkData.setup.weaponImageBase64 = null;
-
-                // ムーブ履歴を初期化
-                currentWorkData.state.currentTurn = 1;
-                currentWorkData.state.history = '--- TURN 1 ---';
-                currentWorkData.state.selectedCharIndex = 0;
-                currentWorkData.state.turnMemos = {};
-
-                // UI更新
-                updateImagePreview(null);                       // 武器プレビュークリア
-                toggleExtraSubInputs(currentWorkData.setup.subCount); // サブキャラ欄リセット
-                currentPlaybackTurn = 1;
-                movePhase.classList.remove('playback-mode'); 
-                playbackArea.innerHTML = '';                   // ムーブ表クリア
-
-                // DOM に反映
-                loadSetupDataToDOM();
-                loadStateDataToDOM();
-                selectCharacter(0);
-
-                // 現在作業状態を保存（既存スロットはそのまま）
-                //saveCurrentWork();
-
-                alert('編成入力欄とムーブ履歴を初期状態にクリアしました。');
-            }
         });
 
 
