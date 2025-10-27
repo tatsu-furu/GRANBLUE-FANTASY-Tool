@@ -12,7 +12,7 @@
     <div class="container">
         <h1>グラブル ムーブ表作成ツール</h1>
 
-        <div id="setup-phase" style="display: block;"> {/* 初期表示を明確化 */}
+        <div id="setup-phase" style="display: block;"> {/* V18修正: 初期表示をblockに */}
             <h2>1. 編成登録 / 保存ロード</h2>
 
             <fieldset id="save-load-section">
@@ -55,6 +55,7 @@
                     <img id="weapon-image-preview" src="#" alt="武器編成プレビュー">
                 </div>
                 <button id="clear-weapon-image-btn" class="btn">画像を削除</button>
+                <button id="paste-image-btn" class="btn">画像をペースト</button>
             </fieldset>
 
             <fieldset>
@@ -104,7 +105,7 @@
             </div>
         </div>
 
-        <div id="move-phase" style="display: none;"> {/* 初期非表示を明確化 */}
+        <div id="move-phase" style="display: none;"> {/* V18修正: 初期非表示をblockからnoneに */}
             <h2>2. ムーブ入力</h2>
 
             <div class="move-grid">
@@ -261,6 +262,9 @@
         const weaponImagePreview = document.getElementById('weapon-image-preview');
         const clearWeaponImageBtn = document.getElementById('clear-weapon-image-btn');
         const uploadFeedback = document.getElementById('upload-feedback');
+        // ★V19: ペーストボタン
+        const pasteImageBtn = document.getElementById('paste-image-btn');
+
         const turnCounter = document.getElementById('turn-counter');
         const turnMemoInput = document.getElementById('turn-memo-input');
         const charSelectContainer = document.getElementById('char-select-container');
@@ -320,46 +324,96 @@
         playbackPrevBtn.addEventListener('click', () => { /* ... V15と同じ ... */ });
         savePlaybackImageBtn.addEventListener('click', async () => { /* ... V13と同じ ... */ });
 
-        // ★V18: ペーストイベントリスナーを修正
+        // ★V19: ペーストイベントリスナーを修正
         document.addEventListener('paste', handlePaste);
+
+        // ★V19: ペーストボタンのリスナーを追加
+        pasteImageBtn.addEventListener('click', handlePasteButtonClick);
 
         function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
         function handleImageDrop(e) { /* ... V12と同じ ... */ }
         function handleImageUpload(event) { /* ... V12と同じ ... */ }
 
-        // ★V18: ペースト処理関数を修正
+        // ★V19: ペースト処理関数を修正
         function handlePaste(event) {
-            // ペーストが入力要素 (input, textarea) で発生した場合、何もしない
             const targetTagName = event.target.tagName.toLowerCase();
+            // 入力要素にフォーカスがある場合はペースト処理を実行しない
             if (targetTagName === 'input' || targetTagName === 'textarea') {
                 return;
             }
 
-            // クリップボードのアイテムを取得
             const items = event.clipboardData?.items;
             if (!items) return;
 
             // クリップボード内のアイテムをループ
+            processClipboardItems(items, event); // イベントを渡してpreventDefaultを可能に
+        }
+
+        // ★V19: ペーストボタンクリック時の処理関数
+        async function handlePasteButtonClick() {
+            try {
+                // クリップボードの内容を読み取る (ユーザー許可が必要)
+                const clipboardItems = await navigator.clipboard.read();
+
+                // 読み取ったアイテムを処理
+                processClipboardItems(clipboardItems);
+
+            } catch (err) {
+                console.error('クリップボードの読み取りに失敗しました:', err);
+                // 権限がない、またはサポートされていないブラウザ
+                if (err.name === 'NotAllowedError') {
+                     alert('クリップボードへのアクセスが許可されていません。\nブラウザの設定を確認してください。');
+                } else {
+                     alert('クリップボードからの画像ペーストに失敗しました。\n(お使いのブラウザが対応していない可能性があります)');
+                }
+            }
+        }
+
+        // ★V19: クリップボードアイテムを処理する共通関数
+        function processClipboardItems(items, event = null) {
             for (let i = 0; i < items.length; i++) {
-                // アイテムが画像で、かつファイルとして取得できるか確認
-                if (items[i].type.indexOf('image') !== -1 && items[i].kind === 'file') {
-                    const blob = items[i].getAsFile(); // Fileオブジェクトとして取得
+                const item = items[i];
+                // 画像タイプのみを処理 (getAsFileが存在する場合も考慮)
+                if (item.type.indexOf('image') !== -1) {
+                    let blob = null;
+                    if (typeof item.getAsFile === 'function') {
+                        blob = item.getAsFile(); // ClipboardEvent item
+                    } else if (item.getType) {
+                        // ClipboardItem (read() API用)
+                        // getTypeはPromiseを返す可能性があるので非同期処理が必要だが、
+                        // 一般的なペースト(Ctrl+V)ではgetAsFileが優先されるはず。
+                        // ボタンクリックのread()ではBlobが直接取れるはず。
+                        // ここではgetAsFileが主なので、read()用の複雑な処理は一旦省略。
+                        // ボタンクリックでBlobを取得する前提で進める
+                         if (item.types.includes('image/png') || item.types.includes('image/jpeg')) {
+                            // Blobを取得する処理 (read()はPromiseを返す)
+                            item.getType(item.types.find(t => t.startsWith('image/'))).then(imgBlob => {
+                                if (imgBlob) {
+                                    handleBlobAsFile(imgBlob, event);
+                                }
+                            });
+                            // Promise処理のため、即座にbreakせずに他のアイテムも確認する方が良い場合もあるが、
+                            // ここでは最初の画像でbreakする。
+                            break;
+                         }
+                    }
+
                     if (blob) {
-                        // デフォルトのペースト動作をキャンセル
-                        event.preventDefault();
-
-                        // ファイル名を生成（例: pasted_image.png）
-                        const fileName = `pasted_image.${blob.type.split('/')[1] || 'png'}`;
-                        const file = new File([blob], fileName, { type: blob.type });
-
-                        // 既存の画像処理関数に渡す
-                        handleImageFile(file);
-
-                        // 最初の画像だけ処理してループを抜ける
-                        break;
+                         handleBlobAsFile(blob, event);
+                         break; // 最初の画像だけ処理
                     }
                 }
             }
+        }
+
+        // ★V19: BlobをFileとして扱い、画像処理に渡す関数
+        function handleBlobAsFile(blob, event = null) {
+            if (event) {
+                event.preventDefault(); // Ctrl+V時のデフォルト動作キャンセル
+            }
+            const fileName = `pasted_image.${blob.type.split('/')[1] || 'png'}`;
+            const file = new File([blob], fileName, { type: blob.type });
+            handleImageFile(file);
         }
 
 
@@ -371,31 +425,35 @@
         function logToHistory(text) { /* ... V16と同じ ... */ }
         function selectCharacter(index) { /* ... V16と同じ ... */ }
 
-        // ★V18: 画面遷移関数を修正
+        // ★V19: 画面遷移関数を修正 (V18の修正を維持)
         function goToMovePhase() {
-            // (内部ロジックはV16と同じ)
-            // ... ボタン生成など ...
              const setup = currentWorkData.setup;
-            summonButtonsContainer.innerHTML = '';
-            setup.summons.forEach(summonName => { /* ... ボタン生成 ... */ });
-            charSelectContainer.innerHTML = '';
-            const totalChars = 4 + setup.subCount;
-            for (let i = 0; i < totalChars; i++) { /* ... ボタン生成 ... */ }
-
-            // 表示切り替え
-            setupPhase.style.display = 'none'; // ★必ず非表示に
-            movePhase.style.display = 'block'; // ★必ず表示に
-            movePhase.classList.remove('playback-mode');
-
-            loadStateDataToDOM();
-            selectCharacter(currentWorkData.state.selectedCharIndex);
+             summonButtonsContainer.innerHTML = '';
+             setup.summons.forEach(summonName => {
+                 if (summonName) {
+                     const btn = document.createElement('button'); btn.className = 'summon-btn btn';
+                     btn.textContent = summonName; btn.addEventListener('click', () => { logToHistory(`[召喚: ${summonName}]`); });
+                     summonButtonsContainer.appendChild(btn);
+                 }
+             });
+             charSelectContainer.innerHTML = '';
+             const totalChars = 4 + setup.subCount;
+             for (let i = 0; i < totalChars; i++) {
+                 let charName = setup.characters[i]; if (!charName) { if (i === 0) charName = "主人公"; else if (i < 4) charName = `キャラ${i + 1}`; else charName = `サブ${i - 3}`; }
+                 const btn = document.createElement('button'); btn.className = 'char-btn'; btn.textContent = charName;
+                 btn.dataset.charIndex = i; if (i >= 4) btn.classList.add('is-sub');
+                 btn.addEventListener('click', () => selectCharacter(i)); charSelectContainer.appendChild(btn);
+             }
+             setupPhase.style.display = 'none'; // ★修正: 必ず非表示
+             movePhase.style.display = 'block'; // ★修正: 必ず表示
+             movePhase.classList.remove('playback-mode');
+             loadStateDataToDOM();
+             selectCharacter(currentWorkData.state.selectedCharIndex);
         }
 
         function goToSetupPhase() {
-             // 表示切り替え
-            movePhase.style.display = 'none'; // ★必ず非表示に
-            setupPhase.style.display = 'block'; // ★必ず表示に
-
+            movePhase.style.display = 'none'; // ★修正: 必ず非表示
+            setupPhase.style.display = 'block'; // ★修正: 必ず表示
             loadSetupDataToDOM();
             loadSlotNames();
         }
@@ -403,20 +461,11 @@
         function buildPlaybackView() { /* ... V15と同じ ... */ }
         function updatePlaybackHighlight() { /* ... V15と同じ ... */ }
 
-        // --- 初期化処理 ---
+        // --- 初期化処理 (V18の修正を維持) ---
         function initialize() {
             loadCurrentWork();
             loadSlotNames();
-
-            // ★V18: 必ず編成画面から開始するように修正
-            goToSetupPhase();
-
-            // 以前のロジック:
-            // if (!localStorage.getItem(STORAGE_KEY_CURRENT)) {
-            //     goToSetupPhase();
-            // } else {
-            //     goToSetupPhase(); // V12から必ず編成画面開始
-            // }
+            goToSetupPhase(); // 必ず編成画面から開始
         }
 
         initialize();

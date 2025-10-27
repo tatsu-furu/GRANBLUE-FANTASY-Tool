@@ -377,3 +377,10 @@ textarea:focus {
     color: #aaa;
     margin-top: 5px;
 }
+
+/* --- ★V19: ペーストボタン --- */
+#paste-image-btn {
+    margin-top: 5px;
+    margin-left: 10px; /* 画像削除ボタンとの間隔 */
+    background-color: #03a9f4; /* 水色系 */
+}
