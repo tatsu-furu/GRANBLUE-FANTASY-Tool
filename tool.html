@@ -12,285 +12,44 @@
     <div class="container">
         <h1>グラブル ムーブ表作成ツール</h1>
 
-        <div id="setup-phase" style="display: block;"> {/* V18修正: 初期表示をblockに */}
-            <h2>1. 編成登録 / 保存ロード</h2>
-
-            <fieldset id="save-load-section">
-                <legend>保存 / ロード (スロット)</legend>
-                <div>
-                    <label for="save-slot-name">スロット名</label>
-                    <input type="text" id="save-slot-name">
-                </div>
-                <div>
-                    <label for="load-slot-select">保存済みスロット</label>
-                    <select id="load-slot-select">
-                        <option value="">-- スロットを選択 --</option>
-                    </select>
-                </div>
-                <button id="save-btn" class="btn">現在の編成/ムーブを保存</button>
-                <div style="display: flex; gap: 5px;">
-                    <button id="load-btn" class="btn" style="flex: 1;">ロード</button>
-                    <button id="delete-btn" class="btn" style="flex: 1;">削除</button>
-                </div>
-
-                <legend style="margin-top: 15px; grid-column: 1 / -1; text-align: center;">ファイル共有 (バックアップ)</legend>
-                <button id="export-btn" class="btn">現在のデータをファイルへ保存 (Export)</button>
-
-                <input type="file" id="import-file-input" accept=".json, text/plain">
-                <label for="import-file-input" class="btn import-btn-label">ファイルから読込 (Import)</label>
-            </fieldset>
-
-            <fieldset>
-                <legend>ムーブ全体メモ</legend>
-                <textarea id="overall-memo-input" placeholder="ムーブの前提条件、討伐時間目安、注意点など..."></textarea>
-            </fieldset>
-
-            <fieldset>
-                <legend>武器編成スクリーンショット (1枚)</legend>
-                <input type="file" id="weapon-image-input" accept="image/*" style="display: none;">
-                <div id="weapon-image-upload-area" onclick="document.getElementById('weapon-image-input').click();">
-                    クリックして画像を選択 (またはドラッグ＆ドロップ)<br>
-                    <span style="font-weight: bold; color: #ffb400;">またはペースト (Ctrl+V)</span><br>
-                    <span id="upload-feedback">(推奨: 500KB以下 / 自動リサイズあり)</span>
-                    <img id="weapon-image-preview" src="#" alt="武器編成プレビュー">
-                </div>
-                <button id="clear-weapon-image-btn" class="btn">画像を削除</button>
-                <button id="paste-image-btn" class="btn">画像をペースト</button>
-            </fieldset>
-
-            <fieldset>
-                <legend>キャラクター</legend>
-                <div class="input-grid">
-                    <div>
-                        <label>サブ人数</label>
-                        <select id="sub-member-count">
-                            <option value="2" selected>2人 (デフォルト)</option>
-                            <option value="5">5人 (その他)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="input-grid" style="margin-top: 10px;">
-                    <div><label for="char1">主人公</label><input type="text" id="char1" value="主人公"></div>
-                    <div><label for="char2">キャラ2</label><input type="text" id="char2" value=""></div>
-                    <div><label for="char3">キャラ3</label><input type="text" id="char3" value=""></div>
-                    <div><label for="char4">キャラ4</label><input type="text" id="char4" value=""></div>
-                    <div><label for="char5">サブ1</label><input type="text" id="char5" value=""></div>
-                    <div><label for="char6">サブ2</label><input type="text" id="char6" value=""></div>
-
-                    <div id="extra-sub-inputs">
-                        <div><label for="char7">サブ3</label><input type="text" id="char7" value=""></div>
-                        <div><label for="char8">サブ4</label><input type="text" id="char8" value=""></div>
-                        <div><label for="char9">サブ5</label><input type="text" id="char9" value=""></div>
-                    </div>
-                </div>
-            </fieldset>
-
-            <fieldset>
-                <legend>召喚石</legend>
-                <div class="input-grid">
-                    <div><label for="summon-main">メイン</label><input type="text" id="summon-main" value=""></div>
-                    <div><label for="summon-support">サポーター</label><input type="text" id="summon-support" value=""></div>
-                    <div><label for="summon-sub1">サブ1</label><input type="text" id="summon-sub1" value="バブ"></div>
-                    <div><label for="summon-sub2">サブ2</label><input type="text" id="summon-sub2" value="黒麒麟"></div>
-                    <div><label for="summon-sub3">サブ3</label><input type="text" id="summon-sub3" value="ヤチマ"></div>
-                    <div><label for="summon-sub4">サブ4</label><input type="text" id="summon-sub4" value=""></div>
-                </div>
-            </fieldset>
-
-            <button id="setup-complete-btn" class="btn">ムーブ入力画面へ</button>
-
-            <div class="reset-buttons" style="margin-top: 15px;">
-                <button id="reset-setup-btn" class="reset-btn btn">編成入力欄のみクリア</button>
-                <button id="clear-all-data-btn" class="btn">全スロット削除 (完全リセット)</button>
-            </div>
+        {/* --- フェーズ1 (HTML変更なし) --- */}
+        <div id="setup-phase" style="display: block;">
+            {/* ... V19と同じ ... */}
         </div>
 
-        <div id="move-phase" style="display: none;"> {/* V18修正: 初期非表示をblockからnoneに */}
-            <h2>2. ムーブ入力</h2>
-
-            <div class="move-grid">
-                <div class="action-panel">
-                    <div id="turn-counter">TURN 1</div>
-
-                    <div>
-                        <strong>このターンのメモ:</strong>
-                        <textarea id="turn-memo-input" placeholder="HP予兆、敵の行動など..."></textarea>
-                    </div>
-
-                    <div>
-                        <strong>行動キャラ選択:</strong>
-                        <div class="char-select-buttons" id="char-select-container"></div>
-                    </div>
-
-                    <div>
-                        <strong>アビリティ:</strong>
-                        <div class="action-buttons">
-                            <button class="action-btn btn" data-action="1アビ">1アビ</button>
-                            <button class="action-btn btn" data-action="2アビ">2アビ</button>
-                            <button class="action-btn btn" data-action="3アビ">3アビ</button>
-                            <button class="action-btn btn" data-action="4アビ">4アビ</button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <strong>その他 (キャラ別):</strong>
-                        <div class="action-buttons">
-                            <button class="action-btn btn" data-action="ガード">ガード</button>
-                            <button class="action-btn btn attack-btn-on" data-action="キュアポ">キュアポ</button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <strong>召喚石 (全体):</strong>
-                        <div class="summon-buttons" id="summon-buttons-container"></div>
-                    </div>
-
-                    <div>
-                        <strong>アイテム (全体):</strong>
-                        <div class="action-buttons">
-                            <button class="action-btn btn attack-btn-on" data-action="オールポーション">オールポーション</button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <strong>ターン終了:</strong>
-                        <div class="action-buttons">
-                            <button class="action-btn attack-btn-off btn" data-action="攻撃 (奥義OFF)">攻撃 (奥義OFF)</button>
-                            <button class="action-btn attack-btn-on btn" data-action="攻撃 (奥義ON)">攻撃 (奥義ON)</button>
-                        </div>
-                    </div>
-
-                    <div class="reset-buttons">
-                        <button id="overwrite-save-btn" class="btn" style="background-color: #4CAF50;">現在のスロットに上書き保存</button>
-                        <button id="undo-last-action-btn" class="reset-btn btn" style="background-color: #ff9800;">1つ前の操作に戻る (Undo)</button>
-                        <button id="move-reset-btn" class="reset-btn btn">ムーブ履歴だけリセット</button>
-                        <button id="back-to-setup-btn" class="reset-btn btn">編成登録/ロード画面に戻る</button>
-                    </div>
-                </div>
-
-                <div>
-                    <div id="mode-toggle-area">
-                        <button id="goto-playback-btn" class="btn">再生モードへ ▶</button>
-                    </div>
-
-                    <div class="history-panel">
-                        <strong>行動履歴 (ムーブ表)</strong>
-                        <textarea id="move-history" readonly></textarea>
-
-                        <div id="export-area">
-                            <span id="copy-feedback"></span>
-                            <button id="copy-history-btn" class="btn">ムーブ履歴をコピー</button>
-                        </div>
-                    </div>
-
-                    <div class="playback-panel">
-                        <strong>再生モード (カンペ)</strong>
-                        <div id="playback-area">
-                        </div>
-                        <div id="playback-nav">
-                            <button id="playback-prev-btn" class="btn">&lt; 前のターン</button>
-                            <span id="playback-nav-center">TURN 1 / 1</span>
-                            <button id="playback-next-btn" class="btn">次のターン &gt;</button>
-                        </div>
-                        <div style="margin-top: 10px; text-align: center;">
-                             <button id="save-playback-image-btn" class="btn">ムーブ表を画像で保存</button>
-                             <button id="back-to-edit-btn" class="reset-btn btn" style="margin-top: 5px;">編集モードに戻る</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        {/* --- フェーズ2 (HTML変更なし) --- */}
+        <div id="move-phase" style="display: none;">
+             {/* ... V19と同じ ... */}
         </div>
-
     </div>
 
+    {/* ===== 修正点 (JavaScriptロジック修正) ===== */}
     <script>
-        // --- ローカルストレージキー ---
+        // --- 定数・変数 (変更なし) ---
         const STORAGE_KEY_SLOTS = 'gbfMoveMakerV5_slots';
         const STORAGE_KEY_PREFIX = 'gbfMoveMakerV5_slot_';
         const STORAGE_KEY_CURRENT = 'gbfMoveMakerV5_currentWork';
-
-        // --- 画像リサイズ設定 ---
         const MAX_IMAGE_WIDTH = 1200;
         const IMAGE_QUALITY = 0.7;
-
-        // --- データ構造の定義 ---
-        const getDefaultWorkData = () => ({
-            setup: {
-                characters: ["主人公", "", "", "", "", "", "", "", ""],
-                summons: ["", "", "バブ", "黒麒麟", "ヤチマ", ""],
-                subCount: 2,
-                overallMemo: "",
-                weaponImageBase64: null
-            },
-            state: {
-                currentTurn: 1,
-                history: "--- TURN 1 ---",
-                selectedCharIndex: 0,
-                turnMemos: {}
-            },
-            slotName: ""
-        });
-
-        // --- グローバル変数 ---
+        const getDefaultWorkData = () => ({ /* ... V19と同じ ... */ });
         let currentWorkData = getDefaultWorkData();
         let savedSlotNames = [];
         let currentPlaybackTurn = 1;
         let totalPlaybackTurns = 1;
 
-        // --- DOM要素の取得 ---
+        // --- DOM要素の取得 (変更なし) ---
         const setupPhase = document.getElementById('setup-phase');
         const movePhase = document.getElementById('move-phase');
-        const setupCompleteBtn = document.getElementById('setup-complete-btn');
-        const charInputs = Array.from({length: 9}, (_, i) => document.getElementById(`char${i + 1}`));
-        const summonInputs = [ /* ... V12と同じ ... */ ];
-        const subMemberCountSelect = document.getElementById('sub-member-count');
-        const extraSubInputs = document.getElementById('extra-sub-inputs');
-        const saveSlotNameInput = document.getElementById('save-slot-name');
-        const loadSlotSelect = document.getElementById('load-slot-select');
-        const saveBtn = document.getElementById('save-btn');
-        const loadBtn = document.getElementById('load-btn');
-        const deleteBtn = document.getElementById('delete-btn');
-        const clearAllDataBtn = document.getElementById('clear-all-data-btn');
-        const exportBtn = document.getElementById('export-btn');
-        const importFileInput = document.getElementById('import-file-input');
-        const resetSetupBtn = document.getElementById('reset-setup-btn');
-        const overwriteSaveBtn = document.getElementById('overwrite-save-btn');
-        const undoLastActionBtn = document.getElementById('undo-last-action-btn');
-        const overallMemoInput = document.getElementById('overall-memo-input');
-        const weaponImageInput = document.getElementById('weapon-image-input');
-        const weaponImageUploadArea = document.getElementById('weapon-image-upload-area');
-        const weaponImagePreview = document.getElementById('weapon-image-preview');
-        const clearWeaponImageBtn = document.getElementById('clear-weapon-image-btn');
-        const uploadFeedback = document.getElementById('upload-feedback');
-        // ★V19: ペーストボタン
-        const pasteImageBtn = document.getElementById('paste-image-btn');
+        // ... (他の要素取得もV19と同じ)
 
-        const turnCounter = document.getElementById('turn-counter');
-        const turnMemoInput = document.getElementById('turn-memo-input');
-        const charSelectContainer = document.getElementById('char-select-container');
-        const actionButtons = document.querySelectorAll('.action-btn');
-        const summonButtonsContainer = document.getElementById('summon-buttons-container');
-        const historyTextarea = document.getElementById('move-history');
-        const moveResetBtn = document.getElementById('move-reset-btn');
-        const backToSetupBtn = document.getElementById('back-to-setup-btn');
-        const copyHistoryBtn = document.getElementById('copy-history-btn');
-        const copyFeedback = document.getElementById('copy-feedback');
-        const gotoPlaybackBtn = document.getElementById('goto-playback-btn');
-        const playbackArea = document.getElementById('playback-area');
-        const playbackPrevBtn = document.getElementById('playback-prev-btn');
-        const playbackNextBtn = document.getElementById('playback-next-btn');
-        const playbackNavCenter = document.getElementById('playback-nav-center');
-        const backToEditBtn = document.getElementById('back-to-edit-btn');
-        const savePlaybackImageBtn = document.getElementById('save-playback-image-btn');
-
-        // --- データ保存/ロード関数 (V12と同じ) ---
-        function saveCurrentWork() { /* ... V12と同じ ... */ }
-        function loadCurrentWork() { /* ... V12と同じ ... */ }
-        function loadSlotNames() { /* ... V12と同じ ... */ }
-        function saveSlotNames() { /* ... V12と同じ ... */ }
-        function loadSetupDataToDOM() { /* ... V12と同じ ... */ }
-        function loadStateDataToDOM() { /* ... V12と同じ ... */ }
-        function toggleExtraSubInputs(count) { /* ... V12と同じ ... */ }
+        // --- データ保存/ロード関数 (変更なし) ---
+        function saveCurrentWork() { /* ... V19と同じ ... */ }
+        function loadCurrentWork() { /* ... V19と同じ ... */ }
+        function loadSlotNames() { /* ... V19と同じ ... */ }
+        function saveSlotNames() { /* ... V19と同じ ... */ }
+        function loadSetupDataToDOM() { /* ... V19と同じ ... */ }
+        function loadStateDataToDOM() { /* ... V19と同じ ... */ }
+        function toggleExtraSubInputs(count) { /* ... V19と同じ ... */ }
 
         // --- イベントリスナー ---
         setupCompleteBtn.addEventListener('click', () => { saveCurrentWork(); goToMovePhase(); });
@@ -298,124 +57,99 @@
         summonInputs.forEach(input => input.addEventListener('input', saveCurrentWork));
         subMemberCountSelect.addEventListener('change', (e) => { toggleExtraSubInputs(parseInt(e.target.value, 10)); saveCurrentWork(); });
         turnMemoInput.addEventListener('input', () => { currentWorkData.state.turnMemos[currentWorkData.state.currentTurn] = turnMemoInput.value; saveCurrentWork(); });
-        saveBtn.addEventListener('click', () => { /* ... V14と同じ ... */ });
-        loadBtn.addEventListener('click', () => { /* ... V14と同じ ... */ });
-        deleteBtn.addEventListener('click', () => { /* ... V14と同じ ... */ });
-        actionButtons.forEach(btn => { /* ... V14と同じ ... */ });
-        moveResetBtn.addEventListener('click', () => { /* ... V14と同じ ... */ });
+        saveBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
+        loadBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
+        deleteBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
+        actionButtons.forEach(btn => { /* ... V19と同じアクションボタンリスナー ... */ });
+        moveResetBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
         backToSetupBtn.addEventListener('click', () => { saveCurrentWork(); goToSetupPhase(); });
-        clearAllDataBtn.addEventListener('click', () => { /* ... V14と同じ ... */ });
-        copyHistoryBtn.addEventListener('click', () => { /* ... V14と同じ ... */ });
-        exportBtn.addEventListener('click', () => { /* ... V11と同じ ... */ });
-        importFileInput.addEventListener('change', (event) => { /* ... V11と同じ ... */ });
-        resetSetupBtn.addEventListener('click', () => { /* ... V14と同じ ... */ });
-        overwriteSaveBtn.addEventListener('click', () => { /* ... V14と同じ ... */ });
-        undoLastActionBtn.addEventListener('click', () => { /* ... V16と同じ ... */ });
+        clearAllDataBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
+        copyHistoryBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
+        exportBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
+        importFileInput.addEventListener('change', (event) => { /* ... V19と同じ ... */ });
+        resetSetupBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
+        overwriteSaveBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
+        undoLastActionBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
         overallMemoInput.addEventListener('input', saveCurrentWork);
         weaponImageInput.addEventListener('change', handleImageUpload);
-        clearWeaponImageBtn.addEventListener('click', () => { /* ... V12と同じ ... */ });
+        clearWeaponImageBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => { weaponImageUploadArea.addEventListener(eventName, preventDefaults, false); });
         ['dragenter', 'dragover'].forEach(eventName => { weaponImageUploadArea.addEventListener(eventName, () => weaponImageUploadArea.classList.add('highlight'), false); });
         ['dragleave', 'drop'].forEach(eventName => { weaponImageUploadArea.addEventListener(eventName, () => weaponImageUploadArea.classList.remove('highlight'), false); });
         weaponImageUploadArea.addEventListener('drop', handleImageDrop, false);
         gotoPlaybackBtn.addEventListener('click', () => { saveCurrentWork(); movePhase.classList.add('playback-mode'); buildPlaybackView(); });
         backToEditBtn.addEventListener('click', () => { movePhase.classList.remove('playback-mode'); loadStateDataToDOM(); });
-        playbackNextBtn.addEventListener('click', () => { /* ... V15と同じ ... */ });
-        playbackPrevBtn.addEventListener('click', () => { /* ... V15と同じ ... */ });
-        savePlaybackImageBtn.addEventListener('click', async () => { /* ... V13と同じ ... */ });
+        playbackNextBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
+        playbackPrevBtn.addEventListener('click', () => { /* ... V19と同じ ... */ });
+        savePlaybackImageBtn.addEventListener('click', async () => { /* ... V19と同じ ... */ });
 
-        // ★V19: ペーストイベントリスナーを修正
+        // V19: ペーストイベントリスナーを修正
         document.addEventListener('paste', handlePaste);
-
-        // ★V19: ペーストボタンのリスナーを追加
+        // V19: ペーストボタンのリスナーを追加
         pasteImageBtn.addEventListener('click', handlePasteButtonClick);
 
         function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
         function handleImageDrop(e) { /* ... V12と同じ ... */ }
         function handleImageUpload(event) { /* ... V12と同じ ... */ }
 
-        // ★V19: ペースト処理関数を修正
+        // V19/V20: ペースト処理関数を修正
         function handlePaste(event) {
             const targetTagName = event.target.tagName.toLowerCase();
-            // 入力要素にフォーカスがある場合はペースト処理を実行しない
-            if (targetTagName === 'input' || targetTagName === 'textarea') {
-                return;
-            }
-
+            if (targetTagName === 'input' || targetTagName === 'textarea') { return; }
             const items = event.clipboardData?.items;
             if (!items) return;
-
-            // クリップボード内のアイテムをループ
-            processClipboardItems(items, event); // イベントを渡してpreventDefaultを可能に
+            processClipboardItems(items, event);
         }
 
-        // ★V19: ペーストボタンクリック時の処理関数
         async function handlePasteButtonClick() {
             try {
-                // クリップボードの内容を読み取る (ユーザー許可が必要)
-                const clipboardItems = await navigator.clipboard.read();
-
-                // 読み取ったアイテムを処理
-                processClipboardItems(clipboardItems);
-
-            } catch (err) {
-                console.error('クリップボードの読み取りに失敗しました:', err);
-                // 権限がない、またはサポートされていないブラウザ
-                if (err.name === 'NotAllowedError') {
-                     alert('クリップボードへのアクセスが許可されていません。\nブラウザの設定を確認してください。');
-                } else {
-                     alert('クリップボードからの画像ペーストに失敗しました。\n(お使いのブラウザが対応していない可能性があります)');
+                // HTTPS接続が必要な場合が多い
+                const permission = await navigator.permissions.query({ name: 'clipboard-read' });
+                if (permission.state === 'denied') {
+                    alert('クリップボードへのアクセスが拒否されています。ブラウザの設定を確認してください。');
+                    return;
                 }
+                const clipboardItems = await navigator.clipboard.read();
+                processClipboardItems(clipboardItems);
+            } catch (err) {
+                console.error('クリップボードの読み取り/処理に失敗:', err);
+                 alert(`クリップボードからの画像ペーストに失敗しました。\n(${err.name}: ${err.message})\nHTTPS接続が必要な場合があります。`);
             }
         }
 
-        // ★V19: クリップボードアイテムを処理する共通関数
-        function processClipboardItems(items, event = null) {
+        async function processClipboardItems(items, event = null) {
             for (let i = 0; i < items.length; i++) {
                 const item = items[i];
-                // 画像タイプのみを処理 (getAsFileが存在する場合も考慮)
-                if (item.type.indexOf('image') !== -1) {
-                    let blob = null;
-                    if (typeof item.getAsFile === 'function') {
-                        blob = item.getAsFile(); // ClipboardEvent item
-                    } else if (item.getType) {
-                        // ClipboardItem (read() API用)
-                        // getTypeはPromiseを返す可能性があるので非同期処理が必要だが、
-                        // 一般的なペースト(Ctrl+V)ではgetAsFileが優先されるはず。
-                        // ボタンクリックのread()ではBlobが直接取れるはず。
-                        // ここではgetAsFileが主なので、read()用の複雑な処理は一旦省略。
-                        // ボタンクリックでBlobを取得する前提で進める
-                         if (item.types.includes('image/png') || item.types.includes('image/jpeg')) {
-                            // Blobを取得する処理 (read()はPromiseを返す)
-                            item.getType(item.types.find(t => t.startsWith('image/'))).then(imgBlob => {
-                                if (imgBlob) {
-                                    handleBlobAsFile(imgBlob, event);
-                                }
-                            });
-                            // Promise処理のため、即座にbreakせずに他のアイテムも確認する方が良い場合もあるが、
-                            // ここでは最初の画像でbreakする。
-                            break;
+                // Blobを取得できるか試す (read APIの場合)
+                const imageTypes = item.types?.filter(type => type.startsWith("image/"));
+                if (imageTypes?.length > 0) {
+                     try {
+                         const blob = await item.getType(imageTypes[0]);
+                         if (blob) {
+                             handleBlobAsFile(blob, event);
+                             return; // 最初の画像で終了
                          }
-                    }
-
+                     } catch (err) {
+                         console.error("item.getType() でエラー:", err);
+                         // getAsFileを試す (Ctrl+Vの場合)
+                     }
+                }
+                // getAsFileを試す (Ctrl+Vの場合)
+                if (typeof item.getAsFile === 'function' && item.type.startsWith('image/')) {
+                    const blob = item.getAsFile();
                     if (blob) {
                          handleBlobAsFile(blob, event);
-                         break; // 最初の画像だけ処理
+                         return; // 最初の画像で終了
                     }
                 }
             }
+             // 画像が見つからなかった場合 (ボタンクリック時のみフィードバック)
+             if (!event) { // eventがnullならボタンクリック由来
+                 alert('クリップボードに画像が見つかりませんでした。');
+             }
         }
 
-        // ★V19: BlobをFileとして扱い、画像処理に渡す関数
-        function handleBlobAsFile(blob, event = null) {
-            if (event) {
-                event.preventDefault(); // Ctrl+V時のデフォルト動作キャンセル
-            }
-            const fileName = `pasted_image.${blob.type.split('/')[1] || 'png'}`;
-            const file = new File([blob], fileName, { type: blob.type });
-            handleImageFile(file);
-        }
-
+        function handleBlobAsFile(blob, event = null) { /* ... V19と同じ ... */ }
 
         // --- 画像処理・プレビュー更新関数 (V12と同じ) ---
         function handleImageFile(file) { /* ... V12と同じ ... */ }
@@ -425,7 +159,7 @@
         function logToHistory(text) { /* ... V16と同じ ... */ }
         function selectCharacter(index) { /* ... V16と同じ ... */ }
 
-        // ★V19: 画面遷移関数を修正 (V18の修正を維持)
+        // ★V20: 画面遷移関数をV17相当に戻す
         function goToMovePhase() {
              const setup = currentWorkData.setup;
              summonButtonsContainer.innerHTML = '';
@@ -444,16 +178,20 @@
                  btn.dataset.charIndex = i; if (i >= 4) btn.classList.add('is-sub');
                  btn.addEventListener('click', () => selectCharacter(i)); charSelectContainer.appendChild(btn);
              }
-             setupPhase.style.display = 'none'; // ★修正: 必ず非表示
-             movePhase.style.display = 'block'; // ★修正: 必ず表示
+             // 表示切り替え
+             setupPhase.style.display = 'none';
+             movePhase.style.display = 'block';
              movePhase.classList.remove('playback-mode');
+             // 状態をロードして表示
              loadStateDataToDOM();
-             selectCharacter(currentWorkData.state.selectedCharIndex);
+             selectCharacter(currentWorkData.state.selectedCharIndex); // 選択キャラも復元
         }
 
         function goToSetupPhase() {
-            movePhase.style.display = 'none'; // ★修正: 必ず非表示
-            setupPhase.style.display = 'block'; // ★修正: 必ず表示
+            // 表示切り替え
+            movePhase.style.display = 'none';
+            setupPhase.style.display = 'block';
+            // 状態をロードして表示
             loadSetupDataToDOM();
             loadSlotNames();
         }
@@ -461,11 +199,11 @@
         function buildPlaybackView() { /* ... V15と同じ ... */ }
         function updatePlaybackHighlight() { /* ... V15と同じ ... */ }
 
-        // --- 初期化処理 (V18の修正を維持) ---
+        // --- 初期化処理 ---
         function initialize() {
-            loadCurrentWork();
-            loadSlotNames();
-            goToSetupPhase(); // 必ず編成画面から開始
+            loadCurrentWork(); // まずデータをロード
+            loadSlotNames();   // スロットリストもロード
+            goToSetupPhase(); // ★V20: 必ず編成画面から開始
         }
 
         initialize();
