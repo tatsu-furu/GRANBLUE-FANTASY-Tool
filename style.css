@@ -320,3 +320,17 @@ textarea:focus {
     grid-column: 1 / -1; /* 横幅いっぱいに広げる */
     background-color: #00796b; /* エクスポート (緑系) */
 }
+
+/* --- ★V14: ボタンの色調整 --- */
+/* ムーブ表を画像で保存ボタンの色を変更 */
+#save-playback-image-btn {
+    background-color: #f44336; /* 赤系 (マゼンタに近い) */
+    color: white; /* テキストを白に */
+    font-weight: bold; /* 少し太字に */
+}
+
+/* 画像生成中のボタンの色 */
+#save-playback-image-btn[disabled] {
+    background-color: #b71c1c; /* 生成中は少し暗い赤に */
+    cursor: not-allowed;
+}
