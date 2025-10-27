@@ -107,12 +107,20 @@
                         <strong>その他 (キャラ別):</strong>
                         <div class="action-buttons">
                             <button class="action-btn btn" data-action="ガード">ガード</button>
+                            <button class="action-btn btn attack-btn-on" data-action="キュアポ">キュアポ</button>
                         </div>
                     </div>
 
                     <div>
                         <strong>召喚石 (全体):</strong>
                         <div class="summon-buttons" id="summon-buttons-container"></div>
+                    </div>
+
+                    <div>
+                        <strong>アイテム (全体):</strong>
+                        <div class="action-buttons">
+                            <button class="action-btn btn attack-btn-on" data-action="オールポーション">オールポーション</button>
+                        </div>
                     </div>
 
                     <div>
@@ -369,12 +377,14 @@
             }
         });
 
+        // ===== 修正点 3/3 (JavaScriptロジック修正) =====
         // 7. アクションボタン (アビ、攻撃など)
         actionButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 const action = btn.dataset.action;
                 const charIndex = currentWorkData.state.selectedCharIndex;
                 const charName = currentWorkData.setup.characters[charIndex] || `キャラ${charIndex + 1}`;
+
                 if (action.startsWith('攻撃')) {
                     // (1) 現在のターンのメモを保存
                     currentWorkData.state.turnMemos[currentWorkData.state.currentTurn] = turnMemoInput.value;
@@ -389,14 +399,18 @@
                     // (4) 履歴に「次のターン」の見出しを追加
                     logToHistory(`--- TURN ${currentWorkData.state.currentTurn} ---`);
                     
-                    // ★V9 修正点:
-                    // 過去のメモをロードせず、メモ欄を強制的にリセット(空)にする
+                    // (V9) メモ欄を強制的にリセット(空)にする
                     turnMemoInput.value = ''; 
                     
                     // (5) 状態を保存
                     saveCurrentWork();
+                
+                // ★オールポーションを全体アクションとして処理
+                } else if (action === 'オールポーション') {
+                    logToHistory(`[${action}]`); // キャラ名なしでログ
+
                 } else {
-                    // (変更なし)
+                    // キャラ紐付きのアクション (アビ, ガード, キュアポ)
                     logToHistory(`[${charName}] ${action}`);
                 }
             });
