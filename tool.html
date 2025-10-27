@@ -234,7 +234,7 @@
         const exportBtn = document.getElementById('export-btn');
         const importFileInput = document.getElementById('import-file-input');
         
-        // ★V14: 新しいボタン
+        // V14で追加
         const resetSetupBtn = document.getElementById('reset-setup-btn');
         const overwriteSaveBtn = document.getElementById('overwrite-save-btn');
         
@@ -516,26 +516,22 @@
             reader.readAsText(file);
         });
 
-        // ★V14: [編成入力欄のみクリア] ボタン
+        // V14: [編成入力欄のみクリア] ボタン
         resetSetupBtn.addEventListener('click', () => {
             if (confirm('現在の編成入力欄（キャラクター、召喚石）の内容をクリアしますか？\n(ムーブ履歴や保存スロットは維持されます)')) {
-                // setup部分だけデフォルトに戻す
                 currentWorkData.setup = getDefaultWorkData().setup;
-                // スロット名は維持する
-                // currentWorkData.slotName = ''; // 維持するならコメントアウト
-                saveCurrentWork(); // クリアした状態を保存
-                loadSetupDataToDOM(); // 画面に反映
+                saveCurrentWork();
+                loadSetupDataToDOM();
                 alert('編成入力欄をクリアしました。');
             }
         });
 
-        // ★V14: [現在のスロットに上書き保存] ボタン
+        // V14: [現在のスロットに上書き保存] ボタン
         overwriteSaveBtn.addEventListener('click', () => {
-            saveCurrentWork(); // まず最新の状態をcurrentWorkに反映
+            saveCurrentWork();
             const currentSlotName = currentWorkData.slotName;
 
             if (currentSlotName) {
-                // 確認なしで上書き保存
                 localStorage.setItem(STORAGE_KEY_PREFIX + currentSlotName, JSON.stringify(currentWorkData));
                 alert(`スロット「${currentSlotName}」に上書き保存しました。`);
             } else {
@@ -608,7 +604,7 @@
             }
         });
 
-        // --- 内部関数 (V10と同じ) ---
+        // --- 内部関数 ---
 
         function logToHistory(text) {
             currentWorkData.state.history += `\n${text}`;
@@ -680,7 +676,7 @@
         }
         
         
-        // --- 再生モード用の関数 (V10と同じ) ---
+        // --- ★V15: 再生モード用の関数 (buildPlaybackView を修正) ---
         
         function buildPlaybackView() {
             playbackArea.innerHTML = '';
@@ -709,10 +705,21 @@
                 turnDiv.className = 'playback-turn';
                 turnDiv.dataset.turn = turnNumber;
                 
+                // 見出し (TURN X)
                 const h3 = document.createElement('h3');
                 h3.textContent = titleText;
                 turnDiv.appendChild(h3);
 
+                // ★V15: メモ表示を先に
+                const memoText = turnMemos[turnNumber];
+                if (memoText) {
+                    const memoDiv = document.createElement('div');
+                    memoDiv.className = 'playback-memo';
+                    memoDiv.textContent = memoText;
+                    turnDiv.appendChild(memoDiv); // ← メモを先に追加
+                }
+
+                // 行動リスト
                 const lines = contentText.split('\n');
                 const ul = document.createElement('ul');
                 lines.forEach(line => {
@@ -722,15 +729,7 @@
                         ul.appendChild(li);
                     }
                 });
-                turnDiv.appendChild(ul);
-                
-                const memoText = turnMemos[turnNumber];
-                if (memoText) {
-                    const memoDiv = document.createElement('div');
-                    memoDiv.className = 'playback-memo';
-                    memoDiv.textContent = memoText;
-                    turnDiv.appendChild(memoDiv);
-                }
+                turnDiv.appendChild(ul); // ← 行動リストを後に追加
                 
                 playbackArea.appendChild(turnDiv);
             });
