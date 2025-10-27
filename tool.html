@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>グラブル ムーブ表作成ツール</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>グラブル ムーブ表作成ツール</h1>
+        
+        <div id="setup-phase">
+            <h2>1. 編成登録 / 保存ロード</h2>
+            
+            <fieldset id="save-load-section">
+                <legend>保存 / ロード</legend>
+                <div>
+                    <label for="save-slot-name">スロット名 (例: スパバハ用)</label>
+                    <input type="text" id="save-slot-name">
+                </div>
+                <div>
+                    <label for="load-slot-select">保存済みスロット</label>
+                    <select id="load-slot-select">
+                        <option value="">-- スロットを選択 --</option>
+                    </select>
+                </div>
+                <button id="save-btn" class="btn">現在の編成/ムーブを保存</button>
+                <div style="display: flex; gap: 5px;">
+                    <button id="load-btn" class="btn" style="flex: 1;">ロード</button>
+                    <button id="delete-btn" class="btn" style="flex: 1;">削除</button>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>キャラクター</legend>
+                <div class="input-grid">
+                    <div>
+                        <label>サブ人数</label>
+                        <select id="sub-member-count">
+                            <option value="2" selected>2人 (デフォルト)</option>
+                            <option value="5">5人 (その他)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="input-grid" style="margin-top: 10px;">
+                    <div><label for="char1">主人公</label><input type="text" id="char1" value="主人公"></div>
+                    <div><label for="char2">キャラ2</label><input type="text" id="char2" value=""></div>
+                    <div><label for="char3">キャラ3</label><input type="text" id="char3" value=""></div>
+                    <div><label for="char4">キャラ4</label><input type="text" id="char4" value=""></div>
+                    <div><label for="char5">サブ1</label><input type="text" id="char5" value=""></div>
+                    <div><label for="char6">サブ2</label><input type="text" id="char6" value=""></div>
+                    
+                    <div id="extra-sub-inputs">
+                        <div><label for="char7">サブ3</label><input type="text" id="char7" value=""></div>
+                        <div><label for="char8">サブ4</label><input type="text" id="char8" value=""></div>
+                        <div><label for="char9">サブ5</label><input type="text" id="char9" value=""></div>
+                    </div>
+                </div>
+            </fieldset>
+            
+            <fieldset>
+                <legend>召喚石</legend>
+                <div class="input-grid">
+                    <div><label for="summon-main">メイン</label><input type="text" id="summon-main" value=""></div>
+                    <div><label for="summon-support">サポーター</label><input type="text" id="summon-support" value=""></div>
+                    <div><label for="summon-sub1">サブ1</label><input type="text" id="summon-sub1" value="バブ"></div>
+                    <div><label for="summon-sub2">サブ2</label><input type="text" id="summon-sub2" value="黒麒麟"></div>
+                    <div><label for="summon-sub3">サブ3</label><input type="text" id="summon-sub3" value="ヤチマ"></div>
+                    <div><label for="summon-sub4">サブ4</label><input type="text" id="summon-sub4" value=""></div>
+                </div>
+            </fieldset>
+
+            <button id="setup-complete-btn" class="btn">ムーブ入力画面へ</button>
+            <button id="clear-all-data-btn" class="btn">全スロット削除 (リセット)</button>
+        </div>
+
+        <div id="move-phase">
+            <h2>2. ムーブ入力</h2>
+            
+            <div class="move-grid">
+                <div class="action-panel">
+                    <div id="turn-counter">TURN 1</div>
+                    
+                    <div>
+                        <strong>このターンのメモ:</strong>
+                        <textarea id="turn-memo-input" placeholder="HP予兆、敵の行動など..."></textarea>
+                    </div>
+                    
+                    <div>
+                        <strong>行動キャラ選択:</strong>
+                        <div class="char-select-buttons" id="char-select-container"></div>
+                    </div>
+                    
+                    <div>
+                        <strong>アビリティ:</strong>
+                        <div class="action-buttons">
+                            <button class="action-btn btn" data-action="1アビ">1アビ</button>
+                            <button class="action-btn btn" data-action="2アビ">2アビ</button>
+                            <button class="action-btn btn" data-action="3アビ">3アビ</button>
+                            <button class="action-btn btn" data-action="4アビ">4アビ</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <strong>その他 (キャラ別):</strong>
+                        <div class="action-buttons">
+                            <button class="action-btn btn" data-action="ガード">ガード</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <strong>召喚石 (全体):</strong>
+                        <div class="summon-buttons" id="summon-buttons-container"></div>
+                    </div>
+
+                    <div>
+                        <strong>ターン終了:</strong>
+                        <div class="action-buttons">
+                            <button class="action-btn attack-btn-off btn" data-action="攻撃 (奥義OFF)">攻撃 (奥義OFF)</button>
+                            <button class="action-btn attack-btn-on btn" data-action="攻撃 (奥義ON)">攻撃 (奥義ON)</button>
+                        </div>
+                    </div>
+                    
+                    <div class="reset-buttons">
+                        <button id="move-reset-btn" class="reset-btn btn">ムーブ履歴だけリセット</button>
+                        <button id="back-to-setup-btn" class="reset-btn btn">編成登録/ロード画面に戻る</button>
+                    </div>
+                </div>
+                
+                <div>
+                    <div id="mode-toggle-area">
+                        <button id="goto-playback-btn" class="btn">再生モードへ ▶</button>
+                    </div>
+
+                    <div class="history-panel">
+                        <strong>行動履歴 (ムーブ表)</strong>
+                        <textarea id="move-history" readonly></textarea>
+                        
+                        <div id="export-area">
+                            <span id="copy-feedback"></span>
+                            <button id="copy-history-btn" class="btn">ムーブ履歴をコピー</button>
+                        </div>
+                    </div>
+                    
+                    <div class="playback-panel">
+                        <strong>再生モード (カンペ)</strong>
+                        <div id="playback-area">
+                            </div>
+                        <div id="playback-nav">
+                            <button id="playback-prev-btn" class="btn">&lt; 前のターン</button>
+                            <span id="playback-nav-center">TURN 1 / 1</span>
+                            <button id="playback-next-btn" class="btn">次のターン &gt;</button>
+                        </div>
+                        <div style="margin-top: 10px; text-align: center;">
+                             <button id="back-to-edit-btn" class="reset-btn btn">編集モードに戻る</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+    <script>
+        // --- ローカルストレージキー ---
+        const STORAGE_KEY_SLOTS = 'gbfMoveMakerV5_slots';
+        const STORAGE_KEY_PREFIX = 'gbfMoveMakerV5_slot_';
+        const STORAGE_KEY_CURRENT = 'gbfMoveMakerV5_currentWork';
+
+        // --- ★V7: データ構造の定義 ---
+        const getDefaultWorkData = () => ({
+            setup: {
+                characters: ["主人公", "", "", "", "", "", "", "", ""],
+                summons: ["", "", "バブ", "黒麒麟", "ヤチマ", ""],
+                subCount: 2
+            },
+            state: {
+                currentTurn: 1,
+                history: "--- TURN 1 ---",
+                selectedCharIndex: 0,
+                turnMemos: {} // ★V7: ターンメモ
+            },
+            slotName: ""
+        });
+        
+        // --- グローバル変数 ---
+        let currentWorkData = getDefaultWorkData();
+        let savedSlotNames = [];
+        
+        let currentPlaybackTurn = 1;
+        let totalPlaybackTurns = 1;
+
+        // --- DOM要素の取得 ---
+        const setupPhase = document.getElementById('setup-phase');
+        const movePhase = document.getElementById('move-phase');
+        const setupCompleteBtn = document.getElementById('setup-complete-btn');
+        const charInputs = Array.from({length: 9}, (_, i) => document.getElementById(`char${i + 1}`));
+        const summonInputs = [
+            document.getElementById('summon-main'), document.getElementById('summon-support'),
+            document.getElementById('summon-sub1'), document.getElementById('summon-sub2'),
+            document.getElementById('summon-sub3'), document.getElementById('summon-sub4')
+        ];
+        const subMemberCountSelect = document.getElementById('sub-member-count');
+        const extraSubInputs = document.getElementById('extra-sub-inputs');
+        const saveSlotNameInput = document.getElementById('save-slot-name');
+        const loadSlotSelect = document.getElementById('load-slot-select');
+        const saveBtn = document.getElementById('save-btn');
+        const loadBtn = document.getElementById('load-btn');
+        const deleteBtn = document.getElementById('delete-btn');
+        const clearAllDataBtn = document.getElementById('clear-all-data-btn');
+        
+        const turnCounter = document.getElementById('turn-counter');
+        const turnMemoInput = document.getElementById('turn-memo-input'); // ★V7
+        const charSelectContainer = document.getElementById('char-select-container');
+        const actionButtons = document.querySelectorAll('.action-btn');
+        const summonButtonsContainer = document.getElementById('summon-buttons-container');
+        const historyTextarea = document.getElementById('move-history');
+        
+        const moveResetBtn = document.getElementById('move-reset-btn');
+        const backToSetupBtn = document.getElementById('back-to-setup-btn');
+        
+        const copyHistoryBtn = document.getElementById('copy-history-btn');
+        const copyFeedback = document.getElementById('copy-feedback');
+        
+        const gotoPlaybackBtn = document.getElementById('goto-playback-btn');
+        const playbackArea = document.getElementById('playback-area');
+        const playbackPrevBtn = document.getElementById('playback-prev-btn');
+        const playbackNextBtn = document.getElementById('playback-next-btn');
+        const playbackNavCenter = document.getElementById('playback-nav-center');
+        const backToEditBtn = document.getElementById('back-to-edit-btn');
+
+        // --- ★V7: データ保存/ロード関数 (V7と同じ) ---
+        
+        function saveCurrentWork() {
+            currentWorkData.setup.characters = charInputs.map(input => input.value);
+            currentWorkData.setup.summons = summonInputs.map(input => input.value);
+            currentWorkData.setup.subCount = parseInt(subMemberCountSelect.value, 10);
+            
+            if (movePhase.style.display === 'block' && !movePhase.classList.contains('playback-mode')) {
+                 currentWorkData.state.turnMemos[currentWorkData.state.currentTurn] = turnMemoInput.value;
+            }
+            
+            localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(currentWorkData));
+        }
+
+        function loadCurrentWork() {
+            const loadedData = localStorage.getItem(STORAGE_KEY_CURRENT);
+            if (loadedData) {
+                currentWorkData = JSON.parse(loadedData);
+                if (!currentWorkData.state.turnMemos) {
+                    currentWorkData.state.turnMemos = {};
+                }
+            }
+            loadSetupDataToDOM();
+            loadStateDataToDOM();
+        }
+
+        function loadSlotNames() {
+            const loadedData = localStorage.getItem(STORAGE_KEY_SLOTS);
+            savedSlotNames = loadedData ? JSON.parse(loadedData) : [];
+            loadSlotSelect.innerHTML = '<option value="">-- スロットを選択 --</option>';
+            savedSlotNames.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                loadSlotSelect.appendChild(option);
+            });
+        }
+        
+        function saveSlotNames() {
+            localStorage.setItem(STORAGE_KEY_SLOTS, JSON.stringify(savedSlotNames));
+        }
+
+        function loadSetupDataToDOM() {
+            charInputs.forEach((input, index) => input.value = currentWorkData.setup.characters[index] || '');
+            summonInputs.forEach((input, index) => input.value = currentWorkData.setup.summons[index] || '');
+            subMemberCountSelect.value = currentWorkData.setup.subCount;
+            toggleExtraSubInputs(currentWorkData.setup.subCount);
+            saveSlotNameInput.value = currentWorkData.slotName; 
+        }
+
+        function loadStateDataToDOM() {
+            turnCounter.textContent = `TURN ${currentWorkData.state.currentTurn}`;
+            historyTextarea.value = currentWorkData.state.history;
+            historyTextarea.scrollTop = historyTextarea.scrollHeight;
+            
+            // ★V8: V7のロジックを継続
+            turnMemoInput.value = currentWorkData.state.turnMemos[currentWorkData.state.currentTurn] || '';
+        }
+
+        function toggleExtraSubInputs(count) {
+            extraSubInputs.style.display = (count === 5) ? 'grid' : 'none';
+        }
+
+        // --- イベントリスナー (V7と同じ) ---
+
+        // 1. 「ムーブ入力画面へ」ボタン
+        setupCompleteBtn.addEventListener('click', () => {
+            saveCurrentWork();
+            goToMovePhase();
+        });
+        
+        // 2. 編成入力欄 (自動保存)
+        charInputs.forEach(input => input.addEventListener('input', saveCurrentWork));
+        summonInputs.forEach(input => input.addEventListener('input', saveCurrentWork));
+        subMemberCountSelect.addEventListener('change', (e) => {
+            toggleExtraSubInputs(parseInt(e.target.value, 10));
+            saveCurrentWork();
+        });
+        
+        // 3. ターンメモ入力欄 (自動保存)
+        turnMemoInput.addEventListener('input', () => {
+            currentWorkData.state.turnMemos[currentWorkData.state.currentTurn] = turnMemoInput.value;
+            saveCurrentWork();
+        });
+
+        // 4. [保存] ボタン
+        saveBtn.addEventListener('click', () => {
+            saveCurrentWork();
+            const slotName = saveSlotNameInput.value;
+            if (!slotName) {
+                alert('スロット名を入力してください。');
+                return;
+            }
+            currentWorkData.slotName = slotName;
+            localStorage.setItem(STORAGE_KEY_PREFIX + slotName, JSON.stringify(currentWorkData));
+            if (!savedSlotNames.includes(slotName)) {
+                savedSlotNames.push(slotName);
+                saveSlotNames();
+                loadSlotNames();
+            }
+            alert(`「${slotName}」として保存しました。`);
+        });
+        
+        // 5. [ロード] ボタン
+        loadBtn.addEventListener('click', () => {
+            const slotName = loadSlotSelect.value;
+            if (!slotName) {
+                alert('スロットを選択してください。');
+                return;
+            }
+            const loadedData = localStorage.getItem(STORAGE_KEY_PREFIX + slotName);
+            if (loadedData) {
+                currentWorkData = JSON.parse(loadedData);
+                if (!currentWorkData.state.turnMemos) {
+                    currentWorkData.state.turnMemos = {};
+                }
+                saveCurrentWork();
+                loadSetupDataToDOM();
+                loadStateDataToDOM();
+                alert(`「${slotName}」をロードしました。`);
+            } else {
+                alert('データのロードに失敗しました。');
+            }
+        });
+        
+        // 6. [削除] ボタン
+        deleteBtn.addEventListener('click', () => {
+            const slotName = loadSlotSelect.value;
+            if (!slotName) return;
+            if (confirm(`「${slotName}」を本当に削除しますか？`)) {
+                localStorage.removeItem(STORAGE_KEY_PREFIX + slotName);
+                savedSlotNames = savedSlotNames.filter(name => name !== slotName);
+                saveSlotNames();
+                loadSlotNames();
+                alert(`「${slotName}」を削除しました。`);
+            }
+        });
+
+        // 7. アクションボタン (アビ、攻撃など)
+        actionButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const action = btn.dataset.action;
+                const charIndex = currentWorkData.state.selectedCharIndex;
+                const charName = currentWorkData.setup.characters[charIndex] || `キャラ${charIndex + 1}`;
+                if (action.startsWith('攻撃')) {
+                    // (1) 現在のターンのメモを保存
+                    currentWorkData.state.turnMemos[currentWorkData.state.currentTurn] = turnMemoInput.value;
+                    
+                    // (2) 履歴に「攻撃」ログを追加
+                    logToHistory(`[${action}]`);
+                    
+                    // (3) ターンを進める
+                    currentWorkData.state.currentTurn++;
+                    turnCounter.textContent = `TURN ${currentWorkData.state.currentTurn}`;
+                    
+                    // (4) 履歴に「次のターン」の見出しを追加
+                    logToHistory(`--- TURN ${currentWorkData.state.currentTurn} ---`);
+                    
+                    // ★V9 修正点:
+                    // 過去のメモをロードせず、メモ欄を強制的にリセット(空)にする
+                    turnMemoInput.value = ''; 
+                    
+                    // (5) 状態を保存
+                    saveCurrentWork();
+                } else {
+                    // (変更なし)
+                    logToHistory(`[${charName}] ${action}`);
+                }
+            });
+        });
+        
+        // 8. 「ムーブ履歴だけリセット」ボタン
+        moveResetBtn.addEventListener('click', () => {
+            if (confirm('現在のムーブ履歴をリセットしますか？\n(編成情報は残ります)')) {
+                currentWorkData.state.currentTurn = 1;
+                currentWorkData.state.history = '--- TURN 1 ---';
+                currentWorkData.state.selectedCharIndex = 0;
+                currentWorkData.state.turnMemos = {};
+                
+                saveCurrentWork();
+                loadStateDataToDOM();
+                selectCharacter(0);
+            }
+        });
+
+        // 9. 「編成登録画面に戻る」ボタン
+        backToSetupBtn.addEventListener('click', () => {
+            saveCurrentWork();
+            goToSetupPhase();
+        });
+
+        // 10. 「全スロット削除」ボタン
+        clearAllDataBtn.addEventListener('click', () => {
+            if (confirm('本当にすべての保存データ（全スロット、現在の作業）を消去しますか？')) {
+                savedSlotNames.forEach(name => {
+                    localStorage.removeItem(STORAGE_KEY_PREFIX + name);
+                });
+                localStorage.removeItem(STORAGE_KEY_SLOTS);
+                localStorage.removeItem(STORAGE_KEY_CURRENT);
+                location.reload();
+            }
+        });
+        
+        // 11. [ムーブ履歴をコピー] ボタン
+        copyHistoryBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(historyTextarea.value).then(() => {
+                showCopyFeedback('コピーしました！', true);
+            }).catch(err => {
+                showCopyFeedback('コピーに失敗しました', false);
+            });
+        });
+
+        function showCopyFeedback(message, success) {
+            copyFeedback.textContent = message;
+            copyFeedback.className = success ? 'feedback-success' : 'feedback-error';
+            setTimeout(() => {
+                copyFeedback.textContent = '';
+                copyFeedback.className = '';
+            }, 2000);
+        }
+        
+        // --- 再生モード関連のリスナー ---
+        
+        gotoPlaybackBtn.addEventListener('click', () => {
+            saveCurrentWork();
+            movePhase.classList.add('playback-mode');
+            buildPlaybackView();
+        });
+        backToEditBtn.addEventListener('click', () => {
+            movePhase.classList.remove('playback-mode');
+            loadStateDataToDOM();
+        });
+        playbackNextBtn.addEventListener('click', () => {
+            if (currentPlaybackTurn < totalPlaybackTurns) {
+                currentPlaybackTurn++;
+                updatePlaybackHighlight();
+            }
+        });
+        playbackPrevBtn.addEventListener('click', () => {
+            if (currentPlaybackTurn > 1) {
+                currentPlaybackTurn--;
+                updatePlaybackHighlight();
+            }
+        });
+
+
+        // --- 内部関数 (V7と同じ) ---
+
+        function logToHistory(text) {
+            currentWorkData.state.history += `\n${text}`;
+            historyTextarea.value = currentWorkData.state.history;
+            historyTextarea.scrollTop = historyTextarea.scrollHeight;
+            saveCurrentWork();
+        }
+
+        function selectCharacter(index) {
+            currentWorkData.state.selectedCharIndex = index;
+            document.querySelectorAll('.char-btn').forEach(btn => btn.classList.remove('selected'));
+            const selectedBtn = document.querySelector(`.char-btn[data-char-index="${index}"]`);
+            if (selectedBtn) {
+                selectedBtn.classList.add('selected');
+            }
+            saveCurrentWork();
+        }
+        
+        function goToMovePhase() {
+            const setup = currentWorkData.setup;
+            
+            summonButtonsContainer.innerHTML = '';
+            setup.summons.forEach(summonName => {
+                if (summonName) {
+                    const btn = document.createElement('button');
+                    btn.className = 'summon-btn btn'; // V8
+                    btn.textContent = summonName;
+                    btn.addEventListener('click', () => {
+                        logToHistory(`[召喚: ${summonName}]`);
+                    });
+                    summonButtonsContainer.appendChild(btn);
+                }
+            });
+            
+            charSelectContainer.innerHTML = '';
+            const totalChars = 4 + setup.subCount;
+            
+            for (let i = 0; i < totalChars; i++) {
+                let charName = setup.characters[i];
+                if (!charName) {
+                    if (i === 0) charName = "主人公";
+                    else if (i < 4) charName = `キャラ${i + 1}`;
+                    else charName = `サブ${i - 3}`;
+                }
+                
+                const btn = document.createElement('button');
+                btn.className = 'char-btn';
+                btn.textContent = charName;
+                btn.dataset.charIndex = i;
+                if (i >= 4) btn.classList.add('is-sub');
+                
+                btn.addEventListener('click', () => selectCharacter(i));
+                charSelectContainer.appendChild(btn);
+            }
+            
+            setupPhase.style.display = 'none';
+            movePhase.style.display = 'block';
+            movePhase.classList.remove('playback-mode');
+            
+            loadStateDataToDOM();
+            selectCharacter(currentWorkData.state.selectedCharIndex);
+        }
+        
+        function goToSetupPhase() {
+            movePhase.style.display = 'none';
+            setupPhase.style.display = 'block';
+            loadSetupDataToDOM();
+            loadSlotNames();
+        }
+        
+        
+        // --- ★V7: 再生モード用の関数 (V7と同じ) ---
+        
+        function buildPlaybackView() {
+            playbackArea.innerHTML = '';
+            const history = currentWorkData.state.history;
+            const turnMemos = currentWorkData.state.turnMemos;
+            
+            const regex = /(--- TURN \d+ ---)([\s\S]*?)(?=(--- TURN \d+ ---|$))/g;
+            const matches = [...history.matchAll(regex)];
+            
+            totalPlaybackTurns = matches.length;
+            
+            if (totalPlaybackTurns === 0) {
+                playbackArea.innerHTML = '<p>ムーブ履歴がありません。</p>';
+                totalPlaybackTurns = 1;
+                currentPlaybackTurn = 1;
+                updatePlaybackHighlight();
+                return;
+            }
+
+            matches.forEach((match, index) => {
+                const turnNumber = index + 1;
+                const titleText = match[1].trim();
+                const contentText = match[2].trim();
+                
+                const turnDiv = document.createElement('div');
+                turnDiv.className = 'playback-turn';
+                turnDiv.dataset.turn = turnNumber;
+                
+                const h3 = document.createElement('h3');
+                h3.textContent = titleText;
+                turnDiv.appendChild(h3);
+
+                const lines = contentText.split('\n');
+                const ul = document.createElement('ul');
+                lines.forEach(line => {
+                    if(line.trim()) {
+                        const li = document.createElement('li');
+                        li.textContent = line.trim();
+                        ul.appendChild(li);
+                    }
+                });
+                turnDiv.appendChild(ul);
+                
+                const memoText = turnMemos[turnNumber];
+                if (memoText) {
+                    const memoDiv = document.createElement('div');
+                    memoDiv.className = 'playback-memo';
+                    memoDiv.textContent = memoText;
+                    turnDiv.appendChild(memoDiv);
+                }
+                
+                playbackArea.appendChild(turnDiv);
+            });
+            
+            currentPlaybackTurn = Math.min(currentWorkData.state.currentTurn, totalPlaybackTurns);
+            if (currentPlaybackTurn < 1) currentPlaybackTurn = 1;
+            
+            updatePlaybackHighlight();
+        }
+
+        function updatePlaybackHighlight() {
+            playbackNavCenter.textContent = `TURN ${currentPlaybackTurn} / ${totalPlaybackTurns}`;
+            playbackPrevBtn.disabled = (currentPlaybackTurn <= 1);
+            playbackNextBtn.disabled = (currentPlaybackTurn >= totalPlaybackTurns);
+            
+            document.querySelectorAll('.playback-turn').forEach(div => {
+                if (parseInt(div.dataset.turn, 10) === currentPlaybackTurn) {
+                    div.classList.add('active-turn');
+                    div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    div.classList.remove('active-turn');
+                }
+            });
+        }
+        
+        // --- 初期化処理 (V7と同じ) ---
+        function initialize() {
+            loadCurrentWork();
+            loadSlotNames();
+            
+            if (!localStorage.getItem(STORAGE_KEY_CURRENT)) {
+                goToSetupPhase();
+            } else {
+                goToMovePhase();
+            }
+        }
+        
+        initialize();
+
+    </script>
+
+</body>
+</html>
