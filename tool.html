@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>グラブル ムーブ表作成ツール</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -79,7 +80,11 @@
             </fieldset>
 
             <button id="setup-complete-btn" class="btn">ムーブ入力画面へ</button>
-            <button id="clear-all-data-btn" class="btn">全スロット削除 (リセット)</button>
+
+            <div class="reset-buttons" style="margin-top: 15px;">
+                <button id="reset-setup-btn" class="reset-btn btn">編成入力欄のみクリア</button>
+                <button id="clear-all-data-btn" class="btn">全スロット削除 (完全リセット)</button>
+            </div>
         </div>
 
         <div id="move-phase">
@@ -138,6 +143,7 @@
                     </div>
                     
                     <div class="reset-buttons">
+                        <button id="overwrite-save-btn" class="btn" style="background-color: #4CAF50;">現在のスロットに上書き保存</button>
                         <button id="move-reset-btn" class="reset-btn btn">ムーブ履歴だけリセット</button>
                         <button id="back-to-setup-btn" class="reset-btn btn">編成登録/ロード画面に戻る</button>
                     </div>
@@ -168,7 +174,8 @@
                             <button id="playback-next-btn" class="btn">次のターン &gt;</button>
                         </div>
                         <div style="margin-top: 10px; text-align: center;">
-                             <button id="back-to-edit-btn" class="reset-btn btn">編集モードに戻る</button>
+                             <button id="save-playback-image-btn" class="btn">ムーブ表を画像で保存</button>
+                             <button id="back-to-edit-btn" class="reset-btn btn" style="margin-top: 5px;">編集モードに戻る</button>
                         </div>
                     </div>
                 </div>
@@ -224,9 +231,12 @@
         const deleteBtn = document.getElementById('delete-btn');
         const clearAllDataBtn = document.getElementById('clear-all-data-btn');
         
-        // ★V11: Export/Importボタン
         const exportBtn = document.getElementById('export-btn');
         const importFileInput = document.getElementById('import-file-input');
+        
+        // ★V14: 新しいボタン
+        const resetSetupBtn = document.getElementById('reset-setup-btn');
+        const overwriteSaveBtn = document.getElementById('overwrite-save-btn');
         
         const turnCounter = document.getElementById('turn-counter');
         const turnMemoInput = document.getElementById('turn-memo-input'); 
@@ -247,6 +257,7 @@
         const playbackNextBtn = document.getElementById('playback-next-btn');
         const playbackNavCenter = document.getElementById('playback-nav-center');
         const backToEditBtn = document.getElementById('back-to-edit-btn');
+        const savePlaybackImageBtn = document.getElementById('save-playback-image-btn');
 
         // --- データ保存/ロード関数 (V7と同じ) ---
         
@@ -339,7 +350,7 @@
                 alert('スロット名を入力してください。');
                 return;
             }
-            currentWorkData.slotName = slotName;
+            currentWorkData.slotName = slotName; // スロット名を記憶
             localStorage.setItem(STORAGE_KEY_PREFIX + slotName, JSON.stringify(currentWorkData));
             if (!savedSlotNames.includes(slotName)) {
                 savedSlotNames.push(slotName);
@@ -459,77 +470,77 @@
             }, 2000);
         }
         
-        // --- ★V11: Export / Import リスナー ---
-        
-        // 12. [Export] ボタン
+        // 12. [Export] ボタン (V11)
         exportBtn.addEventListener('click', () => {
-            saveCurrentWork(); // 念のため最新の状態を保存
+            saveCurrentWork(); 
             
-            const jsonString = JSON.stringify(currentWorkData, null, 2); // 読みやすく整形
+            const jsonString = JSON.stringify(currentWorkData, null, 2); 
             const blob = new Blob([jsonString], {type: 'application/json'});
             const url = URL.createObjectURL(blob);
             
             const a = document.createElement('a');
             a.href = url;
-            // スロット名があればそれをファイル名に、なければデフォルト名
             let fileName = currentWorkData.slotName || 'gbf-move-data';
-            if (!fileName.endsWith('.json')) {
-                fileName += '.json';
-            }
-            a.download = fileName;
-            
-            document.body.appendChild(a);
+            a.download = fileName.endsWith('.json') ? fileName : fileName + '.json';
             a.click();
-            document.body.removeChild(a);
             URL.revokeObjectURL(url);
         });
         
-        // 13. [Import] ボタン (ファイルが選択されたら)
+        // 13. [Import] ボタン (ファイル選択時) (V11)
         importFileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
-            if (!file) {
-                return;
-            }
+            if (!file) return;
             
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
                     const json = JSON.parse(e.target.result);
-                    
-                    // 読み込んだデータが正しい形式か簡易チェック
                     if (json && json.setup && json.state) {
-                        currentWorkData = json; // データを上書き
-                        
-                        // 互換性担保
+                        currentWorkData = json; 
                         if (!currentWorkData.state.turnMemos) {
                             currentWorkData.state.turnMemos = {};
                         }
-                        
-                        saveCurrentWork(); // 「現在の作業」として保存
-                        loadSetupDataToDOM(); // 画面に反映
+                        saveCurrentWork(); 
+                        loadSetupDataToDOM(); 
                         loadStateDataToDOM();
-                        
                         alert(`ファイル「${file.name}」をロードしました。\n編成画面で内容を確認してください。`);
-                        goToSetupPhase(); // 確認のため編成画面に戻る
-                        
-                    } else {
-                        alert('エラー: 無効なファイル形式です。');
-                    }
+                        goToSetupPhase(); 
+                    } else { alert('エラー: 無効なファイル形式です。'); }
                 } catch (error) {
                     console.error('ファイル読み込みエラー:', error);
-                    alert('エラー: ファイルの読み込みに失敗しました。\n(JSON形式ではありません)');
+                    alert('エラー: ファイルの読み込みに失敗しました。');
                 }
-                
-                // 同じファイルを連続で読み込めるようにするため、inputの値をリセット
                 event.target.value = null;
             };
-            
-            reader.onerror = () => {
-                alert('エラー: ファイルの読み込みに失敗しました。');
-                event.target.value = null;
-            };
-            
+            reader.onerror = () => { alert('エラー: ファイルの読み込みに失敗しました。'); event.target.value = null; };
             reader.readAsText(file);
+        });
+
+        // ★V14: [編成入力欄のみクリア] ボタン
+        resetSetupBtn.addEventListener('click', () => {
+            if (confirm('現在の編成入力欄（キャラクター、召喚石）の内容をクリアしますか？\n(ムーブ履歴や保存スロットは維持されます)')) {
+                // setup部分だけデフォルトに戻す
+                currentWorkData.setup = getDefaultWorkData().setup;
+                // スロット名は維持する
+                // currentWorkData.slotName = ''; // 維持するならコメントアウト
+                saveCurrentWork(); // クリアした状態を保存
+                loadSetupDataToDOM(); // 画面に反映
+                alert('編成入力欄をクリアしました。');
+            }
+        });
+
+        // ★V14: [現在のスロットに上書き保存] ボタン
+        overwriteSaveBtn.addEventListener('click', () => {
+            saveCurrentWork(); // まず最新の状態をcurrentWorkに反映
+            const currentSlotName = currentWorkData.slotName;
+
+            if (currentSlotName) {
+                // 確認なしで上書き保存
+                localStorage.setItem(STORAGE_KEY_PREFIX + currentSlotName, JSON.stringify(currentWorkData));
+                alert(`スロット「${currentSlotName}」に上書き保存しました。`);
+            } else {
+                alert('エラー: 現在のスロット名がありません。\n先に編成画面で「名前を付けて保存」してください。');
+            }
         });
 
         // --- 再生モード関連のリスナー ---
@@ -556,8 +567,48 @@
             }
         });
 
+        // V13: [ムーブ表を画像で保存] ボタン
+        savePlaybackImageBtn.addEventListener('click', async () => {
+            const targetElement = playbackArea;
+            const originalHeight = targetElement.style.height;
+            const originalOverflow = targetElement.style.overflowY;
 
-        // --- 内部関数 (V7と同じ) ---
+            savePlaybackImageBtn.disabled = true;
+            savePlaybackImageBtn.textContent = '画像生成中...';
+
+            try {
+                targetElement.style.height = 'auto';
+                targetElement.style.overflowY = 'visible';
+                await new Promise(resolve => setTimeout(resolve, 100)); 
+
+                const canvas = await html2canvas(targetElement, {
+                    backgroundColor: '#262930', 
+                    useCORS: true,
+                    scrollX: 0, 
+                    scrollY: 0,
+                    windowWidth: targetElement.offsetWidth, 
+                    windowHeight: targetElement.offsetHeight 
+                });
+
+                const imageDataUrl = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = imageDataUrl;
+                let fileName = currentWorkData.slotName || 'gbf-move-playback';
+                a.download = fileName.endsWith('.png') ? fileName : fileName + '.png';
+                a.click();
+
+            } catch (error) {
+                console.error('画像保存エラー:', error);
+                alert('ムーブ表の画像保存に失敗しました。');
+            } finally {
+                targetElement.style.height = originalHeight;
+                targetElement.style.overflowY = originalOverflow;
+                savePlaybackImageBtn.disabled = false;
+                savePlaybackImageBtn.textContent = 'ムーブ表を画像で保存';
+            }
+        });
+
+        // --- 内部関数 (V10と同じ) ---
 
         function logToHistory(text) {
             currentWorkData.state.history += `\n${text}`;
@@ -629,7 +680,7 @@
         }
         
         
-        // --- ★V7: 再生モード用の関数 (V7と同じ) ---
+        // --- 再生モード用の関数 (V10と同じ) ---
         
         function buildPlaybackView() {
             playbackArea.innerHTML = '';
@@ -705,7 +756,7 @@
             });
         }
         
-        // --- 初期化処理 (V7と同じ) ---
+        // --- 初期化処理 ---
         function initialize() {
             loadCurrentWork();
             loadSlotNames();
