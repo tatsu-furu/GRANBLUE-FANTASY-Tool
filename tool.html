@@ -12,7 +12,7 @@
     <div class="container">
         <h1>グラブル ムーブ表作成ツール</h1>
 
-        <div id="setup-phase">
+        <div id="setup-phase" style="display: block;"> {/* 初期表示を明確化 */}
             <h2>1. 編成登録 / 保存ロード</h2>
 
             <fieldset id="save-load-section">
@@ -104,7 +104,7 @@
             </div>
         </div>
 
-        <div id="move-phase">
+        <div id="move-phase" style="display: none;"> {/* 初期非表示を明確化 */}
             <h2>2. ムーブ入力</h2>
 
             <div class="move-grid">
@@ -320,29 +320,32 @@
         playbackPrevBtn.addEventListener('click', () => { /* ... V15と同じ ... */ });
         savePlaybackImageBtn.addEventListener('click', async () => { /* ... V13と同じ ... */ });
 
-        // ★V17: ペーストイベントリスナーを追加
+        // ★V18: ペーストイベントリスナーを修正
         document.addEventListener('paste', handlePaste);
 
         function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
         function handleImageDrop(e) { /* ... V12と同じ ... */ }
         function handleImageUpload(event) { /* ... V12と同じ ... */ }
 
-        // ★V17: ペースト処理関数
+        // ★V18: ペースト処理関数を修正
         function handlePaste(event) {
-            // ペーストイベントがテキストエリア内で発生した場合は無視
-            if (event.target === turnMemoInput || event.target === overallMemoInput || event.target.tagName === 'INPUT') {
+            // ペーストが入力要素 (input, textarea) で発生した場合、何もしない
+            const targetTagName = event.target.tagName.toLowerCase();
+            if (targetTagName === 'input' || targetTagName === 'textarea') {
                 return;
             }
 
+            // クリップボードのアイテムを取得
             const items = event.clipboardData?.items;
             if (!items) return;
 
+            // クリップボード内のアイテムをループ
             for (let i = 0; i < items.length; i++) {
-                // 画像データのみを処理
-                if (items[i].type.indexOf('image') !== -1) {
-                    const blob = items[i].getAsFile();
+                // アイテムが画像で、かつファイルとして取得できるか確認
+                if (items[i].type.indexOf('image') !== -1 && items[i].kind === 'file') {
+                    const blob = items[i].getAsFile(); // Fileオブジェクトとして取得
                     if (blob) {
-                        // デフォルトのペースト動作（例えばテキストとして貼り付けられる）をキャンセル
+                        // デフォルトのペースト動作をキャンセル
                         event.preventDefault();
 
                         // ファイル名を生成（例: pasted_image.png）
@@ -351,7 +354,7 @@
 
                         // 既存の画像処理関数に渡す
                         handleImageFile(file);
-                        
+
                         // 最初の画像だけ処理してループを抜ける
                         break;
                     }
@@ -364,22 +367,58 @@
         function handleImageFile(file) { /* ... V12と同じ ... */ }
         function updateImagePreview(base64String) { /* ... V12と同じ ... */ }
 
-        // --- 内部関数 (変更なし) ---
+        // --- 内部関数 ---
         function logToHistory(text) { /* ... V16と同じ ... */ }
         function selectCharacter(index) { /* ... V16と同じ ... */ }
-        function goToMovePhase() { /* ... V16と同じ ... */ }
-        function goToSetupPhase() { /* ... V16と同じ ... */ }
+
+        // ★V18: 画面遷移関数を修正
+        function goToMovePhase() {
+            // (内部ロジックはV16と同じ)
+            // ... ボタン生成など ...
+             const setup = currentWorkData.setup;
+            summonButtonsContainer.innerHTML = '';
+            setup.summons.forEach(summonName => { /* ... ボタン生成 ... */ });
+            charSelectContainer.innerHTML = '';
+            const totalChars = 4 + setup.subCount;
+            for (let i = 0; i < totalChars; i++) { /* ... ボタン生成 ... */ }
+
+            // 表示切り替え
+            setupPhase.style.display = 'none'; // ★必ず非表示に
+            movePhase.style.display = 'block'; // ★必ず表示に
+            movePhase.classList.remove('playback-mode');
+
+            loadStateDataToDOM();
+            selectCharacter(currentWorkData.state.selectedCharIndex);
+        }
+
+        function goToSetupPhase() {
+             // 表示切り替え
+            movePhase.style.display = 'none'; // ★必ず非表示に
+            setupPhase.style.display = 'block'; // ★必ず表示に
+
+            loadSetupDataToDOM();
+            loadSlotNames();
+        }
+
         function buildPlaybackView() { /* ... V15と同じ ... */ }
         function updatePlaybackHighlight() { /* ... V15と同じ ... */ }
-        
+
         // --- 初期化処理 ---
         function initialize() {
             loadCurrentWork();
             loadSlotNames();
-            if (!localStorage.getItem(STORAGE_KEY_CURRENT)) { goToSetupPhase(); }
-            else { goToSetupPhase(); } // V12から必ず編成画面開始
+
+            // ★V18: 必ず編成画面から開始するように修正
+            goToSetupPhase();
+
+            // 以前のロジック:
+            // if (!localStorage.getItem(STORAGE_KEY_CURRENT)) {
+            //     goToSetupPhase();
+            // } else {
+            //     goToSetupPhase(); // V12から必ず編成画面開始
+            // }
         }
-        
+
         initialize();
 
     </script>
