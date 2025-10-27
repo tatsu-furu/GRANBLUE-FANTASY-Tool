@@ -497,6 +497,42 @@
             reader.readAsText(file);
         });
 
+        resetSetupBtn.addEventListener('click', () => {
+            if (confirm('現在の編成入力欄（キャラクター、召喚石）とムーブ履歴を完全にリセットしますか？\n(保存済みスロットは維持されます)')) {
+                // デフォルトデータ取得
+                const defaultSetup = getDefaultWorkData().setup;
+
+                // 編成情報を初期化
+                currentWorkData.setup.characters = [...defaultSetup.characters];
+                currentWorkData.setup.summons = [...defaultSetup.summons];
+                currentWorkData.setup.subCount = defaultSetup.subCount;
+                currentWorkData.setup.overallMemo = "";
+                currentWorkData.setup.weaponImageBase64 = null;
+
+                // ムーブ履歴を初期化
+                currentWorkData.state.currentTurn = 1;
+                currentWorkData.state.history = '--- TURN 1 ---';
+                currentWorkData.state.selectedCharIndex = 0;
+                currentWorkData.state.turnMemos = {};
+
+                // UI更新
+                updateImagePreview(null);                       // 武器プレビュークリア
+                toggleExtraSubInputs(currentWorkData.setup.subCount); // サブキャラ欄リセット
+                currentPlaybackTurn = 1;
+                movePhase.classList.remove('playback-mode'); 
+                playbackArea.innerHTML = '';                   // ムーブ表クリア
+
+                // DOM に反映
+                loadSetupDataToDOM();
+                loadStateDataToDOM();
+                selectCharacter(0);
+
+                // 現在作業状態を保存（既存スロットはそのまま）
+                //saveCurrentWork();
+
+                alert('編成入力欄とムーブ履歴を初期状態にクリアしました。');
+            }
+        });
 
 
         overwriteSaveBtn.addEventListener('click', () => {
