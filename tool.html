@@ -144,6 +144,7 @@
                     
                     <div class="reset-buttons">
                         <button id="overwrite-save-btn" class="btn" style="background-color: #4CAF50;">現在のスロットに上書き保存</button>
+                        <button id="undo-last-action-btn" class="reset-btn btn" style="background-color: #ff9800;">1つ前の操作に戻る (Undo)</button>
                         <button id="move-reset-btn" class="reset-btn btn">ムーブ履歴だけリセット</button>
                         <button id="back-to-setup-btn" class="reset-btn btn">編成登録/ロード画面に戻る</button>
                     </div>
@@ -234,9 +235,11 @@
         const exportBtn = document.getElementById('export-btn');
         const importFileInput = document.getElementById('import-file-input');
         
-        // V14で追加
         const resetSetupBtn = document.getElementById('reset-setup-btn');
         const overwriteSaveBtn = document.getElementById('overwrite-save-btn');
+        
+        // ★V16: Undoボタン
+        const undoLastActionBtn = document.getElementById('undo-last-action-btn');
         
         const turnCounter = document.getElementById('turn-counter');
         const turnMemoInput = document.getElementById('turn-memo-input'); 
@@ -473,11 +476,9 @@
         // 12. [Export] ボタン (V11)
         exportBtn.addEventListener('click', () => {
             saveCurrentWork(); 
-            
             const jsonString = JSON.stringify(currentWorkData, null, 2); 
             const blob = new Blob([jsonString], {type: 'application/json'});
             const url = URL.createObjectURL(blob);
-            
             const a = document.createElement('a');
             a.href = url;
             let fileName = currentWorkData.slotName || 'gbf-move-data';
@@ -490,7 +491,6 @@
         importFileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
@@ -506,10 +506,7 @@
                         alert(`ファイル「${file.name}」をロードしました。\n編成画面で内容を確認してください。`);
                         goToSetupPhase(); 
                     } else { alert('エラー: 無効なファイル形式です。'); }
-                } catch (error) {
-                    console.error('ファイル読み込みエラー:', error);
-                    alert('エラー: ファイルの読み込みに失敗しました。');
-                }
+                } catch (error) { console.error('ファイル読み込みエラー:', error); alert('エラー: ファイルの読み込みに失敗しました。'); }
                 event.target.value = null;
             };
             reader.onerror = () => { alert('エラー: ファイルの読み込みに失敗しました。'); event.target.value = null; };
@@ -530,12 +527,30 @@
         overwriteSaveBtn.addEventListener('click', () => {
             saveCurrentWork();
             const currentSlotName = currentWorkData.slotName;
-
             if (currentSlotName) {
                 localStorage.setItem(STORAGE_KEY_PREFIX + currentSlotName, JSON.stringify(currentWorkData));
                 alert(`スロット「${currentSlotName}」に上書き保存しました。`);
-            } else {
-                alert('エラー: 現在のスロット名がありません。\n先に編成画面で「名前を付けて保存」してください。');
+            } else { alert('エラー: 現在のスロット名がありません。\n先に編成画面で「名前を付けて保存」してください。'); }
+        });
+
+        // ★V16: [1つ前の操作に戻る (Undo)] ボタン
+        undoLastActionBtn.addEventListener('click', () => {
+            const history = currentWorkData.state.history.trim(); // 現在の履歴を取得（末尾の空白削除）
+            const lines = history.split('\n'); // 行ごとに分割
+
+            if (lines.length > 1) { // 最初のターンマーカーだけの場合は何もしない
+                const lastLine = lines[lines.length - 1];
+                
+                // 最後の行がターンマーカーで "ない" ことを確認
+                if (!lastLine.startsWith('--- TURN')) {
+                    lines.pop(); // 最後の行（=最後の操作）を削除
+                    currentWorkData.state.history = lines.join('\n'); // 配列を文字列に戻す
+                    
+                    historyTextarea.value = currentWorkData.state.history; // 表示を更新
+                    historyTextarea.scrollTop = historyTextarea.scrollHeight; // スクロール
+                    saveCurrentWork(); // 変更を保存
+                } 
+                // else: 最後の行がターンマーカーなら何もしない（ターンを跨いで戻ることはできない）
             }
         });
 
@@ -579,9 +594,7 @@
 
                 const canvas = await html2canvas(targetElement, {
                     backgroundColor: '#262930', 
-                    useCORS: true,
-                    scrollX: 0, 
-                    scrollY: 0,
+                    useCORS: true, scrollX: 0, scrollY: 0,
                     windowWidth: targetElement.offsetWidth, 
                     windowHeight: targetElement.offsetHeight 
                 });
@@ -593,9 +606,7 @@
                 a.download = fileName.endsWith('.png') ? fileName : fileName + '.png';
                 a.click();
 
-            } catch (error) {
-                console.error('画像保存エラー:', error);
-                alert('ムーブ表の画像保存に失敗しました。');
+            } catch (error) { console.error('画像保存エラー:', error); alert('ムーブ表の画像保存に失敗しました。');
             } finally {
                 targetElement.style.height = originalHeight;
                 targetElement.style.overflowY = originalOverflow;
@@ -630,11 +641,9 @@
             setup.summons.forEach(summonName => {
                 if (summonName) {
                     const btn = document.createElement('button');
-                    btn.className = 'summon-btn btn'; // V8
+                    btn.className = 'summon-btn btn'; 
                     btn.textContent = summonName;
-                    btn.addEventListener('click', () => {
-                        logToHistory(`[召喚: ${summonName}]`);
-                    });
+                    btn.addEventListener('click', () => { logToHistory(`[召喚: ${summonName}]`); });
                     summonButtonsContainer.appendChild(btn);
                 }
             });
@@ -649,13 +658,11 @@
                     else if (i < 4) charName = `キャラ${i + 1}`;
                     else charName = `サブ${i - 3}`;
                 }
-                
                 const btn = document.createElement('button');
                 btn.className = 'char-btn';
                 btn.textContent = charName;
                 btn.dataset.charIndex = i;
                 if (i >= 4) btn.classList.add('is-sub');
-                
                 btn.addEventListener('click', () => selectCharacter(i));
                 charSelectContainer.appendChild(btn);
             }
@@ -663,7 +670,6 @@
             setupPhase.style.display = 'none';
             movePhase.style.display = 'block';
             movePhase.classList.remove('playback-mode');
-            
             loadStateDataToDOM();
             selectCharacter(currentWorkData.state.selectedCharIndex);
         }
@@ -690,22 +696,18 @@
             
             if (totalPlaybackTurns === 0) {
                 playbackArea.innerHTML = '<p>ムーブ履歴がありません。</p>';
-                totalPlaybackTurns = 1;
-                currentPlaybackTurn = 1;
-                updatePlaybackHighlight();
-                return;
+                totalPlaybackTurns = 1; currentPlaybackTurn = 1;
+                updatePlaybackHighlight(); return;
             }
 
             matches.forEach((match, index) => {
                 const turnNumber = index + 1;
                 const titleText = match[1].trim();
                 const contentText = match[2].trim();
-                
                 const turnDiv = document.createElement('div');
                 turnDiv.className = 'playback-turn';
                 turnDiv.dataset.turn = turnNumber;
                 
-                // 見出し (TURN X)
                 const h3 = document.createElement('h3');
                 h3.textContent = titleText;
                 turnDiv.appendChild(h3);
@@ -716,7 +718,7 @@
                     const memoDiv = document.createElement('div');
                     memoDiv.className = 'playback-memo';
                     memoDiv.textContent = memoText;
-                    turnDiv.appendChild(memoDiv); // ← メモを先に追加
+                    turnDiv.appendChild(memoDiv); 
                 }
 
                 // 行動リスト
@@ -729,7 +731,7 @@
                         ul.appendChild(li);
                     }
                 });
-                turnDiv.appendChild(ul); // ← 行動リストを後に追加
+                turnDiv.appendChild(ul); 
                 
                 playbackArea.appendChild(turnDiv);
             });
