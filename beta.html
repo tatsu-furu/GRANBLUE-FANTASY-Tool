@@ -169,13 +169,7 @@
                         </div>
                     </div>
 
-                    <div class="reset-buttons">
-                         <button id="start-branching-btn" class="btn">このターンに分岐を作成</button>
-                         <button id="overwrite-save-btn" class="btn" style="background-color: #4CAF50;">現在のスロットに上書き保存</button>
-                         <button id="undo-last-action-btn" class="reset-btn btn">1つ前の操作に戻る (Undo)</button>
-                         <button id="move-reset-btn" class="reset-btn btn">ムーブ履歴だけリセット</button>
-                         <button id="back-to-setup-btn" class="reset-btn btn">編成登録/ロード画面に戻る</button>
-                    </div>
+                <!-- ボタン群は履歴の上下に移動しました -->
                 </div> <div>
                     <div id="mode-toggle-area">
                         <button id="goto-playback-btn" class="btn">再生モードへ ▶</button>
@@ -183,9 +177,20 @@
 
                     <div class="history-panel">
                         <strong>行動履歴 (ムーブ表)</strong>
+                        <!-- 上部：分岐作成 と 上書き保存（元IDを使って直接ハンドラに接続） -->
+                        <div class="history-controls" style="margin:6px 0; display:flex; gap:6px; flex-wrap:wrap;">
+                            <button id="start-branching-btn" class="btn" style="background-color: #afa84ccc;">このターンに分岐を作成</button>
+                            <button id="overwrite-save-btn" class="btn" style="background-color: #4CAF50;">現在のスロットに上書き保存</button>
+                        </div>
                         <div id="new-history-view" style="height: 400px; overflow-y: auto; border: 1px solid #555; padding: 10px; background-color: #111; font-family: 'SFMono-Regular', Consolas, monospace; color: #b0c4de;">
                              {/* JSで履歴が描画される */}
                          </div>
+                        <!-- 下部：戻る（Undo）、履歴リセット、編成画面に戻る（元IDを使って直接ハンドラに接続） -->
+                        <div class="history-controls" style="margin:6px 0; display:flex; gap:6px; flex-wrap:wrap;">
+                            <button id="undo-last-action-btn" class="reset-btn btn">1つ前の操作に戻る (Undo)</button>
+                            <button id="move-reset-btn" class="reset-btn btn">ムーブ履歴だけリセット</button>
+                            <button id="back-to-setup-btn" class="reset-btn btn">編成登録/ロード画面に戻る</button>
+                        </div>
                         <div id="export-area">
                             <span id="copy-feedback"></span>
                         </div>
@@ -291,6 +296,8 @@
         const nextBranchBtn = document.getElementById('next-branch-btn');
         const finishBranchingBtn = document.getElementById('finish-branching-btn');
         const branchingSelector = document.getElementById('branching-selector');
+
+        // NOTE: duplicate-control forwarding removed; buttons moved to history area with original IDs
 
         // --- データ保存/ロード関数 ---
         function saveCurrentWork() {
@@ -616,6 +623,7 @@
             loadCurrentWork();
             loadSlotNames();
             goToSetupPhase(); // 必ず編成画面から開始
+            // duplicate forwarding removed; buttons are the real controls in the history area
             console.log("Initialization complete."); // Debug log
         }
         initialize();

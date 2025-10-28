@@ -392,3 +392,107 @@ textarea:focus {
 }
 
 
+/* --- ★V23: 分岐機能 --- */
+
+/* 分岐入力UI */
+#branching-controls {
+    margin-top: 15px;
+    padding: 10px;
+    border: 1px dashed #ff9800; /* オレンジの点線 */
+    border-radius: 4px;
+    background-color: rgba(255, 152, 0, 0.1); /* 薄いオレンジ背景 */
+}
+#branching-status {
+    font-weight: bold;
+    color: #ffb400; /* 金色 */
+    margin-bottom: 10px;
+    text-align: center;
+}
+#branching-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+#next-branch-btn { background-color: #03a9f4; } /* 水色 */
+#finish-branching-btn { background-color: #4CAF50; } /* 緑 */
+#start-branching-btn { background-color: #ff9800; margin-top: 10px; width:100%;} /* オレンジ */
+
+/* 再生モードでの分岐表示 */
+.playback-turn.has-branches {
+    padding: 0; /* 分岐があるターンの内側のパディングを削除 */
+    border-style: dashed; /* 分岐ターンは点線で囲む */
+    border-color: #ffb400;
+}
+.playback-branches-container {
+    display: flex; /* 横並びにする */
+    gap: 10px; /* 分岐間の隙間 */
+    padding: 10px; /* 内側のパディング */
+}
+.playback-branch {
+    flex: 1; /* 幅を均等に分ける */
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 8px;
+    background-color: #3a3a3a; /* 各分岐の背景色 */
+}
+.playback-branch h4 { /* 分岐ラベル (A, B) */
+    margin: 0 0 8px 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #777;
+    color: #ffb400;
+    font-size: 1em;
+}
+/* 分岐があるターンの見出し (h3) はコンテナの外に表示 */
+.playback-turn.has-branches > h3 {
+    padding: 10px;
+    margin: 0;
+    border-bottom: 1px dashed #666;
+}
+
+/* Undoボタンを無効化 */
+#undo-last-action-btn {
+    display: none; /* V23では一旦非表示 */
+}
+/* --- ★V24: 分岐機能改善 --- */
+
+/* 再生モードでの分岐表示 (最大3列) */
+.playback-branches-container {
+    display: grid; /* FlexboxからGridに変更 */
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* 列数を自動調整 */
+    gap: 10px;
+    padding: 10px;
+}
+
+/* Undoボタンを再表示 */
+#undo-last-action-btn {
+    display: block !important; /* !importantで強制表示 */
+    background-color: #ff99007c !important; /* 色指定も念のため */
+}
+/* --- ★V26: 分岐機能改善 (再編集) --- */
+
+/* 分岐選択ボタン */
+#branching-selector {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.branch-select-btn {
+    padding: 5px 15px;
+    font-size: 0.9em;
+    background-color: #555;
+    border: 1px solid #777;
+    color: #ccc;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+.branch-select-btn.active-branch-edit {
+    background-color: #ff990050; /* オレンジ */
+    color: #1a1c20;
+    border-color: #ffb3003f;
+    font-weight: bold;
+}
+.branch-select-btn:hover:not(.active-branch-edit) {
+    background-color: #666;
+}
