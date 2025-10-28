@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>グラブル ムーブ表作成ツール</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h1>グラブル ムーブ表作成ツール</h1>
+
+        <div id="setup-phase" style="display: block;">
+            <h2>1. 編成登録 / 保存ロード</h2>
+
+            <fieldset id="save-load-section">
+                <legend>保存 / ロード (スロット)</legend>
+                <div>
+                    <label for="save-slot-name">スロット名</label>
+                    <input type="text" id="save-slot-name">
+                </div>
+                <div>
+                    <label for="load-slot-select">保存済みスロット</label>
+                    <select id="load-slot-select">
+                        <option value="">-- スロットを選択 --</option>
+                    </select>
+                </div>
+                <button id="save-btn" class="btn">現在の編成/ムーブを保存</button>
+                <div style="display: flex; gap: 5px;">
+                    <button id="load-btn" class="btn" style="flex: 1;">ロード</button>
+                    <button id="delete-btn" class="btn" style="flex: 1;">削除</button>
+                </div>
+
+                <legend style="margin-top: 15px; grid-column: 1 / -1; text-align: center;">ファイル共有 (バックアップ)</legend>
+                <button id="export-btn" class="btn">現在のデータをファイルへ保存 (Export)</button>
+
+                <input type="file" id="import-file-input" accept=".json, text/plain">
+                <label for="import-file-input" class="btn import-btn-label">ファイルから読込 (Import)</label>
+            </fieldset>
+
+            <fieldset>
+                <legend>ムーブ全体メモ</legend>
+                <textarea id="overall-memo-input" placeholder="ムーブの前提条件、討伐時間目安、注意点など..."></textarea>
+            </fieldset>
+
+            <fieldset>
+                <legend>武器編成スクリーンショット (1枚)</legend>
+                <input type="file" id="weapon-image-input" accept="image/*" style="display: none;">
+                <div id="weapon-image-upload-area" onclick="document.getElementById('weapon-image-input').click();">
+                    <span id="upload-placeholder-text">
+                        クリックして画像を選択 (またはドラッグ＆ドロップ)<br>
+                        <span style="font-weight: bold; color: #ffb400;">またはペースト (Ctrl+V)</span><br>
+                    </span>
+                    <span id="upload-feedback">(推奨: 500KB以下 / 自動リサイズあり)</span>
+                    <img id="weapon-image-preview" src="#" alt="武器編成プレビュー">
+                </div>
+                <button id="clear-weapon-image-btn" class="btn">画像を削除</button>
+            </fieldset>
+
+            <fieldset>
+                <legend>キャラクター</legend>
+                <div class="input-grid">
+                    <div>
+                        <label>サブ人数</label>
+                        <select id="sub-member-count">
+                            <option value="2" selected>2人 (デフォルト)</option>
+                            <option value="5">5人 (その他)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="input-grid" style="margin-top: 10px;">
+                    <div><label for="char1">主人公</label><input type="text" id="char1" value="主人公"></div>
+                    <div><label for="char2">キャラ2</label><input type="text" id="char2" value=""></div>
+                    <div><label for="char3">キャラ3</label><input type="text" id="char3" value=""></div>
+                    <div><label for="char4">キャラ4</label><input type="text" id="char4" value=""></div>
+                    <div><label for="char5">サブ1</label><input type="text" id="char5" value=""></div>
+                    <div><label for="char6">サブ2</label><input type="text" id="char6" value=""></div>
+
+                    <div id="extra-sub-inputs">
+                        <div><label for="char7">サブ3</label><input type="text" id="char7" value=""></div>
+                        <div><label for="char8">サブ4</label><input type="text" id="char8" value=""></div>
+                        <div><label for="char9">サブ5</label><input type="text" id="char9" value=""></div>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>召喚石</legend>
+                <div class="input-grid">
+                    <div><label for="summon-main">メイン</label><input type="text" id="summon-main" value=""></div>
+                    <div><label for="summon-support">サポーター</label><input type="text" id="summon-support" value=""></div>
+                    <div><label for="summon-sub1">サブ1</label><input type="text" id="summon-sub1" value=""></div>
+                    <div><label for="summon-sub2">サブ2</label><input type="text" id="summon-sub2" value=""></div>
+                    <div><label for="summon-sub3">サブ3</label><input type="text" id="summon-sub3" value=""></div>
+                    <div><label for="summon-sub4">サブ4</label><input type="text" id="summon-sub4" value=""></div>
+                </div>
+            </fieldset>
+
+            <button id="setup-complete-btn" class="btn">ムーブ入力画面へ</button>
+
+            <div class="reset-buttons" style="margin-top: 15px;">
+                <button id="reset-setup-btn" class="reset-btn btn">編成入力欄のみクリア</button>
+                <button id="clear-all-data-btn" class="btn">全スロット削除 (完全リセット)</button>
+            </div>
+        </div> <div id="move-phase" style="display: none;">
+             <h2>2. ムーブ入力</h2>
+
+            <div class="move-grid">
+                <div class="action-panel">
+                    <div id="turn-counter">TURN 1</div>
+
+                    <div id="branching-controls" style="display: none;">
+                        <div id="branching-selector"></div>
+                        <div id="branching-status">分岐B入力中 (2/2)</div>
+                        <div id="branching-buttons">
+                            <button id="next-branch-btn" class="btn">次の分岐へ</button>
+                            <button id="finish-branching-btn" class="btn">分岐入力を完了</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <strong>このターンのメモ:</strong>
+                        <textarea id="turn-memo-input" placeholder="HP予兆、敵の行動など..."></textarea>
+                    </div>
+
+                    <div>
+                        <strong>行動キャラ選択:</strong>
+                        <div class="char-select-buttons" id="char-select-container"></div>
+                    </div>
+
+                    <div>
+                        <strong>アビリティ:</strong>
+                        <div class="action-buttons">
+                            <button class="action-btn btn" data-action="1アビ">1アビ</button>
+                            <button class="action-btn btn" data-action="2アビ">2アビ</button>
+                            <button class="action-btn btn" data-action="3アビ">3アビ</button>
+                            <button class="action-btn btn" data-action="4アビ">4アビ</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <strong>その他 (キャラ別):</strong>
+                        <div class="action-buttons">
+                            <button class="action-btn btn" data-action="ガード">ガード</button>
+                            <button class="action-btn btn attack-btn-on" data-action="キュアポ">キュアポ</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <strong>召喚石 (全体):</strong>
+                        <div class="summon-buttons" id="summon-buttons-container"></div>
+                    </div>
+
+                    <div>
+                        <strong>アイテム (全体):</strong>
+                        <div class="action-buttons">
+                            <button class="action-btn btn attack-btn-on" data-action="オールポーション">オールポーション</button>
+                             <button class="action-btn btn attack-btn-on" data-action="FC">FC</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <strong>ターン終了:</strong>
+                        <div class="action-buttons">
+                            <button class="action-btn attack-btn-off btn" data-action="攻撃 (奥義OFF)">攻撃 (奥義OFF)</button>
+                            <button class="action-btn attack-btn-on btn" data-action="攻撃 (奥義ON)">攻撃 (奥義ON)</button>
+                        </div>
+                    </div>
+
+                    <div class="reset-buttons">
+                         <button id="start-branching-btn" class="btn">このターンに分岐を作成</button>
+                         <button id="overwrite-save-btn" class="btn" style="background-color: #4CAF50;">現在のスロットに上書き保存</button>
+                         <button id="undo-last-action-btn" class="reset-btn btn">1つ前の操作に戻る (Undo)</button>
+                         <button id="move-reset-btn" class="reset-btn btn">ムーブ履歴だけリセット</button>
+                         <button id="back-to-setup-btn" class="reset-btn btn">編成登録/ロード画面に戻る</button>
+                    </div>
+                </div> <div>
+                    <div id="mode-toggle-area">
+                        <button id="goto-playback-btn" class="btn">再生モードへ ▶</button>
+                    </div>
+
+                    <div class="history-panel">
+                        <strong>行動履歴 (ムーブ表)</strong>
+                        <div id="new-history-view" style="height: 400px; overflow-y: auto; border: 1px solid #555; padding: 10px; background-color: #111; font-family: 'SFMono-Regular', Consolas, monospace; color: #b0c4de;">
+                             {/* JSで履歴が描画される */}
+                         </div>
+                        <div id="export-area">
+                            <span id="copy-feedback"></span>
+                        </div>
+                    </div>
+
+                    <div class="playback-panel">
+                        <strong>再生モード (カンペ)</strong>
+                        <div id="playback-area">
+                        </div>
+                        <div id="playback-nav">
+                            <button id="playback-prev-btn" class="btn">&lt; 前のターン</button>
+                            <span id="playback-nav-center">TURN 1 / 1</span>
+                            <button id="playback-next-btn" class="btn">次のターン &gt;</button>
+                        </div>
+                        <div style="margin-top: 10px; text-align: center;">
+                             <button id="save-playback-image-btn" class="btn">ムーブ表を画像で保存</button>
+                             <button id="back-to-edit-btn" class="reset-btn btn" style="margin-top: 5px;">編集モードに戻る</button>
+                        </div>
+                    </div>
+                </div> </div> </div> </div> <script>
+        // --- 定数・変数 ---
+        const STORAGE_KEY_SLOTS = 'gbfMoveMakerV5_slots';
+        const STORAGE_KEY_PREFIX = 'gbfMoveMakerV5_slot_';
+        const STORAGE_KEY_CURRENT = 'gbfMoveMakerV5_currentWork_V23'; // データ構造変更のためキー維持
+        const MAX_IMAGE_WIDTH = 1200;
+        const IMAGE_QUALITY = 0.7;
+
+        // データ構造定義
+        const getDefaultWorkData = () => ({
+            setup: { characters: ["主人公", "", "", "", "", "", "", "", ""], summons: ["", "", "", "", "", ""], subCount: 2, overallMemo: "", weaponImageBase64: null },
+            state: { currentTurn: 1, selectedCharIndex: 0, turns: [ { turnNumber: 1, branches: [ { actions: [], memo: "" } ] } ], isBranchingMode: false, currentBranchIndex: 0, totalBranchesInTurn: 1 },
+            slotName: ""
+        });
+        let currentWorkData = getDefaultWorkData();
+        let savedSlotNames = [];
+        let currentPlaybackTurn = 1;
+        let totalPlaybackTurns = 1;
+        // Undo 用履歴スタック（state のスナップショットを保存）
+        let stateHistory = [];
+
+        // structuredClone が使えない環境向けのフォールバック
+        function structuredCloneSafe(obj) {
+            if (typeof structuredClone === 'function') return structuredClone(obj);
+            return JSON.parse(JSON.stringify(obj));
+        }
+
+        // 操作前に呼んで現在の state を履歴に保存する
+        function saveStateForUndo() {
+            try {
+                stateHistory.push(structuredCloneSafe(currentWorkData.state));
+                // 履歴が増えすぎる場合は上限を設けしても良い（例: 200 件）
+                if (stateHistory.length > 1000) stateHistory.shift();
+            } catch (e) {
+                console.warn('Undo: state snapshot failed', e);
+            }
+        }
+
+        // --- DOM要素の取得 ---
+        const setupPhase = document.getElementById('setup-phase');
+        const movePhase = document.getElementById('move-phase');
+        const setupCompleteBtn = document.getElementById('setup-complete-btn');
+        const charInputs = Array.from({length: 9}, (_, i) => document.getElementById(`char${i + 1}`));
+        const summonInputs = [document.getElementById('summon-main'), document.getElementById('summon-support'), document.getElementById('summon-sub1'), document.getElementById('summon-sub2'), document.getElementById('summon-sub3'), document.getElementById('summon-sub4') ];
+        const subMemberCountSelect = document.getElementById('sub-member-count');
+        const extraSubInputs = document.getElementById('extra-sub-inputs');
+        const saveSlotNameInput = document.getElementById('save-slot-name');
+        const loadSlotSelect = document.getElementById('load-slot-select');
+        const saveBtn = document.getElementById('save-btn');
+        const loadBtn = document.getElementById('load-btn');
+        const deleteBtn = document.getElementById('delete-btn');
+        const clearAllDataBtn = document.getElementById('clear-all-data-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const importFileInput = document.getElementById('import-file-input');
+        const resetSetupBtn = document.getElementById('reset-setup-btn');
+        const overwriteSaveBtn = document.getElementById('overwrite-save-btn');
+        const undoLastActionBtn = document.getElementById('undo-last-action-btn');
+        const overallMemoInput = document.getElementById('overall-memo-input');
+        const weaponImageInput = document.getElementById('weapon-image-input');
+        const weaponImageUploadArea = document.getElementById('weapon-image-upload-area');
+        const weaponImagePreview = document.getElementById('weapon-image-preview');
+        const clearWeaponImageBtn = document.getElementById('clear-weapon-image-btn');
+        const uploadFeedback = document.getElementById('upload-feedback');
+        const uploadPlaceholderText = document.getElementById('upload-placeholder-text');
+        const turnCounter = document.getElementById('turn-counter');
+        const turnMemoInput = document.getElementById('turn-memo-input');
+        const charSelectContainer = document.getElementById('char-select-container');
+        const actionButtons = document.querySelectorAll('.action-btn');
+        const summonButtonsContainer = document.getElementById('summon-buttons-container');
+        const newHistoryView = document.getElementById('new-history-view');
+        const moveResetBtn = document.getElementById('move-reset-btn');
+        const backToSetupBtn = document.getElementById('back-to-setup-btn');
+        const copyFeedback = document.getElementById('copy-feedback');
+        const gotoPlaybackBtn = document.getElementById('goto-playback-btn');
+        const playbackArea = document.getElementById('playback-area');
+        const playbackPrevBtn = document.getElementById('playback-prev-btn');
+        const playbackNextBtn = document.getElementById('playback-next-btn');
+        const playbackNavCenter = document.getElementById('playback-nav-center');
+        const backToEditBtn = document.getElementById('back-to-edit-btn');
+        const savePlaybackImageBtn = document.getElementById('save-playback-image-btn');
+        const branchingControls = document.getElementById('branching-controls');
+        const branchingStatus = document.getElementById('branching-status');
+        const startBranchingBtn = document.getElementById('start-branching-btn');
+        const nextBranchBtn = document.getElementById('next-branch-btn');
+        const finishBranchingBtn = document.getElementById('finish-branching-btn');
+        const branchingSelector = document.getElementById('branching-selector');
+
+        // --- データ保存/ロード関数 ---
+        function saveCurrentWork() {
+             currentWorkData.setup.characters = charInputs.map(input => input.value);
+             currentWorkData.setup.summons = summonInputs.map(input => input.value);
+             currentWorkData.setup.subCount = parseInt(subMemberCountSelect.value, 10);
+             currentWorkData.setup.overallMemo = overallMemoInput.value;
+             if (movePhase.style.display === 'block' && !movePhase.classList.contains('playback-mode')) {
+                 const currentTurnData = getCurrentTurnData(false);
+                 if (currentTurnData && currentTurnData.branches[currentWorkData.state.currentBranchIndex]) {
+                     currentTurnData.branches[currentWorkData.state.currentBranchIndex].memo = turnMemoInput.value;
+                 }
+             }
+             localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(currentWorkData));
+             // console.log("Saved:", JSON.stringify(currentWorkData)); // Debug
+        }
+        function loadCurrentWork() {
+             const loadedData = localStorage.getItem(STORAGE_KEY_CURRENT);
+             if (loadedData) {
+                try {
+                    const parsedData = JSON.parse(loadedData);
+                    if (parsedData && parsedData.setup && parsedData.state && Array.isArray(parsedData.state.turns)) {
+                        // import 時点で undo 履歴はクリア
+                        stateHistory = [];
+                         currentWorkData = parsedData;
+                         if (currentWorkData.state.isBranchingMode === undefined) currentWorkData.state.isBranchingMode = false;
+                         if (currentWorkData.state.currentBranchIndex === undefined) currentWorkData.state.currentBranchIndex = 0;
+                         if (currentWorkData.state.totalBranchesInTurn === undefined) currentWorkData.state.totalBranchesInTurn = 1;
+                         if (!currentWorkData.setup.overallMemo) currentWorkData.setup.overallMemo = "";
+                         if (!currentWorkData.setup.weaponImageBase64) currentWorkData.setup.weaponImageBase64 = null;
+                         currentWorkData.state.turns.forEach(turn => {
+                            if (!turn.branches) turn.branches = [{ actions: [], memo: "" }];
+                            turn.branches.forEach(branch => { if (branch.memo === undefined) branch.memo = ""; });
+                         });
+                         if (currentWorkData.state.currentTurn < 1) currentWorkData.state.currentTurn = 1;
+                         if (currentWorkData.state.currentTurn > currentWorkData.state.turns.length) {
+                             currentWorkData.state.currentTurn = currentWorkData.state.turns.length > 0 ? currentWorkData.state.turns.length : 1;
+                         }
+                         const currentTurnData = getCurrentTurnData(false);
+                         if (currentTurnData && currentWorkData.state.currentBranchIndex >= currentTurnData.branches.length) {
+                             currentWorkData.state.currentBranchIndex = 0;
+                         }
+                     } else { currentWorkData = getDefaultWorkData(); console.warn("Loaded data structure invalid. Resetting."); }
+                 } catch (e) { console.error("Data load/parse failed:", e); currentWorkData = getDefaultWorkData(); }
+           } else { currentWorkData = getDefaultWorkData(); }
+          // load 時点で undo 履歴はリセット
+          stateHistory = [];
+        }
+        function loadSlotNames() {
+            const loadedData = localStorage.getItem(STORAGE_KEY_SLOTS); savedSlotNames = loadedData ? JSON.parse(loadedData) : [];
+            loadSlotSelect.innerHTML = '<option value="">-- スロットを選択 --</option>';
+            savedSlotNames.forEach(name => { const option = document.createElement('option'); option.value = name; option.textContent = name; loadSlotSelect.appendChild(option); });
+        }
+        function saveSlotNames() {
+            localStorage.setItem(STORAGE_KEY_SLOTS, JSON.stringify(savedSlotNames));
+        }
+        function loadSetupDataToDOM() {
+            charInputs.forEach((input, index) => input.value = currentWorkData.setup.characters[index] || '');
+            summonInputs.forEach((input, index) => input.value = currentWorkData.setup.summons[index] || '');
+            subMemberCountSelect.value = currentWorkData.setup.subCount;
+            toggleExtraSubInputs(currentWorkData.setup.subCount);
+            saveSlotNameInput.value = currentWorkData.slotName;
+            overallMemoInput.value = currentWorkData.setup.overallMemo;
+            updateImagePreview(currentWorkData.setup.weaponImageBase64);
+        }
+        function loadStateDataToDOM() {
+            const state = currentWorkData.state;
+            turnCounter.textContent = `TURN ${state.currentTurn}`;
+            const currentTurnData = getCurrentTurnData(false);
+            if (currentTurnData && currentTurnData.branches.length > state.currentBranchIndex && currentTurnData.branches[state.currentBranchIndex]) {
+                 turnMemoInput.value = currentTurnData.branches[state.currentBranchIndex].memo || '';
+            } else { turnMemoInput.value = ''; }
+            renderHistoryView();
+            updateBranchingUI();
+        }
+        function toggleExtraSubInputs(count) {
+            extraSubInputs.style.display = (count === 5) ? 'grid' : 'none';
+        }
+        function getCurrentTurnData(createIfNeeded = true) {
+            const turnIndex = currentWorkData.state.currentTurn - 1;
+            if (createIfNeeded && turnIndex >= currentWorkData.state.turns.length) {
+                for (let i = currentWorkData.state.turns.length; i <= turnIndex; i++) {
+                     currentWorkData.state.turns.push({ turnNumber: i + 1, branches: [{ actions: [], memo: "" }] });
+                }
+            }
+            return currentWorkData.state.turns[turnIndex] || null;
+        }
+
+        // --- イベントリスナー ---
+        setupCompleteBtn.addEventListener('click', () => { console.log("Move Phase Button Clicked"); saveCurrentWork(); goToMovePhase(); }); // V25 Log
+        charInputs.forEach(input => input.addEventListener('input', saveCurrentWork));
+        summonInputs.forEach(input => input.addEventListener('input', saveCurrentWork));
+        subMemberCountSelect.addEventListener('change', (e) => { toggleExtraSubInputs(parseInt(e.target.value, 10)); saveCurrentWork(); });
+        turnMemoInput.addEventListener('input', () => { saveCurrentWork(); });
+        saveBtn.addEventListener('click', () => { saveCurrentWork(); const slotName = saveSlotNameInput.value; if (!slotName) { alert('スロット名を入力'); return; } currentWorkData.slotName = slotName; localStorage.setItem(STORAGE_KEY_PREFIX + slotName, JSON.stringify(currentWorkData)); if (!savedSlotNames.includes(slotName)) { savedSlotNames.push(slotName); saveSlotNames(); loadSlotNames(); } alert(`「${slotName}」として保存`); });
+        loadBtn.addEventListener('click', () => { const slotName = loadSlotSelect.value; if (!slotName) { alert('スロット選択'); return; } const loadedData = localStorage.getItem(STORAGE_KEY_PREFIX + slotName); if (loadedData) { currentWorkData = getDefaultWorkData(); loadCurrentWork(); saveCurrentWork(); loadSetupDataToDOM(); loadStateDataToDOM(); alert(`「${slotName}」をロード`); } else { alert('ロード失敗'); } });
+        deleteBtn.addEventListener('click', () => { const slotName = loadSlotSelect.value; if (!slotName) return; if (confirm(`「${slotName}」削除しますか？`)) { localStorage.removeItem(STORAGE_KEY_PREFIX + slotName); savedSlotNames = savedSlotNames.filter(name => name !== slotName); saveSlotNames(); loadSlotNames(); alert(`「${slotName}」削除`); } });
+        actionButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // 操作前の state を履歴に保存しておく
+                saveStateForUndo();
+                const action = btn.dataset.action;
+                const charIndex = currentWorkData.state.selectedCharIndex;
+                const charName = currentWorkData.setup.characters[charIndex] || `キャラ${charIndex + 1}`;
+                const state = currentWorkData.state;
+                if (action.startsWith('攻撃')) {
+                    saveCurrentWork(); logAction(`[${action}]`);
+                    if (state.isBranchingMode) { saveCurrentWork(); }
+                    else {
+                        state.currentTurn++; turnCounter.textContent = `TURN ${state.currentTurn}`;
+                        getCurrentTurnData(); renderHistoryView();
+                        const nextTurnData = getCurrentTurnData(false);
+                        turnMemoInput.value = nextTurnData?.branches[0]?.memo || '';
+                        saveCurrentWork();
+                    }
+                } else if (action === 'オールポーション' || action === 'FC') {
+                    logAction(`[${action}]`);
+                } else {
+                    logAction(`[${charName}] ${action}`);
+                }
+            });
+        });
+        moveResetBtn.addEventListener('click', () => { if (confirm('履歴リセット？')) { // リセット前のスナップショット
+            saveStateForUndo();
+            const defaultState = getDefaultWorkData().state; currentWorkData.state.currentTurn = defaultState.currentTurn; currentWorkData.state.selectedCharIndex = defaultState.selectedCharIndex; currentWorkData.state.turns = JSON.parse(JSON.stringify(defaultState.turns)); currentWorkData.state.isBranchingMode = false; currentWorkData.state.currentBranchIndex = 0; currentWorkData.state.totalBranchesInTurn = 1; saveCurrentWork(); loadStateDataToDOM(); selectCharacter(0, true); alert('履歴リセット完了'); } });
+        backToSetupBtn.addEventListener('click', () => { saveCurrentWork(); goToSetupPhase(); });
+        clearAllDataBtn.addEventListener('click', () => { if (confirm('全データ削除？')) { savedSlotNames.forEach(name => { localStorage.removeItem(STORAGE_KEY_PREFIX + name); }); localStorage.removeItem(STORAGE_KEY_SLOTS); localStorage.removeItem(STORAGE_KEY_CURRENT); location.reload(); } });
+    exportBtn.addEventListener('click', () => { saveCurrentWork(); const jsonString = JSON.stringify(currentWorkData, null, 2); const blob = new Blob([jsonString], {type: 'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; let fileName = currentWorkData.slotName || 'gbf-move-data'; a.download = fileName.endsWith('.json') ? fileName : fileName + '.json'; a.click(); URL.revokeObjectURL(url); a.remove(); });
+    importFileInput.addEventListener('change', (event) => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { currentWorkData = getDefaultWorkData(); const json = JSON.parse(e.target.result); if (json && json.setup && json.state && Array.isArray(json.state.turns)) { currentWorkData.setup = {...currentWorkData.setup, ...json.setup}; currentWorkData.state = {...currentWorkData.state, ...json.state}; currentWorkData.slotName = json.slotName || ""; if (!currentWorkData.state.isBranchingMode) currentWorkData.state.isBranchingMode = false; if (!currentWorkData.state.currentBranchIndex) currentWorkData.state.currentBranchIndex = 0; if (!currentWorkData.state.totalBranchesInTurn) currentWorkData.state.totalBranchesInTurn = 1; currentWorkData.state.turns.forEach(turn => { if (!turn.branches) turn.branches = [{ actions: [], memo: "" }]; turn.branches.forEach(branch => { if (branch.memo === undefined) branch.memo = ""; }); });
+            // インポート後は undo 履歴をクリア
+            saveCurrentWork(); stateHistory = [];
+            loadSetupDataToDOM(); loadStateDataToDOM(); alert(`「${file.name}」ロード完了`); goToSetupPhase(); } else { alert('エラー: 無効形式'); } } catch (error) { console.error('Import Error:', error); alert('エラー: 読込失敗'); } event.target.value = null; }; reader.onerror = () => { alert('エラー: 読込失敗'); event.target.value = null; }; reader.readAsText(file); });
+        resetSetupBtn.addEventListener('click', () => { if (confirm('編成入力クリア？')) { currentWorkData.setup = getDefaultWorkData().setup; saveCurrentWork(); loadSetupDataToDOM(); alert('クリア完了'); } });
+        overwriteSaveBtn.addEventListener('click', () => { saveCurrentWork(); const currentSlotName = currentWorkData.slotName; if (currentSlotName) { localStorage.setItem(STORAGE_KEY_PREFIX + currentSlotName, JSON.stringify(currentWorkData)); alert(`「${currentSlotName}」上書き保存`); } else { alert('エラー: スロット名なし'); } });
+        undoLastActionBtn.addEventListener('click', () => {
+            // スナップショット方式の Undo を優先
+            try {
+                if (stateHistory.length > 0) {
+                    const prevState = stateHistory.pop();
+                    currentWorkData.state = prevState;
+                    renderHistoryView();
+                    loadStateDataToDOM();
+                    saveCurrentWork();
+                    return;
+                }
+            } catch (e) { console.warn('Undo restore failed', e); }
+
+            // 履歴が空の場合は互換的に従来ロジックで対応
+            const currentTurnData = getCurrentTurnData(false);
+            if (!currentTurnData) { alert('これ以上戻れません。'); return; }
+            const branchIndex = currentWorkData.state.currentBranchIndex;
+            const currentBranch = currentTurnData.branches[branchIndex];
+            if (currentBranch && currentBranch.actions.length > 0) {
+                // 現在のターンに行動がある → 最後の行動を削除
+                currentBranch.actions.pop();
+                renderHistoryView();
+                saveCurrentWork();
+                return;
+            }
+
+            // 現在ターンに行動なし → 前のターンへ
+            if (currentWorkData.state.currentTurn > 1) {
+                // 前ターン移動も undo できるよう、移動前スナップショットは既に存在しない想定のためここで保存しておく
+                // （必要であればこの行は省略しても構わない）
+                // saveStateForUndo();
+                currentWorkData.state.currentTurn -= 1;
+                const prevTurnData = getCurrentTurnData(false);
+                if (prevTurnData) {
+                    currentWorkData.state.currentBranchIndex = Math.max(0, prevTurnData.branches.length - 1);
+                } else {
+                    currentWorkData.state.currentBranchIndex = 0;
+                }
+                renderHistoryView();
+                loadStateDataToDOM();
+                saveCurrentWork();
+                console.log("UNDO: moved back to previous turn");
+                return;
+            }
+
+            alert("これ以上戻れません。");
+            });
+
+        overallMemoInput.addEventListener('input', saveCurrentWork);
+        weaponImageInput.addEventListener('change', handleImageUpload);
+        clearWeaponImageBtn.addEventListener('click', () => { currentWorkData.setup.weaponImageBase64 = null; updateImagePreview(null); saveCurrentWork(); weaponImageInput.value = null; });
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => { weaponImageUploadArea.addEventListener(eventName, preventDefaults, false); });
+        ['dragenter', 'dragover'].forEach(eventName => { weaponImageUploadArea.addEventListener(eventName, () => weaponImageUploadArea.classList.add('highlight'), false); });
+        ['dragleave', 'drop'].forEach(eventName => { weaponImageUploadArea.addEventListener(eventName, () => weaponImageUploadArea.classList.remove('highlight'), false); });
+        weaponImageUploadArea.addEventListener('drop', handleImageDrop, false);
+        gotoPlaybackBtn.addEventListener('click', () => { saveCurrentWork(); movePhase.classList.add('playback-mode'); buildPlaybackView(); });
+        backToEditBtn.addEventListener('click', () => { movePhase.classList.remove('playback-mode'); loadStateDataToDOM(); });
+        playbackNextBtn.addEventListener('click', () => { if (currentPlaybackTurn < totalPlaybackTurns) { currentPlaybackTurn++; updatePlaybackHighlight(); } });
+        playbackPrevBtn.addEventListener('click', () => { if (currentPlaybackTurn > 1) { currentPlaybackTurn--; updatePlaybackHighlight(); } });
+        savePlaybackImageBtn.addEventListener('click', async () => { const targetElement = playbackArea; const originalHeight = targetElement.style.height; const originalOverflow = targetElement.style.overflowY; savePlaybackImageBtn.disabled = true; savePlaybackImageBtn.textContent = '画像生成中...'; try { targetElement.style.height = 'auto'; targetElement.style.overflowY = 'visible'; await new Promise(resolve => setTimeout(resolve, 100)); const canvas = await html2canvas(targetElement, { backgroundColor: '#262930', useCORS: true, scrollX: 0, scrollY: 0, windowWidth: targetElement.offsetWidth, windowHeight: targetElement.offsetHeight }); const imageDataUrl = canvas.toDataURL('image/png'); const a = document.createElement('a'); a.href = imageDataUrl; let fileName = currentWorkData.slotName || 'gbf-move-playback'; a.download = fileName.endsWith('.png') ? fileName : fileName + '.png'; a.click(); a.remove(); } catch (error) { console.error('画像保存エラー:', error); alert('画像保存失敗'); } finally { targetElement.style.height = originalHeight; targetElement.style.overflowY = originalOverflow; savePlaybackImageBtn.disabled = false; savePlaybackImageBtn.textContent = 'ムーブ表を画像で保存'; } });
+        document.addEventListener('paste', handlePaste);
+
+        // V24: 分岐ボタンリスナー
+        startBranchingBtn.addEventListener('click', () => { if (currentWorkData.state.isBranchingMode) return; const currentTurnData = getCurrentTurnData(); if (currentTurnData.branches.length > 1) { alert('既に分岐あり'); return; } const numBranchesInput = prompt("分岐数 (2 or 3):", "2"); let numBranches = parseInt(numBranchesInput, 10); if (isNaN(numBranches) || numBranches < 2 || numBranches > 3) { numBranches = 2; } // 変更前スナップショット
+            saveStateForUndo();
+            currentWorkData.state.isBranchingMode = true; currentWorkData.state.currentBranchIndex = 0; currentWorkData.state.totalBranchesInTurn = numBranches; while(currentTurnData.branches.length < numBranches) { currentTurnData.branches.push({ actions: [], memo: "" }); } updateBranchingUI(); renderHistoryView(); saveCurrentWork(); turnMemoInput.value = currentTurnData.branches[0].memo || ''; });
+    nextBranchBtn.addEventListener('click', () => { if (!currentWorkData.state.isBranchingMode) return; saveStateForUndo(); saveCurrentWork(); if (currentWorkData.state.currentBranchIndex < currentWorkData.state.totalBranchesInTurn - 1) { currentWorkData.state.currentBranchIndex++; turnMemoInput.value = getCurrentTurnData().branches[currentWorkData.state.currentBranchIndex]?.memo || ''; updateBranchingUI(); renderHistoryView(); saveCurrentWork(); } else { alert('最後の分岐'); } });
+    finishBranchingBtn.addEventListener('click', () => { 
+        if (!currentWorkData.state.isBranchingMode) return; 
+        // 分岐完了は undo 対象
+        saveStateForUndo();
+        saveCurrentWork();
+        finishBranchingMode();
+        // 分岐入力完了後に次のターンへ進む
+        advanceTurn();
+        saveCurrentWork();
+    });
+
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+        function handleImageDrop(e) { const dt = e.dataTransfer; const file = dt.files[0]; if (file && file.type.startsWith('image/')) { handleImageFile(file); } else { alert('画像選択'); } }
+        function handleImageUpload(event) { const file = event.target.files[0]; if (file) { handleImageFile(file); } }
+        function handlePaste(event) { const targetTagName = event.target.tagName.toLowerCase(); if (targetTagName === 'input' || targetTagName === 'textarea') { return; } const items = event.clipboardData?.items; if (!items) return; processClipboardItems(items, event); }
+        async function processClipboardItems(items, event = null) { for (let i = 0; i < items.length; i++) { const item = items[i]; const imageTypes = item.types?.filter(type => type.startsWith("image/")); if (imageTypes?.length > 0) { try { const blob = await item.getType(imageTypes[0]); if (blob) { handleBlobAsFile(blob, event); return; } } catch (err) { console.warn("item.getType() Error:", err); } } if (typeof item.getAsFile === 'function' && item.type.startsWith('image/')) { const blob = item.getAsFile(); if (blob) { handleBlobAsFile(blob, event); return; } } } }
+        function handleBlobAsFile(blob, event = null) { if (event) { event.preventDefault(); } const fileName = `pasted_image.${blob.type.split('/')[1] || 'png'}`; const file = new File([blob], fileName, { type: blob.type }); handleImageFile(file); }
+        function handleImageFile(file) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { let canvas = document.createElement('canvas'); let ctx = canvas.getContext('2d'); let width = img.width; let height = img.height; if (width > MAX_IMAGE_WIDTH) { height *= MAX_IMAGE_WIDTH / width; width = MAX_IMAGE_WIDTH; } canvas.width = width; canvas.height = height; ctx.drawImage(img, 0, 0, width, height); const base64String = canvas.toDataURL('image/jpeg', IMAGE_QUALITY); currentWorkData.setup.weaponImageBase64 = base64String; updateImagePreview(base64String); saveCurrentWork(); const originalSizeMB = (file.size / 1024 / 1024).toFixed(2); const compressedSizeKB = (base64String.length * 0.75 / 1024).toFixed(0); uploadFeedback.textContent = `(元:${originalSizeMB}MB → 圧縮後 約${compressedSizeKB}KB)`; }; img.onerror = () => { alert('画像読込失敗'); }; img.src = e.target.result; }; reader.onerror = () => { alert('ファイル読込失敗'); }; reader.readAsDataURL(file); }
+        function updateImagePreview(base64String) { if (base64String) { weaponImagePreview.src = base64String; weaponImagePreview.style.display = 'block'; clearWeaponImageBtn.style.display = 'inline-block'; if (uploadPlaceholderText) { uploadPlaceholderText.style.display = 'none'; } } else { weaponImagePreview.src = '#'; weaponImagePreview.style.display = 'none'; clearWeaponImageBtn.style.display = 'none'; if (uploadPlaceholderText) { uploadPlaceholderText.style.display = ''; } uploadFeedback.textContent = "(推奨: 500KB以下 / 自動リサイズあり)"; } }
+        function showCopyFeedback(message, success) { copyFeedback.textContent = message; copyFeedback.className = success ? 'feedback-success' : 'feedback-error'; setTimeout(() => { copyFeedback.textContent = ''; copyFeedback.className = ''; }, 2000); }
+
+        // --- 内部関数 ---
+        function logAction(actionText) {
+            const currentTurnData = getCurrentTurnData();
+            if (currentTurnData && currentTurnData.branches[currentWorkData.state.currentBranchIndex]) {
+                 currentTurnData.branches[currentWorkData.state.currentBranchIndex].actions.push(actionText);
+                 renderHistoryView(); saveCurrentWork();
+            } else { console.error("Error logging action."); }
+        }
+        function renderHistoryView() {
+             newHistoryView.innerHTML = '';
+             currentWorkData.state.turns.forEach(turn => {
+                 const turnDiv = document.createElement('div'); turnDiv.style.marginBottom = '10px';
+                 const h3 = document.createElement('h3'); h3.textContent = `--- TURN ${turn.turnNumber} ---`; h3.style.color = '#e57373'; h3.style.margin = '0 0 5px 0'; h3.style.fontSize = '1.1em'; turnDiv.appendChild(h3);
+                 const branchesDiv = document.createElement('div'); branchesDiv.style.display = 'flex'; branchesDiv.style.gap = '10px';
+                 turn.branches.forEach((branch, index) => {
+                     const branchDiv = document.createElement('div'); branchDiv.style.flex = '1'; branchDiv.style.border = '1px solid #444'; branchDiv.style.padding = '5px'; branchDiv.style.borderRadius = '3px';
+                     if (currentWorkData.state.isBranchingMode && turn.turnNumber === currentWorkData.state.currentTurn && index === currentWorkData.state.currentBranchIndex) { branchDiv.style.borderColor = '#ff9800'; branchDiv.style.backgroundColor = 'rgba(255, 152, 0, 0.1)'; } else { branchDiv.style.borderColor = '#444'; branchDiv.style.backgroundColor = 'transparent'; }
+                     if (turn.branches.length > 1) { const branchLabel = document.createElement('div'); branchLabel.textContent = `分岐 ${String.fromCharCode(65 + index)}`; branchLabel.style.fontWeight = 'bold'; branchLabel.style.fontSize = '0.9em'; branchLabel.style.color = '#aaa'; branchDiv.appendChild(branchLabel); }
+                     const ul = document.createElement('ul'); ul.style.margin = '0'; ul.style.paddingLeft = '15px'; ul.style.fontSize = '0.95em';
+                     branch.actions.forEach(action => { const li = document.createElement('li'); li.textContent = action; li.style.listStyle = 'square'; ul.appendChild(li); });
+                     branchDiv.appendChild(ul);
+                     if (branch.memo) { const memoP = document.createElement('p'); memoP.textContent = `📝 ${branch.memo}`; memoP.style.fontSize = '0.85em'; memoP.style.color = '#ccc'; memoP.style.marginTop = '5px'; memoP.style.whiteSpace = 'pre-wrap'; branchDiv.appendChild(memoP); }
+                     branchesDiv.appendChild(branchDiv);
+                 });
+                 turnDiv.appendChild(branchesDiv); newHistoryView.appendChild(turnDiv);
+             });
+             newHistoryView.scrollTop = newHistoryView.scrollHeight;
+        }
+       function selectCharacter(index, skipSave = false) {
+           // 普通のユーザ操作は undo 対象にするが、プログラムからの呼び出しでは skip 可能
+           if (!skipSave) saveStateForUndo();
+           currentWorkData.state.selectedCharIndex = index; document.querySelectorAll('.char-btn').forEach(btn => btn.classList.remove('selected'));
+           const selectedBtn = document.querySelector(`.char-btn[data-char-index="${index}"]`); if (selectedBtn) { selectedBtn.classList.add('selected'); }
+           saveCurrentWork();
+       }
+        // ★V25->V27: 画面遷移関数 (V21/V17相当)
+        function goToMovePhase() {
+             const setup = currentWorkData.setup;
+             summonButtonsContainer.innerHTML = ''; setup.summons.forEach(summonName => { if (summonName) { const btn = document.createElement('button'); btn.className = 'summon-btn btn'; btn.textContent = summonName; btn.addEventListener('click', () => { saveStateForUndo(); logAction(`[召喚: ${summonName}]`); }); summonButtonsContainer.appendChild(btn); } });
+             charSelectContainer.innerHTML = ''; const totalChars = 4 + setup.subCount;
+             for (let i = 0; i < totalChars; i++) { let charName = setup.characters[i]; if (!charName) { if (i === 0) charName = "主人公"; else if (i < 4) charName = `キャラ${i + 1}`; else charName = `サブ${i - 3}`; } const btn = document.createElement('button'); btn.className = 'char-btn'; btn.textContent = charName; btn.dataset.charIndex = i; if (i >= 4) btn.classList.add('is-sub'); btn.addEventListener('click', () => selectCharacter(i)); charSelectContainer.appendChild(btn); }
+             setupPhase.style.display = 'none'; movePhase.style.display = 'block'; movePhase.classList.remove('playback-mode');
+             loadStateDataToDOM(); selectCharacter(currentWorkData.state.selectedCharIndex, true);
+             console.log("Navigated to Move Phase (V27)"); // Debug log
+        }
+        function goToSetupPhase() {
+            movePhase.style.display = 'none'; setupPhase.style.display = 'block';
+            loadSetupDataToDOM(); loadSlotNames();
+             console.log("Navigated to Setup Phase (V27)"); // Debug log
+        }
+        // V26: 分岐UI更新
+        function updateBranchingUI() {
+             const state = currentWorkData.state; const currentTurnData = getCurrentTurnData(false);
+             if (state.isBranchingMode && currentTurnData) {
+                 branchingControls.style.display = 'block'; startBranchingBtn.style.display = 'none';
+                 const branchChar = String.fromCharCode(65 + state.currentBranchIndex);
+                 branchingStatus.textContent = `分岐 ${branchChar} 入力中 (${state.currentBranchIndex + 1}/${state.totalBranchesInTurn})`;
+                 nextBranchBtn.disabled = (state.currentBranchIndex >= state.totalBranchesInTurn - 1);
+                 branchingSelector.innerHTML = '';
+                 for (let i = 0; i < state.totalBranchesInTurn; i++) {
+                     const btn = document.createElement('button'); btn.textContent = `分岐 ${String.fromCharCode(65 + i)}`;
+                     btn.className = 'branch-select-btn'; if (i === state.currentBranchIndex) { btn.classList.add('active-branch-edit'); }
+                    btn.onclick = ((index) => () => { saveStateForUndo(); saveCurrentWork(); state.currentBranchIndex = index; const turnData = getCurrentTurnData(false); turnMemoInput.value = turnData?.branches[index]?.memo || ''; updateBranchingUI(); renderHistoryView(); saveCurrentWork(); })(i); // 存在チェック追加
+                     branchingSelector.appendChild(btn);
+                 }
+             } else { branchingControls.style.display = 'none'; startBranchingBtn.style.display = 'block'; }
+        }
+        function finishBranchingMode() {
+             currentWorkData.state.isBranchingMode = false; currentWorkData.state.currentBranchIndex = 0;
+             updateBranchingUI(); renderHistoryView();
+             // V24: ターンを進めない
+        }
+        // ターンを進めるユーティリティ
+        function advanceTurn() {
+            const state = currentWorkData.state;
+            state.currentTurn++;
+            turnCounter.textContent = `TURN ${state.currentTurn}`;
+            // ensure next turn exists
+            getCurrentTurnData();
+            renderHistoryView();
+            const nextTurnData = getCurrentTurnData(false);
+            turnMemoInput.value = nextTurnData?.branches[0]?.memo || '';
+            saveCurrentWork();
+        }
+        // V23: 再生モード用 buildPlaybackView
+        function buildPlaybackView() {
+            playbackArea.innerHTML = ''; const turnsData = currentWorkData.state.turns; totalPlaybackTurns = turnsData.length;
+            if (totalPlaybackTurns === 0) { playbackArea.innerHTML = '<p>履歴なし</p>'; totalPlaybackTurns = 1; currentPlaybackTurn = 1; updatePlaybackHighlight(); return; }
+            turnsData.forEach(turn => { const turnNumber = turn.turnNumber; const turnDiv = document.createElement('div'); turnDiv.className = 'playback-turn'; turnDiv.dataset.turn = turnNumber; const h3 = document.createElement('h3'); h3.textContent = `--- TURN ${turnNumber} ---`; turnDiv.appendChild(h3); if (turn.branches.length > 1) { turnDiv.classList.add('has-branches'); const branchesContainer = document.createElement('div'); branchesContainer.className = 'playback-branches-container'; turn.branches.forEach((branch, index) => { const branchDiv = document.createElement('div'); branchDiv.className = 'playback-branch'; const branchLabel = document.createElement('h4'); branchLabel.textContent = `分岐 ${String.fromCharCode(65 + index)}`; branchDiv.appendChild(branchLabel); if (branch.memo) { const memoDiv = document.createElement('div'); memoDiv.className = 'playback-memo'; memoDiv.textContent = branch.memo; branchDiv.appendChild(memoDiv); } const ul = document.createElement('ul'); branch.actions.forEach(action => { const li = document.createElement('li'); li.textContent = action; ul.appendChild(li); }); branchDiv.appendChild(ul); branchesContainer.appendChild(branchDiv); }); turnDiv.appendChild(branchesContainer); } else { const branch = turn.branches[0]; if (branch.memo) { const memoDiv = document.createElement('div'); memoDiv.className = 'playback-memo'; memoDiv.textContent = branch.memo; turnDiv.appendChild(memoDiv); } const ul = document.createElement('ul'); branch.actions.forEach(action => { const li = document.createElement('li'); li.textContent = action; ul.appendChild(li); }); turnDiv.appendChild(ul); } playbackArea.appendChild(turnDiv); });
+            currentPlaybackTurn = Math.min(currentWorkData.state.currentTurn, totalPlaybackTurns); if (currentPlaybackTurn < 1) currentPlaybackTurn = 1; updatePlaybackHighlight();
+        }
+        // V23: 再生モード用 updatePlaybackHighlight
+        function updatePlaybackHighlight() {
+            playbackNavCenter.textContent = `TURN ${currentPlaybackTurn} / ${totalPlaybackTurns}`; playbackPrevBtn.disabled = (currentPlaybackTurn <= 1); playbackNextBtn.disabled = (currentPlaybackTurn >= totalPlaybackTurns);
+            document.querySelectorAll('.playback-turn').forEach(div => { if (parseInt(div.dataset.turn, 10) === currentPlaybackTurn) { div.classList.add('active-turn'); div.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } else { div.classList.remove('active-turn'); } });
+        }
+
+        // --- 初期化処理 ---
+        function initialize() {
+            console.log("Initializing V27..."); // Debug log
+            loadCurrentWork();
+            loadSlotNames();
+            goToSetupPhase(); // 必ず編成画面から開始
+            console.log("Initialization complete."); // Debug log
+        }
+        initialize();
+
+    </script>
+<script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
+<script>
+  kofiWidgetOverlay.draw('alt4l', { type: 'floating-chat', 'floating-chat.donateButton.text': 'Support me', 'floating-chat.donateButton.background-color': '#794bc4', 'floating-chat.donateButton.text-color': '#fff' });
+</script>
+</body>
+</html>
