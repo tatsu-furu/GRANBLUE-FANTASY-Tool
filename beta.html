@@ -426,10 +426,26 @@
         backToSetupBtn.addEventListener('click', () => { saveCurrentWork(); goToSetupPhase(); });
         clearAllDataBtn.addEventListener('click', () => { if (confirm('全データ削除？')) { savedSlotNames.forEach(name => { localStorage.removeItem(STORAGE_KEY_PREFIX + name); }); localStorage.removeItem(STORAGE_KEY_SLOTS); localStorage.removeItem(STORAGE_KEY_CURRENT); location.reload(); } });
     exportBtn.addEventListener('click', () => { saveCurrentWork(); const jsonString = JSON.stringify(currentWorkData, null, 2); const blob = new Blob([jsonString], {type: 'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; let fileName = currentWorkData.slotName || 'gbf-move-data'; a.download = fileName.endsWith('.json') ? fileName : fileName + '.json'; a.click(); URL.revokeObjectURL(url); a.remove(); });
-    importFileInput.addEventListener('change', (event) => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { currentWorkData = getDefaultWorkData(); const json = JSON.parse(e.target.result); if (json && json.setup && json.state && Array.isArray(json.state.turns)) { currentWorkData.setup = {...currentWorkData.setup, ...json.setup}; currentWorkData.state = {...currentWorkData.state, ...json.state}; currentWorkData.slotName = json.slotName || ""; if (!currentWorkData.state.isBranchingMode) currentWorkData.state.isBranchingMode = false; if (!currentWorkData.state.currentBranchIndex) currentWorkData.state.currentBranchIndex = 0; if (!currentWorkData.state.totalBranchesInTurn) currentWorkData.state.totalBranchesInTurn = 1; currentWorkData.state.turns.forEach(turn => { if (!turn.branches) turn.branches = [{ actions: [], memo: "" }]; turn.branches.forEach(branch => { if (branch.memo === undefined) branch.memo = ""; }); });
-            // インポート後は undo 履歴をクリア
-            saveCurrentWork(); stateHistory = [];
-            loadSetupDataToDOM(); loadStateDataToDOM(); alert(`「${file.name}」ロード完了`); goToSetupPhase(); } else { alert('エラー: 無効形式'); } } catch (error) { console.error('Import Error:', error); alert('エラー: 読込失敗'); } event.target.value = null; }; reader.onerror = () => { alert('エラー: 読込失敗'); event.target.value = null; }; reader.readAsText(file); });
+        importFileInput.addEventListener('change', (event) => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { currentWorkData = getDefaultWorkData(); const json = JSON.parse(e.target.result); if (json && json.setup && json.state && Array.isArray(json.state.turns)) { // マージして currentWorkData に流し込む
+                currentWorkData.setup = {...currentWorkData.setup, ...json.setup};
+                currentWorkData.state = {...currentWorkData.state, ...json.state};
+                currentWorkData.slotName = json.slotName || "";
+                if (currentWorkData.state.isBranchingMode === undefined) currentWorkData.state.isBranchingMode = false;
+                if (currentWorkData.state.currentBranchIndex === undefined) currentWorkData.state.currentBranchIndex = 0;
+                if (currentWorkData.state.totalBranchesInTurn === undefined) currentWorkData.state.totalBranchesInTurn = 1;
+                currentWorkData.state.turns.forEach(turn => { if (!turn.branches) turn.branches = [{ actions: [], memo: "" }]; turn.branches.forEach(branch => { if (branch.memo === undefined) branch.memo = ""; }); });
+
+                // インポート後は undo 履歴をクリア
+                stateHistory = [];
+
+                // DOM に反映してから保存する（先に saveCurrentWork() を呼ぶと、まだ古い/空のフォーム値で上書きされる）
+                loadSetupDataToDOM();
+                loadStateDataToDOM();
+                saveCurrentWork();
+
+                alert(`「${file.name}」ロード完了`);
+                goToSetupPhase();
+            } else { alert('エラー: 無効形式'); } } catch (error) { console.error('Import Error:', error); alert('エラー: 読込失敗'); } event.target.value = null; }; reader.onerror = () => { alert('エラー: 読込失敗'); event.target.value = null; }; reader.readAsText(file); });
         resetSetupBtn.addEventListener('click', () => { if (confirm('編成入力クリア？')) { currentWorkData.setup = getDefaultWorkData().setup; saveCurrentWork(); loadSetupDataToDOM(); alert('クリア完了'); } });
         overwriteSaveBtn.addEventListener('click', () => { saveCurrentWork(); const currentSlotName = currentWorkData.slotName; if (currentSlotName) { localStorage.setItem(STORAGE_KEY_PREFIX + currentSlotName, JSON.stringify(currentWorkData)); alert(`「${currentSlotName}」上書き保存`); } else { alert('エラー: スロット名なし'); } });
         undoLastActionBtn.addEventListener('click', () => {
