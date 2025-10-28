@@ -183,7 +183,7 @@
                             <strong>ターン終了:</strong>
                             <div class="action-buttons">
                                 <button class="action-btn attack-btn-off btn" data-action="攻撃 (奥義OFF)">攻撃 (奥義OFF)</button>
-                                <button class="action-btn attack-btn-on btn" data-action="攻撃 (奥義ON)">攻撃 (奥義ON)</button>
+                                <button class="action-btn attack-btn-off btn" data-action="攻撃 (奥義ON)">攻撃 (奥義ON)</button>
                             </div>
                         </div>
                         <div class="reset-buttons">
@@ -380,7 +380,7 @@
                     turnCounter.textContent = `TURN ${currentWorkData.state.currentTurn}`;
                     logToHistory(`--- TURN ${currentWorkData.state.currentTurn} ---`);
                     turnMemoInput.value = ''; saveCurrentWork();
-                } else if (action === 'オールポーション') {
+                } else if (action === 'オールポーション' || action === 'FC') {
                     logToHistory(`[${action}]`);
                 } else {
                     logToHistory(`[${charName}] ${action}`);
