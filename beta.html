@@ -10,7 +10,7 @@
 <body>
 
     <div class="container">
-        <h1>グラブル ムーブ表作成ツール</h1>
+        <h1>グラブル ムーブ表作成ツール <span style="font-size: 0.5em; color: #ffb400; background-color: #1a1d23; padding: 3px 8px; border-radius: 4px; border: 1px solid #ffb400;">BETA v2.0</span></h1>
 
         <div id="setup-phase" style="display: block;">
             <h2>1. 編成登録 / 保存ロード</h2>
@@ -107,6 +107,22 @@
         </div> <div id="move-phase" style="display: none;">
              <h2>2. ムーブ入力</h2>
 
+            <details style="margin-bottom: 10px; padding: 8px; background-color: #1a1d23; border: 1px solid #444; border-radius: 4px;">
+                <summary style="cursor: pointer; font-weight: bold; color: #ffb400;">⌨️ キーボードショートカット</summary>
+                <div style="margin-top: 8px; font-size: 0.9em; line-height: 1.6;">
+                    <strong>基本操作:</strong><br>
+                    • <kbd>Ctrl+Z</kbd>: 1つ前に戻る (Undo)<br>
+                    • <kbd>Ctrl+S</kbd>: 現在のスロットに上書き保存<br>
+                    <strong>アビリティ:</strong><br>
+                    • <kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> / <kbd>4</kbd>: 各アビリティ<br>
+                    • <kbd>G</kbd>: ガード<br>
+                    <strong>ターン終了:</strong><br>
+                    • <kbd>Enter</kbd>: 攻撃（奥義ON）<br>
+                    • <kbd>Shift+Enter</kbd>: 攻撃（奥義OFF）<br>
+                    <small style="color: #888;">※テキスト入力中はショートカット無効</small>
+                </div>
+            </details>
+
             <div class="move-grid">
                 <div class="action-panel">
                     <div id="turn-counter">TURN 1</div>
@@ -117,6 +133,7 @@
                         <div id="branching-buttons">
                             <button id="next-branch-btn" class="btn">次の分岐へ</button>
                             <button id="finish-branching-btn" class="btn">分岐入力を完了</button>
+                            <button id="cancel-branching-btn" class="reset-btn btn" style="background-color: #d32f2f;">分岐をキャンセル</button>
                         </div>
                     </div>
 
@@ -295,6 +312,7 @@
         const startBranchingBtn = document.getElementById('start-branching-btn');
         const nextBranchBtn = document.getElementById('next-branch-btn');
         const finishBranchingBtn = document.getElementById('finish-branching-btn');
+        const cancelBranchingBtn = document.getElementById('cancel-branching-btn');
         const branchingSelector = document.getElementById('branching-selector');
 
         // NOTE: duplicate-control forwarding removed; buttons moved to history area with original IDs
@@ -510,13 +528,61 @@
         savePlaybackImageBtn.addEventListener('click', async () => { const targetElement = playbackArea; const originalHeight = targetElement.style.height; const originalOverflow = targetElement.style.overflowY; savePlaybackImageBtn.disabled = true; savePlaybackImageBtn.textContent = '画像生成中...'; try { targetElement.style.height = 'auto'; targetElement.style.overflowY = 'visible'; await new Promise(resolve => setTimeout(resolve, 100)); const canvas = await html2canvas(targetElement, { backgroundColor: '#262930', useCORS: true, scrollX: 0, scrollY: 0, windowWidth: targetElement.offsetWidth, windowHeight: targetElement.offsetHeight }); const imageDataUrl = canvas.toDataURL('image/png'); const a = document.createElement('a'); a.href = imageDataUrl; let fileName = currentWorkData.slotName || 'gbf-move-playback'; a.download = fileName.endsWith('.png') ? fileName : fileName + '.png'; a.click(); a.remove(); } catch (error) { console.error('画像保存エラー:', error); alert('画像保存失敗'); } finally { targetElement.style.height = originalHeight; targetElement.style.overflowY = originalOverflow; savePlaybackImageBtn.disabled = false; savePlaybackImageBtn.textContent = 'ムーブ表を画像で保存'; } });
         document.addEventListener('paste', handlePaste);
 
+        // キーボードショートカット機能
+        document.addEventListener('keydown', (e) => {
+            // テキスト入力中は無効化
+            const targetTagName = e.target.tagName.toLowerCase();
+            if (targetTagName === 'input' || targetTagName === 'textarea') { return; }
+
+            // ムーブ入力画面でのみ有効
+            if (movePhase.style.display !== 'block' || movePhase.classList.contains('playback-mode')) { return; }
+
+            // Ctrl+Z: Undo
+            if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undoLastActionBtn.click(); return; }
+
+            // Ctrl+S: 上書き保存
+            if (e.ctrlKey && e.key === 's') { e.preventDefault(); overwriteSaveBtn.click(); return; }
+
+            // 数字キー 1-4: アビリティ
+            if (['1', '2', '3', '4'].includes(e.key) && !e.ctrlKey && !e.shiftKey) {
+                e.preventDefault();
+                const abilityBtn = document.querySelector(`[data-action="${e.key}アビ"]`);
+                if (abilityBtn) abilityBtn.click();
+                return;
+            }
+
+            // Enter: 攻撃（奥義ON）
+            if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+                e.preventDefault();
+                const attackOnBtn = document.querySelector('[data-action="攻撃 (奥義ON)"]');
+                if (attackOnBtn) attackOnBtn.click();
+                return;
+            }
+
+            // Shift+Enter: 攻撃（奥義OFF）
+            if (e.key === 'Enter' && e.shiftKey) {
+                e.preventDefault();
+                const attackOffBtn = document.querySelector('[data-action="攻撃 (奥義OFF)"]');
+                if (attackOffBtn) attackOffBtn.click();
+                return;
+            }
+
+            // G: ガード
+            if (e.key === 'g' || e.key === 'G') {
+                e.preventDefault();
+                const guardBtn = document.querySelector('[data-action="ガード"]');
+                if (guardBtn) guardBtn.click();
+                return;
+            }
+        });
+
         // V24: 分岐ボタンリスナー
-        startBranchingBtn.addEventListener('click', () => { if (currentWorkData.state.isBranchingMode) return; const currentTurnData = getCurrentTurnData(); if (currentTurnData.branches.length > 1) { alert('既に分岐あり'); return; } const numBranchesInput = prompt("分岐数 (2 or 3):", "2"); let numBranches = parseInt(numBranchesInput, 10); if (isNaN(numBranches) || numBranches < 2 || numBranches > 3) { numBranches = 2; } // 変更前スナップショット
+        startBranchingBtn.addEventListener('click', () => { if (currentWorkData.state.isBranchingMode) return; const currentTurnData = getCurrentTurnData(); if (currentTurnData.branches.length > 1) { alert('既に分岐あり'); return; } const numBranchesInput = prompt("分岐数 (2, 3, または 4):", "2"); let numBranches = parseInt(numBranchesInput, 10); if (isNaN(numBranches) || numBranches < 2 || numBranches > 4) { numBranches = 2; } // 変更前スナップショット
             saveStateForUndo();
             currentWorkData.state.isBranchingMode = true; currentWorkData.state.currentBranchIndex = 0; currentWorkData.state.totalBranchesInTurn = numBranches; while(currentTurnData.branches.length < numBranches) { currentTurnData.branches.push({ actions: [], memo: "" }); } updateBranchingUI(); renderHistoryView(); saveCurrentWork(); turnMemoInput.value = currentTurnData.branches[0].memo || ''; });
     nextBranchBtn.addEventListener('click', () => { if (!currentWorkData.state.isBranchingMode) return; saveStateForUndo(); saveCurrentWork(); if (currentWorkData.state.currentBranchIndex < currentWorkData.state.totalBranchesInTurn - 1) { currentWorkData.state.currentBranchIndex++; turnMemoInput.value = getCurrentTurnData().branches[currentWorkData.state.currentBranchIndex]?.memo || ''; updateBranchingUI(); renderHistoryView(); saveCurrentWork(); } else { alert('最後の分岐'); } });
-    finishBranchingBtn.addEventListener('click', () => { 
-        if (!currentWorkData.state.isBranchingMode) return; 
+    finishBranchingBtn.addEventListener('click', () => {
+        if (!currentWorkData.state.isBranchingMode) return;
         // 分岐完了は undo 対象
         saveStateForUndo();
         saveCurrentWork();
@@ -524,6 +590,24 @@
         // 分岐入力完了後に次のターンへ進む
         advanceTurn();
         saveCurrentWork();
+    });
+    cancelBranchingBtn.addEventListener('click', () => {
+        if (!currentWorkData.state.isBranchingMode) return;
+        if (!confirm('分岐をキャンセルしますか？\n入力した分岐データは削除されます。')) return;
+        // キャンセル前のスナップショット
+        saveStateForUndo();
+        const currentTurnData = getCurrentTurnData(false);
+        if (currentTurnData) {
+            // 最初の分岐のみ残して、他を削除
+            currentTurnData.branches = [currentTurnData.branches[0]];
+        }
+        currentWorkData.state.isBranchingMode = false;
+        currentWorkData.state.currentBranchIndex = 0;
+        currentWorkData.state.totalBranchesInTurn = 1;
+        updateBranchingUI();
+        renderHistoryView();
+        saveCurrentWork();
+        alert('分岐をキャンセルしました。');
     });
 
         function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
