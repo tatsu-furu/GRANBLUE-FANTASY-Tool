@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>グラブル 天井計算機</title>
+    <style>
+        body {
+            font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+            background-color: #1a1c20;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background-color: #2c2f36;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            border: 1px solid #444;
+        }
+
+        h1 {
+            color: #ffb400;
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 40px;
+            font-size: 1em;
+        }
+
+        .spark-progress {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .progress-circle {
+            width: 200px;
+            height: 200px;
+            margin: 20px auto;
+            position: relative;
+        }
+
+        .circle-bg {
+            fill: none;
+            stroke: rgba(255,255,255,0.2);
+            stroke-width: 12;
+        }
+
+        .circle-progress {
+            fill: none;
+            stroke: #ffb400;
+            stroke-width: 12;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.5s ease;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .progress-label {
+            font-size: 0.8em;
+            color: rgba(255,255,255,0.8);
+            margin-top: 5px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-box {
+            background-color: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: rgba(255,255,255,0.8);
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .section {
+            background-color: #1e2126;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+        }
+
+        .section h2 {
+            color: #68aeff;
+            margin-top: 0;
+            font-size: 1.4em;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #444;
+            padding-bottom: 10px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            color: #aaa;
+            margin-bottom: 8px;
+            font-size: 1em;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            background-color: #2a2d35;
+            border: 2px solid #444;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 1.1em;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #68aeff;
+        }
+
+        .btn {
+            background-color: #4a90e2;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: bold;
+            transition: all 0.2s;
+            margin: 5px;
+            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+        }
+
+        .btn:hover {
+            background-color: #68aeff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(74, 144, 226, 0.4);
+        }
+
+        .btn-danger {
+            background-color: #e74c3c;
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+        }
+
+        .btn-danger:hover {
+            background-color: #c0392b;
+            box-shadow: 0 6px 16px rgba(231, 76, 60, 0.4);
+        }
+
+        .btn-success {
+            background-color: #27ae60;
+            box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+        }
+
+        .btn-success:hover {
+            background-color: #229954;
+            box-shadow: 0 6px 16px rgba(39, 174, 96, 0.4);
+        }
+
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+        }
+
+        .quick-add {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .quick-btn {
+            background-color: #9b59b6;
+            padding: 10px 20px;
+            box-shadow: 0 4px 12px rgba(155, 89, 182, 0.3);
+        }
+
+        .quick-btn:hover {
+            background-color: #8e44ad;
+            box-shadow: 0 6px 16px rgba(155, 89, 182, 0.4);
+        }
+
+        .tips {
+            background-color: #1e2126;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #ffb400;
+            margin-top: 20px;
+        }
+
+        .tips h3 {
+            color: #ffb400;
+            margin-top: 0;
+            font-size: 1.1em;
+        }
+
+        .tips ul {
+            margin: 10px 0;
+            padding-left: 20px;
+            color: #aaa;
+        }
+
+        .tips li {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .progress-circle {
+                width: 150px;
+                height: 150px;
+            }
+
+            .progress-text {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✨ グラブル 天井計算機</h1>
+        <p class="subtitle">300連天井までの進捗を管理しよう</p>
+
+        <div class="spark-progress">
+            <div class="progress-circle">
+                <svg width="200" height="200">
+                    <circle class="circle-bg" cx="100" cy="100" r="90"></circle>
+                    <circle class="circle-progress" id="progress-circle" cx="100" cy="100" r="90"></circle>
+                </svg>
+                <div class="progress-text">
+                    <span id="draws-count">0</span>
+                    <div class="progress-label">/ 300</div>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-label">残り回数</div>
+                    <div class="stat-value" id="remaining-draws">300</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">達成率</div>
+                    <div class="stat-value" id="completion-rate">0%</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">必要宝晶石</div>
+                    <div class="stat-value" id="needed-crystals">90,000</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📊 現在の引いた回数を入力</h2>
+            <div class="input-group">
+                <label for="current-draws">現在の引いた回数（0〜300）</label>
+                <input type="number" id="current-draws" min="0" max="300" value="0"
+                       oninput="updateProgress()">
+            </div>
+            <div class="quick-add">
+                <button class="btn quick-btn" onclick="addDraws(1)">+1回</button>
+                <button class="btn quick-btn" onclick="addDraws(10)">+10連</button>
+                <button class="btn quick-btn" onclick="addDraws(20)">+20連</button>
+                <button class="btn quick-btn" onclick="addDraws(100)">+100連</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>💎 所持リソース計算</h2>
+            <div class="input-group">
+                <label for="crystals">所持宝晶石</label>
+                <input type="number" id="crystals" min="0" value="0" oninput="calculateResources()">
+            </div>
+            <div class="input-group">
+                <label for="tickets">所持ガチャチケット</label>
+                <input type="number" id="tickets" min="0" value="0" oninput="calculateResources()">
+            </div>
+            <div class="input-group">
+                <label for="ten-tickets">所持10連チケット</label>
+                <input type="number" id="ten-tickets" min="0" value="0" oninput="calculateResources()">
+            </div>
+
+            <div style="background-color: #2a2d35; padding: 20px; border-radius: 8px; margin-top: 20px;">
+                <h3 style="color: #68aeff; margin-top: 0;">計算結果</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <div style="color: #aaa; font-size: 0.9em;">引ける回数</div>
+                        <div style="font-size: 1.5em; font-weight: bold; color: #51cf66;" id="can-draw">0回</div>
+                    </div>
+                    <div>
+                        <div style="color: #aaa; font-size: 0.9em;">天井まで</div>
+                        <div style="font-size: 1.5em; font-weight: bold;" id="shortage-info">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-success" onclick="saveData()">💾 データを保存</button>
+            <button class="btn" onclick="loadData()">📂 データを読込</button>
+            <button class="btn btn-danger" onclick="resetAll()">🗑️ リセット</button>
+        </div>
+
+        <div class="tips">
+            <h3>💡 使い方のヒント</h3>
+            <ul>
+                <li><strong>引いた回数を記録:</strong> ガチャを引くたびにクイック追加ボタンで簡単に更新</li>
+                <li><strong>宝晶石 = 300個で1回:</strong> 10連 = 3,000個、天井 = 90,000個必要</li>
+                <li><strong>データ保存:</strong> ブラウザに自動保存されますが、バックアップとしてファイル保存も可能</li>
+                <li><strong>複数の天井管理:</strong> ガチャごとにファイル保存して使い分けると便利</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'gbf_spark_calculator_v1';
+        const SPARK_TARGET = 300;
+        const CRYSTAL_PER_DRAW = 300;
+
+        let sparkData = {
+            currentDraws: 0,
+            crystals: 0,
+            tickets: 0,
+            tenTickets: 0
+        };
+
+        function updateProgress() {
+            const draws = parseInt(document.getElementById('current-draws').value) || 0;
+            sparkData.currentDraws = Math.min(Math.max(draws, 0), SPARK_TARGET);
+            document.getElementById('current-draws').value = sparkData.currentDraws;
+
+            const remaining = SPARK_TARGET - sparkData.currentDraws;
+            const percentage = Math.round((sparkData.currentDraws / SPARK_TARGET) * 100);
+            const neededCrystals = remaining * CRYSTAL_PER_DRAW;
+
+            document.getElementById('draws-count').textContent = sparkData.currentDraws;
+            document.getElementById('remaining-draws').textContent = remaining;
+            document.getElementById('completion-rate').textContent = percentage + '%';
+            document.getElementById('needed-crystals').textContent = neededCrystals.toLocaleString();
+
+            // Update circle progress
+            const circle = document.getElementById('progress-circle');
+            const radius = 90;
+            const circumference = 2 * Math.PI * radius;
+            const offset = circumference - (sparkData.currentDraws / SPARK_TARGET) * circumference;
+            circle.style.strokeDasharray = circumference;
+            circle.style.strokeDashoffset = offset;
+
+            calculateResources();
+            saveToLocalStorage();
+        }
+
+        function addDraws(amount) {
+            const current = parseInt(document.getElementById('current-draws').value) || 0;
+            document.getElementById('current-draws').value = Math.min(current + amount, SPARK_TARGET);
+            updateProgress();
+        }
+
+        function calculateResources() {
+            sparkData.crystals = parseInt(document.getElementById('crystals').value) || 0;
+            sparkData.tickets = parseInt(document.getElementById('tickets').value) || 0;
+            sparkData.tenTickets = parseInt(document.getElementById('ten-tickets').value) || 0;
+
+            const drawsFromCrystals = Math.floor(sparkData.crystals / CRYSTAL_PER_DRAW);
+            const drawsFromTickets = sparkData.tickets;
+            const drawsFromTenTickets = sparkData.tenTickets * 10;
+
+            const totalDraws = drawsFromCrystals + drawsFromTickets + drawsFromTenTickets;
+            const remaining = SPARK_TARGET - sparkData.currentDraws;
+            const shortage = remaining - totalDraws;
+
+            document.getElementById('can-draw').textContent = totalDraws + '回';
+
+            const shortageInfo = document.getElementById('shortage-info');
+            if (shortage <= 0) {
+                shortageInfo.textContent = '✓ 達成可能！';
+                shortageInfo.style.color = '#51cf66';
+            } else {
+                const neededCrystals = shortage * CRYSTAL_PER_DRAW;
+                shortageInfo.innerHTML = `不足 ${shortage}回<br><span style="font-size: 0.7em;">(${neededCrystals.toLocaleString()}石)</span>`;
+                shortageInfo.style.color = '#ff6b6b';
+            }
+
+            saveToLocalStorage();
+        }
+
+        function saveData() {
+            const jsonStr = JSON.stringify(sparkData, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const date = new Date().toISOString().split('T')[0];
+            a.download = `gbf-spark-${date}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            alert('💾 データをファイルに保存しました！');
+        }
+
+        function loadData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        sparkData = JSON.parse(event.target.result);
+                        loadDataToUI();
+                        alert('✅ データを読み込みました！');
+                    } catch (error) {
+                        alert('❌ ファイルの読み込みに失敗しました。');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function loadDataToUI() {
+            document.getElementById('current-draws').value = sparkData.currentDraws || 0;
+            document.getElementById('crystals').value = sparkData.crystals || 0;
+            document.getElementById('tickets').value = sparkData.tickets || 0;
+            document.getElementById('ten-tickets').value = sparkData.tenTickets || 0;
+            updateProgress();
+        }
+
+        function resetAll() {
+            if (!confirm('全てのデータをリセットしますか？')) {
+                return;
+            }
+            sparkData = { currentDraws: 0, crystals: 0, tickets: 0, tenTickets: 0 };
+            loadDataToUI();
+            alert('🗑️ データをリセットしました。');
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(sparkData));
+        }
+
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    sparkData = JSON.parse(saved);
+                } catch (e) {
+                    console.error('Failed to load data:', e);
+                }
+            }
+        }
+
+        // 初期化
+        window.onload = () => {
+            loadFromLocalStorage();
+            loadDataToUI();
+        };
+    </script>
+</body>
+</html>

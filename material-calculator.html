@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>グラブル 素材計算機</title>
+    <style>
+        body {
+            font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+            background-color: #1a1c20;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #2c2f36;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            border: 1px solid #444;
+        }
+
+        h1 {
+            color: #ffb400;
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 2em;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        .section {
+            background-color: #1e2126;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+        }
+
+        .section h2 {
+            color: #68aeff;
+            margin-top: 0;
+            font-size: 1.3em;
+            border-bottom: 2px solid #444;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .material-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .material-item {
+            background-color: #2a2d35;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #3a3d45;
+            transition: all 0.2s;
+        }
+
+        .material-item:hover {
+            border-color: #68aeff;
+            transform: translateY(-2px);
+        }
+
+        .material-name {
+            color: #fff;
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 1.05em;
+        }
+
+        .material-inputs {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .material-inputs label {
+            color: #aaa;
+            font-size: 0.9em;
+            min-width: 50px;
+        }
+
+        .material-inputs input {
+            width: 80px;
+            padding: 6px;
+            background-color: #1a1c20;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 1em;
+        }
+
+        .material-inputs input:focus {
+            outline: none;
+            border-color: #68aeff;
+        }
+
+        .shortage {
+            margin-top: 8px;
+            padding: 8px;
+            background-color: #4a2020;
+            border-radius: 4px;
+            color: #ff6b6b;
+            font-weight: bold;
+            text-align: center;
+            font-size: 0.95em;
+        }
+
+        .surplus {
+            margin-top: 8px;
+            padding: 8px;
+            background-color: #204a20;
+            border-radius: 4px;
+            color: #51cf66;
+            font-weight: bold;
+            text-align: center;
+            font-size: 0.95em;
+        }
+
+        .sufficient {
+            margin-top: 8px;
+            padding: 8px;
+            background-color: #2a4a2a;
+            border-radius: 4px;
+            color: #69db7c;
+            text-align: center;
+            font-size: 0.95em;
+        }
+
+        .btn {
+            background-color: #4a90e2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: all 0.2s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            background-color: #68aeff;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background-color: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+
+        .btn-success {
+            background-color: #27ae60;
+        }
+
+        .btn-success:hover {
+            background-color: #229954;
+        }
+
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+        }
+
+        .preset-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .preset-btn {
+            background-color: #9b59b6;
+            padding: 10px 20px;
+        }
+
+        .preset-btn:hover {
+            background-color: #8e44ad;
+        }
+
+        .summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .summary h3 {
+            margin: 0 0 15px 0;
+            font-size: 1.2em;
+        }
+
+        .summary-stats {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .stat-item {
+            background-color: rgba(255,255,255,0.1);
+            padding: 10px 20px;
+            border-radius: 5px;
+            min-width: 150px;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .material-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 グラブル 素材計算機</h1>
+        <p class="subtitle">キャラ育成・武器強化に必要な素材を管理しよう</p>
+
+        <div class="summary">
+            <h3>📊 進捗サマリー</h3>
+            <div class="summary-stats">
+                <div class="stat-item">
+                    <div>不足素材数</div>
+                    <div class="stat-value" id="shortage-count">0</div>
+                </div>
+                <div class="stat-item">
+                    <div>達成素材数</div>
+                    <div class="stat-value" id="sufficient-count">0</div>
+                </div>
+                <div class="stat-item">
+                    <div>進捗率</div>
+                    <div class="stat-value" id="progress-percent">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>💎 上位素材</h2>
+            <div class="material-grid" id="high-tier-materials"></div>
+        </div>
+
+        <div class="section">
+            <h2>⚔️ 武器・召喚石強化素材</h2>
+            <div class="material-grid" id="weapon-materials"></div>
+        </div>
+
+        <div class="section">
+            <h2>📜 トレジャー</h2>
+            <div class="material-grid" id="treasure-materials"></div>
+        </div>
+
+        <div class="section">
+            <h2>🌟 その他素材</h2>
+            <div class="material-grid" id="other-materials"></div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-success" onclick="saveData()">💾 データを保存</button>
+            <button class="btn" onclick="loadData()">📂 データを読込</button>
+            <button class="btn btn-danger" onclick="resetAll()">🗑️ 全てリセット</button>
+        </div>
+
+        <div class="section">
+            <h2>🎯 プリセット（目標設定）</h2>
+            <p style="color: #aaa; font-size: 0.9em;">よくある育成目標の必要素材を一括設定できます</p>
+            <div class="preset-buttons">
+                <button class="btn preset-btn" onclick="applyPreset('character-max')">キャラ1体完凸</button>
+                <button class="btn preset-btn" onclick="applyPreset('weapon-max')">武器1本完凸</button>
+                <button class="btn preset-btn" onclick="applyPreset('summon-max')">召喚石1個完凸</button>
+                <button class="btn preset-btn" onclick="applyPreset('eternal')">十天衆1人取得</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'gbf_material_calculator_v1';
+
+        const materials = {
+            'high-tier': [
+                { id: 'gold_brick', name: 'ヒヒイロカネ', icon: '🏆' },
+                { id: 'Damascus_ingot', name: 'ダマスカス鋼', icon: '💫' },
+                { id: 'sephira_stone', name: 'セフィラストーン', icon: '💠' },
+                { id: 'supreme_merit', name: '覇者の証', icon: '🎖️' },
+            ],
+            'weapon': [
+                { id: 'champion_merit', name: '栄誉の輝き', icon: '⭐' },
+                { id: 'legendary_merit', name: '勇者の証', icon: '🏅' },
+                { id: 'sword_stone', name: '剣のエレメント', icon: '⚔️' },
+                { id: 'gun_stone', name: '銃のエレメント', icon: '🔫' },
+                { id: 'staff_stone', name: '杖のエレメント', icon: '🪄' },
+                { id: 'dagger_stone', name: '短剣のエレメント', icon: '🗡️' },
+            ],
+            'treasure': [
+                { id: 'blue_sky_crystal', name: '碧空の結晶', icon: '💎' },
+                { id: 'rainbow_prism', name: '虹星晶', icon: '🌈' },
+                { id: 'white_dragon_scale', name: '白竜鱗', icon: '🐉' },
+                { id: 'red_dragon_scale', name: '赤竜鱗', icon: '🔴' },
+                { id: 'horn_of_bahamut', name: 'バハムートの角', icon: '👿' },
+                { id: 'primarch_anima', name: '四大天司のアニマ', icon: '👼' },
+            ],
+            'other': [
+                { id: 'half_elixir', name: 'ハーフエリクシール', icon: '🧪' },
+                { id: 'soul_berry', name: 'ソウルシード', icon: '🫘' },
+                { id: 'rupie', name: 'ルピ (万)', icon: '💰' },
+                { id: 'crystal', name: '宝晶石', icon: '💠' },
+            ]
+        };
+
+        const presets = {
+            'character-max': {
+                name: 'キャラ1体完凸',
+                values: {
+                    supreme_merit: { need: 50, have: 0 },
+                    champion_merit: { need: 100, have: 0 },
+                    legendary_merit: { need: 200, have: 0 },
+                    rainbow_prism: { need: 300, have: 0 },
+                    rupie: { need: 500, have: 0 },
+                }
+            },
+            'weapon-max': {
+                name: '武器1本完凸',
+                values: {
+                    Damascus_ingot: { need: 3, have: 0 },
+                    sword_stone: { need: 200, have: 0 },
+                    champion_merit: { need: 50, have: 0 },
+                    rainbow_prism: { need: 150, have: 0 },
+                    rupie: { need: 300, have: 0 },
+                }
+            },
+            'summon-max': {
+                name: '召喚石1個完凸',
+                values: {
+                    sephira_stone: { need: 3, have: 0 },
+                    champion_merit: { need: 30, have: 0 },
+                    rainbow_prism: { need: 100, have: 0 },
+                    rupie: { need: 200, have: 0 },
+                }
+            },
+            'eternal': {
+                name: '十天衆1人取得',
+                values: {
+                    gold_brick: { need: 1, have: 0 },
+                    blue_sky_crystal: { need: 50, have: 0 },
+                    white_dragon_scale: { need: 100, have: 0 },
+                    red_dragon_scale: { need: 100, have: 0 },
+                    champion_merit: { need: 500, have: 0 },
+                    supreme_merit: { need: 100, have: 0 },
+                    rupie: { need: 1000, have: 0 },
+                }
+            }
+        };
+
+        let materialData = {};
+
+        function initMaterials() {
+            Object.keys(materials).forEach(category => {
+                materials[category].forEach(mat => {
+                    if (!materialData[mat.id]) {
+                        materialData[mat.id] = { have: 0, need: 0 };
+                    }
+                });
+            });
+        }
+
+        function renderMaterials() {
+            Object.keys(materials).forEach(category => {
+                const containerId = category === 'high-tier' ? 'high-tier-materials' :
+                                   category === 'weapon' ? 'weapon-materials' :
+                                   category === 'treasure' ? 'treasure-materials' : 'other-materials';
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+
+                materials[category].forEach(mat => {
+                    const data = materialData[mat.id] || { have: 0, need: 0 };
+                    const diff = data.have - data.need;
+
+                    let statusHtml = '';
+                    if (data.need > 0) {
+                        if (diff < 0) {
+                            statusHtml = `<div class="shortage">不足: ${Math.abs(diff)}</div>`;
+                        } else if (diff === 0) {
+                            statusHtml = `<div class="sufficient">✓ 達成！</div>`;
+                        } else {
+                            statusHtml = `<div class="surplus">余剰: +${diff}</div>`;
+                        }
+                    }
+
+                    const itemHtml = `
+                        <div class="material-item">
+                            <div class="material-name">${mat.icon} ${mat.name}</div>
+                            <div class="material-inputs">
+                                <label>所持:</label>
+                                <input type="number" min="0" value="${data.have}"
+                                       onchange="updateMaterial('${mat.id}', 'have', this.value)">
+                            </div>
+                            <div class="material-inputs">
+                                <label>必要:</label>
+                                <input type="number" min="0" value="${data.need}"
+                                       onchange="updateMaterial('${mat.id}', 'need', this.value)">
+                            </div>
+                            ${statusHtml}
+                        </div>
+                    `;
+                    container.innerHTML += itemHtml;
+                });
+            });
+            updateSummary();
+        }
+
+        function updateMaterial(id, field, value) {
+            materialData[id][field] = parseInt(value) || 0;
+            saveToLocalStorage();
+            renderMaterials();
+        }
+
+        function updateSummary() {
+            let shortageCount = 0;
+            let sufficientCount = 0;
+            let totalWithGoals = 0;
+
+            Object.keys(materialData).forEach(id => {
+                const data = materialData[id];
+                if (data.need > 0) {
+                    totalWithGoals++;
+                    const diff = data.have - data.need;
+                    if (diff < 0) {
+                        shortageCount++;
+                    } else {
+                        sufficientCount++;
+                    }
+                }
+            });
+
+            const progressPercent = totalWithGoals > 0 ?
+                Math.round((sufficientCount / totalWithGoals) * 100) : 0;
+
+            document.getElementById('shortage-count').textContent = shortageCount;
+            document.getElementById('sufficient-count').textContent = sufficientCount;
+            document.getElementById('progress-percent').textContent = progressPercent + '%';
+        }
+
+        function applyPreset(presetId) {
+            const preset = presets[presetId];
+            if (!preset) return;
+
+            if (!confirm(`プリセット「${preset.name}」を適用しますか？\n現在の必要数に上書きされます。`)) {
+                return;
+            }
+
+            Object.keys(preset.values).forEach(matId => {
+                if (materialData[matId]) {
+                    materialData[matId].need = preset.values[matId].need;
+                }
+            });
+
+            saveToLocalStorage();
+            renderMaterials();
+            alert(`✅ プリセット「${preset.name}」を適用しました！`);
+        }
+
+        function saveData() {
+            const jsonStr = JSON.stringify(materialData, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'gbf-materials-backup.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            alert('💾 データをファイルに保存しました！');
+        }
+
+        function loadData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        materialData = data;
+                        saveToLocalStorage();
+                        renderMaterials();
+                        alert('✅ データを読み込みました！');
+                    } catch (error) {
+                        alert('❌ ファイルの読み込みに失敗しました。');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function resetAll() {
+            if (!confirm('全てのデータをリセットしますか？\nこの操作は取り消せません。')) {
+                return;
+            }
+            materialData = {};
+            initMaterials();
+            saveToLocalStorage();
+            renderMaterials();
+            alert('🗑️ 全データをリセットしました。');
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(materialData));
+        }
+
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    materialData = JSON.parse(saved);
+                } catch (e) {
+                    console.error('Failed to load data:', e);
+                }
+            }
+        }
+
+        // 初期化
+        window.onload = () => {
+            initMaterials();
+            loadFromLocalStorage();
+            renderMaterials();
+        };
+    </script>
+</body>
+</html>
