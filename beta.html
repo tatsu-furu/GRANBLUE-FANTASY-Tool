@@ -161,6 +161,18 @@
                 </div>
             </fieldset>
 
+            <fieldset>
+                <legend>📋 レイドテンプレ（任意）</legend>
+                <div>
+                    <label for="raid-template-select">レイドを選択</label>
+                    <select id="raid-template-select" class="form-select" style="width:100%; background:#1a1d23; color:#e0e0e0; border:1px solid #555; padding:6px; border-radius:4px; margin-top:4px;">
+                        <option value="">-- なし --</option>
+                        <option value="sparsi">ダーク・ラプチャー・ゼロ（スパルシ）</option>
+                    </select>
+                </div>
+                <small style="color:#888; display:block; margin-top:6px;">ムーブ入力画面に予兆・解除条件の参照パネルが表示されます</small>
+            </fieldset>
+
             <button id="setup-complete-btn" class="btn">ムーブ入力画面へ</button>
 
             <div class="reset-buttons" style="margin-top: 15px;">
@@ -186,6 +198,15 @@
                     • <kbd>Enter</kbd>: 攻撃（奥義ON）<br>
                     • <kbd>Shift+Enter</kbd>: 攻撃（奥義OFF）<br>
                     <small style="color: #888;">※テキスト入力中はショートカット無効</small>
+                </div>
+            </details>
+
+            <details id="raid-info-panel" style="display:none; margin-bottom:10px; padding:8px; background:#1a1d23; border:1px solid #ffb400; border-radius:4px;">
+                <summary style="cursor:pointer; font-weight:bold; color:#ffb400;">📋 <span id="raid-panel-title">予兆一覧</span> <small style="color:#aaa; font-weight:normal;">（行クリックでメモ挿入）</small></summary>
+                <div style="margin-top:8px;">
+                    <div id="raid-notes" style="font-size:0.82em; color:#aaa; margin-bottom:8px; padding:6px; background:#0d0f14; border-radius:3px; line-height:1.6;"></div>
+                    <div id="raid-phase-tabs" style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:8px;"></div>
+                    <div id="raid-phase-content" style="font-size:0.85em;"></div>
                 </div>
             </details>
 
@@ -320,6 +341,162 @@
         let totalPlaybackTurns = 1;
         // Undo 用履歴スタック（state のスナップショットを保存）
         let stateHistory = [];
+
+        // --- レイドテンプレデータ ---
+        const RAID_TEMPLATES = {
+            sparsi: {
+                name: "ダーク・ラプチャー・ゼロ（スパルシ）",
+                hp: "約80億", timeLimit: "30分", ct: "CT2",
+                notes: ["HP80%/60%/20%でカウントリセット（カウント半分以上で区間通過を意識）", "6人で各属性担当。20%以降の試練は属性ごとに担当割り", "開幕1T目のジエンド（3000万ダメ）解除必須"],
+                phases: [
+                    {
+                        range: "開幕〜81%",
+                        triggers: [
+                            { condition: "開幕", name: "パラダイスロスト", clear: "なし（受ける）", note: "全体5万無属性ダメ、林檎2種付与、復活不可" },
+                            { condition: "1T目", name: "ジエンド", clear: "3000万ダメ ★必須", note: "未解除で全滅" },
+                            { condition: "HP95%", name: "アキシオン", clear: "TA4回", note: "30倍×3ダメ、連続DOWN/虚脱" },
+                            { condition: "次T", name: "フィークス", clear: "奥義2000万", note: "30倍ダメ、裂傷、2キャラ衰弱" },
+                            { condition: "次T", name: "セフィロト", clear: "アビダメ1500万", note: "24倍×12ダメ、アビスロウ" }
+                        ],
+                        ctSpecials: [
+                            { name: "ポースポロス", clear: "弱体7回", note: "20倍×5ダメ＋無属性6000、強圧/暗闇" },
+                            { name: "イブリース", clear: "ディスペル2回", note: "20倍×5ダメ、追撃/全属性ダメカ" },
+                            { name: "テセラ", clear: "150万×7hit", note: "攻撃前解除時に確率発動、強化全消去/奥義DOWN" }
+                        ]
+                    },
+                    {
+                        range: "80%〜61%",
+                        triggers: [
+                            { condition: "HP80%", name: "オービタル・レゾナンス", clear: "なし", note: "絶対否定 or 永遠拒絶を構える（以降CT技が変化）" },
+                            { condition: "次T", name: "アキシオン・ヴァニタス", clear: "ルートにより変化", note: "24倍×6ダメ、強圧/暗闇、FCゲージ30%DOWN" },
+                            { condition: "次T", name: "フィークス・ヴァニタス", clear: "ルートにより変化", note: "FCゲージ30%DOWN" },
+                            { condition: "次T", name: "セフィロト・ヴァニタス", clear: "ルートにより変化", note: "24倍×12ダメ、召喚不可、FCゲージ30%DOWN" }
+                        ],
+                        ctSpecials: [
+                            { name: "絶対否定", clear: "奥義4回", note: "24倍×3ダメ、DA/TA DOWN、マヒ2キャラ、FCゲージ30%DOWN" },
+                            { name: "永遠拒絶", clear: "TA3回", note: "同効果" }
+                        ]
+                    },
+                    {
+                        range: "60%〜21%",
+                        triggers: [
+                            { condition: "HP60%", name: "黙示録の喇叭", clear: "なし", note: "林檎2種、弱体リセット(1人目のみ)、十二の試練1〜6付与" },
+                            { condition: "HP55%", name: "試練・第一節", clear: "奥義5回", note: "120倍ダメ、連続攻撃DOWN" },
+                            { condition: "次T", name: "試練・第二節", clear: "攻撃行動6回", note: "120倍×12ダメ" },
+                            { condition: "次T", name: "試練・第三節", clear: "3500万ダメ", note: "120倍×3ダメ、奥義封印" },
+                            { condition: "次T", name: "試練・第四節", clear: "弱体10回", note: "30倍ダメ、裂傷、衰弱2キャラ" },
+                            { condition: "次T", name: "試練・第五節", clear: "FC発動", note: "120倍×12ダメ" },
+                            { condition: "次T", name: "試練・第六節", clear: "60hit", note: "120倍×3ダメ、奥義封印" }
+                        ],
+                        ctSpecials: [
+                            { name: "ポースポロス", clear: "弱体7回", note: "同上" },
+                            { name: "イブリース", clear: "ディスペル2回", note: "同上" },
+                            { name: "テセラ", clear: "アビ5回", note: "攻撃前解除時に確率発動（60%区間は解除条件変化）" }
+                        ]
+                    },
+                    {
+                        range: "20%以降",
+                        triggers: [
+                            { condition: "HP20%", name: "終末の福音", clear: "なし", note: "十二の試練7〜12付与、T終了時弱体付与、各属性が担当試練を受け持つ" },
+                            { condition: "次T〜", name: "アンチバシレイア", clear: "奥義6回/アビ12回/66hit（ランダム）", note: "120倍ダメ、解除でHP10%制限解除、3回連続で条件が変化" },
+                            { condition: "HP13%", name: "ポースポロス・アポカリプス", clear: "9999万9999ダメ", note: "30倍×3ダメ、全属性ダメカ、強圧" },
+                            { condition: "HP6%", name: "イブリース・アポカリプス", clear: "99hit", note: "" }
+                        ],
+                        ctSpecials: [
+                            { name: "アキシオン・アポカリプス", clear: "FC発動", note: "30倍×3ダメ、アンデッド" }
+                        ]
+                    }
+                ]
+            }
+        };
+
+        let currentRaidTemplate = null;
+        let currentRaidPhaseIndex = 0;
+
+        function initRaidPanel() {
+            const sel = document.getElementById('raid-template-select');
+            if (!sel) return;
+            sel.addEventListener('change', () => {
+                currentRaidTemplate = RAID_TEMPLATES[sel.value] || null;
+                currentRaidPhaseIndex = 0;
+            });
+        }
+
+        function showRaidPanel() {
+            const panel = document.getElementById('raid-info-panel');
+            if (!panel) return;
+            if (!currentRaidTemplate) { panel.style.display = 'none'; return; }
+            panel.style.display = 'block';
+            document.getElementById('raid-panel-title').textContent = currentRaidTemplate.name + ' 予兆一覧';
+            const notesEl = document.getElementById('raid-notes');
+            notesEl.innerHTML = '<strong style="color:#ffb400;">基本情報:</strong> HP ' + currentRaidTemplate.hp + ' / 制限 ' + currentRaidTemplate.timeLimit + ' / ' + currentRaidTemplate.ct + '<br>'
+                + currentRaidTemplate.notes.map(n => '• ' + n).join('<br>');
+            renderRaidPhaseTabs();
+            renderRaidPhaseContent();
+        }
+
+        function renderRaidPhaseTabs() {
+            const tabsEl = document.getElementById('raid-phase-tabs');
+            if (!tabsEl || !currentRaidTemplate) return;
+            tabsEl.innerHTML = '';
+            currentRaidTemplate.phases.forEach((phase, i) => {
+                const btn = document.createElement('button');
+                btn.textContent = phase.range;
+                btn.style.cssText = 'padding:4px 10px; border-radius:4px; border:1px solid #555; cursor:pointer; font-size:0.82em; background:' + (i === currentRaidPhaseIndex ? '#ffb400' : '#2c2f36') + '; color:' + (i === currentRaidPhaseIndex ? '#000' : '#e0e0e0') + ';';
+                btn.addEventListener('click', () => { currentRaidPhaseIndex = i; renderRaidPhaseTabs(); renderRaidPhaseContent(); });
+                tabsEl.appendChild(btn);
+            });
+        }
+
+        function renderRaidPhaseContent() {
+            const contentEl = document.getElementById('raid-phase-content');
+            if (!contentEl || !currentRaidTemplate) return;
+            const phase = currentRaidTemplate.phases[currentRaidPhaseIndex];
+            if (!phase) return;
+
+            const rowStyle = 'display:grid; grid-template-columns:70px 1fr 1fr; gap:4px; padding:5px 4px; border-bottom:1px solid #333; cursor:pointer; border-radius:3px;';
+            const headerStyle = 'display:grid; grid-template-columns:70px 1fr 1fr; gap:4px; padding:4px 4px; color:#ffb400; font-weight:bold; font-size:0.9em; border-bottom:2px solid #ffb400; margin-bottom:2px;';
+
+            let html = '<div style="' + headerStyle + '"><span>条件</span><span>予兆名</span><span>解除条件</span></div>';
+            phase.triggers.forEach(t => {
+                const needsClear = t.clear && t.clear !== 'なし' && !t.clear.includes('なし');
+                const clearColor = needsClear ? '#4caf50' : '#888';
+                const memo = '[' + t.name + '] ' + (t.note ? t.note + ' ' : '') + '解除: ' + t.clear;
+                html += '<div class="raid-row" data-memo="' + memo.replace(/"/g, '&quot;') + '" style="' + rowStyle + '" onmouseover="this.style.background=\'#2a2d35\'" onmouseout="this.style.background=\'transparent\'">'
+                    + '<span style="color:#aaa;">' + t.condition + '</span>'
+                    + '<span style="color:#e0e0e0; font-weight:bold;">' + t.name + '</span>'
+                    + '<span style="color:' + clearColor + ';">' + t.clear + '</span>'
+                    + '</div>';
+                if (t.note) {
+                    html += '<div style="padding:1px 4px 5px 74px; color:#777; font-size:0.85em;">' + t.note + '</div>';
+                }
+            });
+
+            if (phase.ctSpecials && phase.ctSpecials.length > 0) {
+                html += '<div style="margin-top:10px; margin-bottom:2px; color:#e57373; font-weight:bold;">CT特殊技</div>';
+                html += '<div style="' + headerStyle.replace('#ffb400','#e57373') + '"><span>予兆名</span><span>解除条件</span><span>備考</span></div>';
+                phase.ctSpecials.forEach(ct => {
+                    const memo = '[CT:' + ct.name + '] 解除: ' + ct.clear + (ct.note ? ' / ' + ct.note : '');
+                    html += '<div class="raid-row" data-memo="' + memo.replace(/"/g, '&quot;') + '" style="' + rowStyle.replace('grid-template-columns:70px 1fr 1fr','grid-template-columns:1fr 1fr 1fr') + '" onmouseover="this.style.background=\'#2a2d35\'" onmouseout="this.style.background=\'transparent\'">'
+                        + '<span style="color:#e0e0e0; font-weight:bold;">' + ct.name + '</span>'
+                        + '<span style="color:#4caf50;">' + ct.clear + '</span>'
+                        + '<span style="color:#777;">' + ct.note + '</span>'
+                        + '</div>';
+                });
+            }
+
+            contentEl.innerHTML = html;
+            contentEl.querySelectorAll('.raid-row').forEach(row => {
+                row.addEventListener('click', () => {
+                    const memo = row.dataset.memo;
+                    const ta = document.getElementById('turn-memo-input');
+                    if (ta) {
+                        ta.value = ta.value ? ta.value + '\n' + memo : memo;
+                        ta.dispatchEvent(new Event('input'));
+                    }
+                });
+            });
+        }
 
         // structuredClone が使えない環境向けのフォールバック
         function structuredCloneSafe(obj) {
@@ -923,6 +1100,7 @@
                  charSelectContainer.appendChild(btn);
              }
              setupPhase.style.display = 'none'; movePhase.style.display = 'block'; movePhase.classList.remove('playback-mode');
+             showRaidPanel();
              loadStateDataToDOM(); selectCharacter(currentWorkData.state.selectedCharIndex, true);
              console.log("Navigated to Move Phase (V27)"); // Debug log
         }
@@ -984,6 +1162,7 @@
             loadCurrentWork();
             loadSlotNames();
             renderCharacterInputs(); // キャラクター入力欄を最初に生成
+            initRaidPanel();
             goToSetupPhase(); // 必ず編成画面から開始
             console.log("Initialization complete."); // Debug log
         }
