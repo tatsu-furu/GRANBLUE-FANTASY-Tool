@@ -168,6 +168,7 @@
                     <select id="raid-template-select" class="form-select" style="width:100%; background:#1a1d23; color:#e0e0e0; border:1px solid #555; padding:6px; border-radius:4px; margin-top:4px;">
                         <option value="">-- なし --</option>
                         <option value="sparsi">ダーク・ラプチャー・ゼロ（スパルシ）</option>
+                        <option value="tengen">天元たる六色の理（天元）</option>
                     </select>
                 </div>
                 <small style="color:#888; display:block; margin-top:6px;">ムーブ入力画面に予兆・解除条件の参照パネルが表示されます</small>
@@ -408,6 +409,79 @@
                     }
                 ]
             }
+        };
+
+        RAID_TEMPLATES.tengen = {
+            name: "天元たる六色の理（天元）",
+            hp: "約60億", timeLimit: "30分", ct: "CT2",
+            notes: [
+                "開幕フォームはランダム（火風/土水/光闇）、HP80%/60%で別の組み合わせに切り替わり",
+                "奥義orアビダメ5000万毎に次T特殊予兆が発動（両方同時は奥義→アビの順）",
+                "40%の試練解除が最重要。道中に無理はしない",
+                "40%特殊はゴブロ/五条悟召喚・被ダメ0などで受ける",
+                "15%以降は毎T予兆発生。2回目のFC後に全滅技ラツィオ・エクゼティウム"
+            ],
+            phases: [
+                {
+                    range: "共通CT (~40%)",
+                    triggers: [],
+                    ctSpecials: [
+                        { name: "メートス・ルジェット", clear: "2000万ダメ", note: "無属性6000×6、虚脱/アビ封印。解除で竜気確率-1" }
+                    ]
+                },
+                {
+                    range: "火風 (イーウィヤ+ウィルナス)",
+                    triggers: [
+                        { condition: "アビ5000万毎", name: "エクザスティブ・コラプス", clear: "奥義5回", note: "風36倍×12hit、弱体耐性DOWN累積、イーウィヤ竜気+1" },
+                        { condition: "奥義5000万毎", name: "インテンシスフレイム", clear: "36hit", note: "火15倍全体、奥義上昇DOWN、ウィルナス竜気+1" },
+                        { condition: "HP90%/70%/50%", name: "朱の灼爪・翠の瓢嘴", clear: "200万×9/12/15hit（HP帯で変化）", note: "火風10倍×2、脆性付与、竜気+2×2。解除で竜気-1" }
+                    ],
+                    ctSpecials: []
+                },
+                {
+                    range: "土水 (ガレヲン+ワムデュス)",
+                    triggers: [
+                        { condition: "アビ5000万毎", name: "天地激震", clear: "FC発動", note: "土15倍全体、防御DOWN累積、ガレヲン竜気+1" },
+                        { condition: "奥義5000万毎", name: "フェロシアスアトラクター", clear: "TA4回", note: "水30倍×6hit、攻撃DOWN累積、ワムデュス竜気+1" },
+                        { condition: "HP90%/70%/50%", name: "碧の渦核・金の巌擲", clear: "200万×9/12/15hit（HP帯で変化）", note: "水土10倍×2、脆性付与、竜気+2×2" }
+                    ],
+                    ctSpecials: []
+                },
+                {
+                    range: "光闇 (ルオー+フェディエル)",
+                    triggers: [
+                        { condition: "アビ5000万毎", name: "ネクロシスストーム", clear: "弱体10回", note: "闇15倍全体、回復力DOWN累積、フェディエル竜気+1" },
+                        { condition: "奥義5000万毎", name: "万雷散華", clear: "アビ5回", note: "光40倍×4hit、連続攻撃DOWN累積、ルオー竜気+1" },
+                        { condition: "HP90%/70%/50%", name: "白の煌閃・黒の呪禍", clear: "200万×9/12/15hit（HP帯で変化）", note: "光闇10倍×2、脆性付与、竜気+2×2" }
+                    ],
+                    ctSpecials: []
+                },
+                {
+                    range: "40%〜16%",
+                    triggers: [
+                        { condition: "HP40%", name: "ヴィコロール・リベラティオ", clear: "なし（受ける）", note: "全属性1倍×6（坩堝Lv依存）、HP15%制限追加、敵強化（坩堝Lv依存）" },
+                        { condition: "40%直後", name: "穹竜の試練（全属性分）", clear: "6T以内にTA18回 or 奥義18回", note: "解除後に坩堝Lvが光輪Lvに変換（敵TA/与ダメ上昇、アビ6回でLv-1）" }
+                    ],
+                    ctSpecials: [
+                        { name: "エクセーザ・ラセラティオ", clear: "ディスペル3回", note: "水/闇60倍×8hit、窒息/腐敗、FCゲージ30%DOWN" },
+                        { name: "クラディス・ルーチェア", clear: "40hit", note: "火/光90倍×6hit、強化全消去/麻痺、FCゲージ30%DOWN" },
+                        { name: "アトロフィア・インペトス", clear: "2500万ダメ", note: "土/風10倍×2、アビスロウ・奥義DOWN各2キャラ、FCゲージ30%DOWN" }
+                    ]
+                },
+                {
+                    range: "15%以降",
+                    triggers: [
+                        { condition: "HP15%", name: "ルプティス・アルドーレ", clear: "FC発動 ★必須", note: "火60倍、ガード不可、HP15%制限解除" },
+                        { condition: "次T", name: "ルプティス・トーレンス", clear: "奥義2000万", note: "水60倍、強圧" },
+                        { condition: "次T", name: "ルプティス・グラウンド", clear: "アビダメ2000万", note: "土60倍、恐怖" },
+                        { condition: "次T", name: "ルプティス・テンペスタ", clear: "弱体10回", note: "風60倍、召喚不可" },
+                        { condition: "次T", name: "ルプティス・スプレンド", clear: "200万×10hit", note: "光60倍、アビ封印" },
+                        { condition: "次T", name: "ルプティス・テネブリス", clear: "FC発動", note: "闇60倍、奥義封印" },
+                        { condition: "次T", name: "ラツィオ・エクゼティウム ⚠️", clear: "解除不可（全滅）", note: "サブ含む全員戦闘不能、受けると強制敗北" }
+                    ],
+                    ctSpecials: []
+                }
+            ]
         };
 
         let currentRaidTemplate = null;
