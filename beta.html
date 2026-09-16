@@ -169,6 +169,7 @@
                         <option value="">-- なし --</option>
                         <option value="sparsi">ダーク・ラプチャー・ゼロ（スパルシ）</option>
                         <option value="tengen">天元たる六色の理（天元）</option>
+                        <option value="versacia">ヴェルサシア</option>
                     </select>
                 </div>
                 <small style="color:#888; display:block; margin-top:6px;">ムーブ入力画面に予兆・解除条件の参照パネルが表示されます</small>
@@ -478,6 +479,89 @@
                         { condition: "次T", name: "ルプティス・スプレンド", clear: "200万×10hit", note: "光60倍、アビ封印" },
                         { condition: "次T", name: "ルプティス・テネブリス", clear: "FC発動", note: "闇60倍、奥義封印" },
                         { condition: "次T", name: "ラツィオ・エクゼティウム ⚠️", clear: "解除不可（全滅）", note: "サブ含む全員戦闘不能、受けると強制敗北" }
+                    ],
+                    ctSpecials: []
+                }
+            ]
+        };
+
+        RAID_TEMPLATES.versacia = {
+            name: "ヴェルサシア",
+            hp: "---", timeLimit: "---", ct: "---",
+            notes: [
+                "開幕に赤(破壊の神意) or 青(再生の神意)がランダム付与。名前横の色で判別",
+                "Gゲージ(破壊の力): 予兆未解除/解除で増減。G50到達 or HP51%で形態変化",
+                "DCゲージ: 予兆解除で蓄積。100%でレギンレイヴ(FCゲージ100%回収) or ファランクス(被ダメ無効1T)",
+                "他化自在: T終了時に攻撃数/アビ数/ダメが不足すると付与。予兆解除条件が増加",
+                "四王天ループ(G50後): 毎T五種が順次付与。Lv3が揃うと他化自在付与トリガー",
+                "シエテ等による予兆中断NG（法灯・破壊の試練に注意）"
+            ],
+            phases: [
+                {
+                    range: "100%〜81%",
+                    triggers: [
+                        { condition: "開幕", name: "浄土", clear: "なし（受ける）", note: "全体最大HP50%破壊ダメ、法灯6種(被ダメ制限)、神意付与、HP50%制限" },
+                        { condition: "試練1回目", name: "破壊の試練", clear: "150hit＋奥義10回 or 10T経過", note: "T終了時に最大HP10%ダメ＋ランダム弱体×2を10T継続。シエテ等中断NG" },
+                        { condition: "HP90%", name: "身光（連続予兆）", clear: "9999万9999ダメ ★", note: "30倍ダメ、FCゲージ30%DOWN、アビ/奥義ダメカ。解除でDCゲージ+4%" },
+                        { condition: "次T", name: "輪廻", clear: "奥義6回", note: "40倍×10回、強化5T短縮、裂傷/強圧。解除でDCゲージ+6%" },
+                        { condition: "次T", name: "黄泉", clear: "FC発動+80hit", note: "40倍×10回、強化5T短縮、裂傷/強圧。解除でDCゲージ+6%" }
+                    ],
+                    ctSpecials: [
+                        { name: "身光", clear: "弱体10回", note: "30倍ダメ、FCゲージ30%DOWN、アビ/奥義ダメカ。解除でDCゲージ+3%" },
+                        { name: "輪廻", clear: "50hit", note: "被弾対象に攻防DOWN、弱点属性追撃付与。解除でDCゲージ+3%" }
+                    ]
+                },
+                {
+                    range: "80%〜G50 (青/再生ルート)",
+                    triggers: [
+                        { condition: "HP80%", name: "再生の神意（青）", clear: "なし", note: "1Tに50hit未満or奥義6回未満＋被ダメ不足でT終了時に他化自在付与" },
+                        { condition: "HP70%", name: "身光（連続予兆）", clear: "アビ6回（他化自在中7回）", note: "30倍ダメ。解除でDCゲージ+4%" },
+                        { condition: "次T", name: "無常", clear: "ディスペル5回+攻撃5回（他化自在中+1ずつ）", note: "60倍×4回、連続攻撃/回復DOWN。解除でDCゲージ+4%" },
+                        { condition: "次T", name: "黄泉", clear: "50hit+300万5hit（他化自在中70hit+7hit）", note: "" },
+                        { condition: "G50 or HP51%", name: "浄土（形態変化）", clear: "アビダメ3000万+奥義3000万+アビ12回", note: "主人公以外全員戦闘不能、無敵付与。解除でDCゲージ+4%" }
+                    ],
+                    ctSpecials: [
+                        { name: "身光", clear: "弱体15回+TA4回（他化自在中+1ずつ）", note: "" },
+                        { name: "無常", clear: "ディスペル5回+200万7hit（他化自在中+1ずつ）", note: "60倍×4回、連続攻撃/回復DOWN" }
+                    ]
+                },
+                {
+                    range: "80%〜G50 (赤/破壊ルート)",
+                    triggers: [
+                        { condition: "HP80%", name: "破壊の神意（赤）", clear: "なし", note: "1Tに攻撃6回未満orアビ5回未満＋被ダメ不足でT終了時に他化自在付与" },
+                        { condition: "HP70%", name: "天蓋（連続予兆）", clear: "奥義5回（他化自在中6回）", note: "解除でDCゲージ+4%" },
+                        { condition: "次T", name: "輪廻", clear: "TA4回+ディスペル3回（他化自在中+1ずつ）", note: "60倍×6回、攻防DOWN。解除でDCゲージ+4%" },
+                        { condition: "次T", name: "黄泉", clear: "800万3hit+FC発動（他化自在中800万5hit）", note: "" },
+                        { condition: "G50 or HP51%", name: "浄土（形態変化）", clear: "アビダメ3000万+奥義3000万+アビ12回", note: "主人公以外全員戦闘不能、無敵付与。解除でDCゲージ+4%" }
+                    ],
+                    ctSpecials: [
+                        { name: "輪廻", clear: "弱体12回+50hit（他化自在中15回+60hit）", note: "60倍×6回、攻防DOWN、弱点属性追撃" },
+                        { name: "天蓋", clear: "奥義5回+ダメアビ3回（他化自在中+1ずつ）", note: "" }
+                    ]
+                },
+                {
+                    range: "Gゲージ50〜100（形態変化後）",
+                    triggers: [
+                        { condition: "浄土解除後", name: "光背試練（全属性）付与", clear: "各属性担当で解除", note: "創世の一翼が付与。四王天ループ開始（毎T五種が順次付与）" },
+                        { condition: "Gゲージ100%", name: "浄土（ゲージ満タン）", clear: "なし", note: "全体16倍×4回、五王天系解除、創世の一翼付与" },
+                        { condition: "G100後×5T", name: "神撃（1周目）⚠️全滅", clear: "ランダム順: 120hit / 600万5hit / 1億ダメ / ディスペル6 / 弱体15", note: "毎T1条件ずつ出現。解除でDCゲージ+3%" },
+                        { condition: "2周目×5T", name: "神撃（2周目）⚠️全滅", clear: "240hit / 600万10hit / 2億ダメ / ディスペル12 / 弱体30", note: "" },
+                        { condition: "3周目×5T", name: "神撃（3周目）⚠️全滅", clear: "360hit / 600万15hit / 3億ダメ / ディスペル18 / 弱体45", note: "" }
+                    ],
+                    ctSpecials: [
+                        { name: "天蓋", clear: "800万3hit+弱体アビ2回（他化自在中5hit+3回）", note: "" },
+                        { name: "無常", clear: "300万8hit+弱体15個（他化自在中10hit+18個）", note: "" },
+                        { name: "浄土", clear: "ディスペル5回+FC発動（他化自在中6回）", note: "" }
+                    ]
+                },
+                {
+                    range: "【参考】四王天一覧",
+                    triggers: [
+                        { condition: "解除: 攻撃行動", name: "四王天 Lv1:5回 / Lv2:6回 / Lv3:7回", clear: "各LvのT終了時に全体ランダム属性攻撃、HP20%×Lv以下で戦不", note: "" },
+                        { condition: "解除: 奥義", name: "忉利天 Lv1:4回 / Lv2:5回 / Lv3:6回", clear: "通常攻撃後にLv×人数のアビスロウ2T", note: "" },
+                        { condition: "解除: アビダメ", name: "夜摩天 Lv1:3000万 / Lv2:3500万 / Lv3:4000万", clear: "通常攻撃時にランダム弱体×(2×Lv)付与", note: "" },
+                        { condition: "解除: TA", name: "兜率天 Lv1:3回 / Lv2:4回 / Lv3:5回", clear: "Lv1:2回行動 / Lv2:破壊追撃 / Lv3:3回行動", note: "" },
+                        { condition: "解除: hit数", name: "化楽天 Lv1:40hit / Lv2:60hit / Lv3:80hit", clear: "ランダム対象に無属性×5（Lvで強化）", note: "" }
                     ],
                     ctSpecials: []
                 }
