@@ -5,74 +5,360 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GRANBLUE FANTASY Tool</title>
     <style>
-        /* CSSもこのファイルにまとめてしまいます */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
             font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
-            background-color: #1a1c20; /* ダークモード背景 */
+            background-color: #0d0f14;
             color: #e0e0e0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 90vh; /* 画面の真ん中に持ってくる */
-            margin: 0;
+            min-height: 100vh;
+        }
+
+        /* ========== HERO ========== */
+        .hero {
+            background: linear-gradient(135deg, #1a1d23 0%, #12151c 100%);
+            border-bottom: 2px solid #ffb400;
+            padding: 60px 24px 50px;
             text-align: center;
         }
 
-        .container {
-            background-color: #2c2f36;
-            padding: 40px 50px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            border: 1px solid #444;
-        }
-
-        h1 {
-            color: #ffb400; /* グラブルの金に近い色 */
-            margin-top: 0;
-            margin-bottom: 10px;
-            font-size: 2.5em;
-            letter-spacing: 1px;
-        }
-
-        p {
-            color: #ccc;
-            font-size: 1.1em;
-            margin-bottom: 30px;
-        }
-
-        /* ツールへのリンクボタン（目立つように縦並びに） */
-        .tool-link {
-            display: block;
-            width: 260px;
-            max-width: 80vw;
-            margin: 12px auto;
-            padding: 14px 20px;
-            font-size: 1.15em;
+        .hero-badge {
+            display: inline-block;
+            font-size: 0.7em;
             font-weight: 700;
-            color: white;
-            background-color: #4a90e2; /* メインの青 */
+            color: #0d0f14;
+            background-color: #ffb400;
+            padding: 3px 10px;
+            border-radius: 4px;
+            letter-spacing: 1px;
+            margin-bottom: 14px;
+            text-transform: uppercase;
+        }
+
+        .hero h1 {
+            font-size: clamp(1.8em, 5vw, 3em);
+            color: #ffb400;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .hero p {
+            color: #aaa;
+            font-size: 1.05em;
+            margin-bottom: 36px;
+            max-width: 480px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            display: inline-block;
+            padding: 14px 32px;
+            font-size: 1.05em;
+            font-weight: 700;
+            color: #0d0f14;
+            background-color: #ffb400;
             text-decoration: none;
             border-radius: 8px;
-            transition: background-color 0.15s ease, transform 0.12s ease;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.28);
-            text-align: center;
+            transition: background-color 0.15s, transform 0.12s;
+            box-shadow: 0 4px 14px rgba(255,180,0,0.35);
+        }
+        .btn-primary:hover { background-color: #ffd04d; transform: translateY(-2px); }
+
+        .btn-secondary {
+            display: inline-block;
+            padding: 14px 32px;
+            font-size: 1.05em;
+            font-weight: 700;
+            color: #ffb400;
+            background-color: transparent;
+            border: 2px solid #ffb400;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: background-color 0.15s, color 0.15s, transform 0.12s;
+        }
+        .btn-secondary:hover { background-color: #ffb400; color: #0d0f14; transform: translateY(-2px); }
+
+        /* ========== SECTIONS ========== */
+        .section {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 48px 24px;
         }
 
-        .tool-link:hover {
-            background-color: #68aeff; /* 少し明るい青 */
-            transform: translateY(-2px);
+        .section-title {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: #ffb400;
+            border-left: 4px solid #ffb400;
+            padding-left: 12px;
+            margin-bottom: 24px;
+        }
+
+        /* ========== FEATURE CARDS ========== */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        .feature-card {
+            background-color: #1a1d23;
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 22px 20px;
+            transition: border-color 0.2s, transform 0.15s;
+        }
+        .feature-card:hover { border-color: #ffb400; transform: translateY(-3px); }
+
+        .feature-icon {
+            font-size: 1.8em;
+            margin-bottom: 10px;
+        }
+
+        .feature-card h3 {
+            font-size: 1em;
+            font-weight: 700;
+            color: #ffb400;
+            margin-bottom: 6px;
+        }
+
+        .feature-card p {
+            font-size: 0.88em;
+            color: #aaa;
+            line-height: 1.6;
+        }
+
+        /* ========== UPDATE LOG ========== */
+        .update-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .update-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            background-color: #1a1d23;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 14px 16px;
+            font-size: 0.92em;
+        }
+
+        .update-date {
+            font-size: 0.78em;
+            color: #888;
+            white-space: nowrap;
+            margin-top: 2px;
+            min-width: 80px;
+        }
+
+        .update-tag {
+            display: inline-block;
+            font-size: 0.72em;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 4px;
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+        .tag-new  { background: #1a4d2e; color: #4caf50; }
+        .tag-beta { background: #1a2d4d; color: #64b5f6; }
+        .tag-fix  { background: #4d1a1a; color: #e57373; }
+        .tag-improve { background: #3a2d0a; color: #ffb400; }
+
+        .update-body { flex: 1; color: #ccc; line-height: 1.6; }
+        .update-body strong { color: #e0e0e0; }
+
+        /* ========== QUICK START ========== */
+        .steps {
+            counter-reset: step;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            background-color: #1a1d23;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 14px 16px;
+        }
+
+        .step-num {
+            counter-increment: step;
+            min-width: 28px;
+            height: 28px;
+            line-height: 28px;
+            text-align: center;
+            background-color: #ffb400;
+            color: #0d0f14;
+            font-weight: 700;
+            font-size: 0.85em;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .step-num::before { content: counter(step); }
+
+        .step-body { font-size: 0.92em; color: #ccc; line-height: 1.6; }
+        .step-body strong { color: #e0e0e0; }
+
+        /* ========== FOOTER ========== */
+        footer {
+            text-align: center;
+            padding: 32px 16px;
+            font-size: 0.82em;
+            color: #555;
+            border-top: 1px solid #222;
+        }
+        footer a { color: #888; text-decoration: none; }
+        footer a:hover { color: #ffb400; }
+
+        /* ========== DIVIDER ========== */
+        .divider {
+            border: none;
+            border-top: 1px solid #222;
         }
     </style>
 </head>
 <body>
 
-    <div class="container">
+    <!-- HERO -->
+    <header class="hero">
+        <div class="hero-badge">Fan Tool</div>
         <h1>GRANBLUE FANTASY Tool</h1>
-        <p>高難易度用ムーブ表作成ツール</p>
-        
-        <a href="tool.html" class="tool-link" target="_blank" rel="noopener noreferrer">ツールを起動する</a>
-        <a href="beta.html" class="tool-link" target="_blank" rel="noopener noreferrer">ベータ版を起動する</a>
+        <p>高難易度レイド向け ムーブ表作成ツール</p>
+        <div class="hero-buttons">
+            <a href="beta.html" class="btn-primary" target="_blank" rel="noopener noreferrer">ベータ版を起動 (推奨)</a>
+            <a href="tool.html" class="btn-secondary" target="_blank" rel="noopener noreferrer">旧バージョンを起動</a>
+        </div>
+    </header>
+
+    <!-- FEATURES -->
+    <div class="section">
+        <p class="section-title">主な機能</p>
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">📋</div>
+                <h3>ターン別ムーブ管理</h3>
+                <p>キャラ・アビリティ・召喚石の行動をターンごとに記録。分岐ルートも複数作成できます。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚔️</div>
+                <h3>レイドテンプレート</h3>
+                <p>スパルシ・天元・ヴェルサシアのHP推移・トリガー一覧を参照しながら入力できます。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">✏️</div>
+                <h3>アビリティ名カスタマイズ</h3>
+                <p>各キャラのアビリティボタンに固有の名前を設定。「強化のアビ」など自由に変更できます。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📱</div>
+                <h3>Discord出力</h3>
+                <p>作成したムーブ表をDiscord向けテキストとしてワンクリックでコピーできます。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💾</div>
+                <h3>スロット保存・ロード</h3>
+                <p>複数の編成とムーブをブラウザに保存。JSON形式でExport/Importも可能です。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">▶️</div>
+                <h3>再生モード（カンペ）</h3>
+                <p>作成済みムーブ表を見やすく表示。ターンごとにハイライトして実戦で使えます。</p>
+            </div>
+        </div>
     </div>
+
+    <hr class="divider">
+
+    <!-- UPDATE LOG -->
+    <div class="section">
+        <p class="section-title">アップデート履歴</p>
+        <ul class="update-list">
+            <li class="update-item">
+                <span class="update-date">2025-07</span>
+                <span class="update-tag tag-beta">BETA</span>
+                <div class="update-body">
+                    <strong>ベータ版 v2.0 大型アップデート</strong><br>
+                    レイドテンプレート（スパルシ・天元・ヴェルサシア）追加。アビリティ名カスタマイズ機能追加。Discord向けテキスト出力追加。
+                </div>
+            </li>
+            <li class="update-item">
+                <span class="update-date">2025-05</span>
+                <span class="update-tag tag-new">NEW</span>
+                <div class="update-body">
+                    <strong>ベータ版 v2.0 初公開</strong><br>
+                    分岐システム・再生モード（カンペ）・キーボードショートカット・使い方ガイドを実装。
+                </div>
+            </li>
+            <li class="update-item">
+                <span class="update-date">2025-02</span>
+                <span class="update-tag tag-improve">IMPROVE</span>
+                <div class="update-body">
+                    <strong>旧バージョン: 画像アップロード・Undo対応</strong><br>
+                    武器編成画像のドラッグ＆ドロップ / クリップボード貼り付け対応。Ctrl+Z Undo機能追加。
+                </div>
+            </li>
+            <li class="update-item">
+                <span class="update-date">2024</span>
+                <span class="update-tag tag-new">NEW</span>
+                <div class="update-body">
+                    <strong>ツール初公開</strong><br>
+                    高難易度レイド向けムーブ表作成ツールをリリース。
+                </div>
+            </li>
+        </ul>
+    </div>
+
+    <hr class="divider">
+
+    <!-- QUICK START -->
+    <div class="section">
+        <p class="section-title">かんたん使い方</p>
+        <div class="steps">
+            <div class="step">
+                <span class="step-num"></span>
+                <div class="step-body"><strong>「ベータ版を起動」</strong>ボタンをクリックしてツールを開く</div>
+            </div>
+            <div class="step">
+                <span class="step-num"></span>
+                <div class="step-body"><strong>編成登録</strong>：キャラクター名・召喚石名を入力し、必要なら武器編成画像もアップロード</div>
+            </div>
+            <div class="step">
+                <span class="step-num"></span>
+                <div class="step-body"><strong>レイドテンプレート（任意）</strong>：使用するレイドを選択するとHPトリガー表を参照しながら入力できます</div>
+            </div>
+            <div class="step">
+                <span class="step-num"></span>
+                <div class="step-body"><strong>ムーブ入力</strong>：「ムーブ入力画面へ」をクリックしてターンごとにキャラ・アビリティ・召喚石を入力</div>
+            </div>
+            <div class="step">
+                <span class="step-num"></span>
+                <div class="step-body"><strong>出力・共有</strong>：再生モードで確認、Discordコピー、またはJSON Exportで保存・共有</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer>
+        <p>グラブルファンツール by <a href="https://ko-fi.com/alt4l" target="_blank" rel="noopener">alt4l</a> &nbsp;|&nbsp; 非公式ツール。GRANBLUE FANTASYはCygames, Inc.の著作物です。</p>
+    </footer>
+
 <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
 <script>
   kofiWidgetOverlay.draw('alt4l', {

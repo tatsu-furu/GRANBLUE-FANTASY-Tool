@@ -239,10 +239,10 @@
                     <div>
                         <strong>アビリティ:</strong>
                         <div class="action-buttons">
-                            <button class="action-btn btn" data-action="1アビ">1アビ</button>
-                            <button class="action-btn btn" data-action="2アビ">2アビ</button>
-                            <button class="action-btn btn" data-action="3アビ">3アビ</button>
-                            <button class="action-btn btn" data-action="4アビ">4アビ</button>
+                            <button class="action-btn btn" id="abi-btn-0" data-action="1アビ">1アビ</button>
+                            <button class="action-btn btn" id="abi-btn-1" data-action="2アビ">2アビ</button>
+                            <button class="action-btn btn" id="abi-btn-2" data-action="3アビ">3アビ</button>
+                            <button class="action-btn btn" id="abi-btn-3" data-action="4アビ">4アビ</button>
                         </div>
                     </div>
 
@@ -298,6 +298,7 @@
                             <button id="back-to-setup-btn" class="reset-btn btn">編成登録/ロード画面に戻る</button>
                         </div>
                         <div id="export-area">
+                            <button id="discord-copy-btn" class="btn" style="background-color:#5865F2; width:100%; margin-top:4px;">📋 Discordにコピー</button>
                             <span id="copy-feedback"></span>
                         </div>
                     </div>
@@ -328,7 +329,8 @@
         const getDefaultWorkData = () => ({
             setup: {
                 characters: ["主人公", "", "", "", "", "", "", "", ""],
-                characterIcons: [null, null, null, null, null, null, null, null, null], // キャラアイコン（Base64）
+                characterIcons: [null, null, null, null, null, null, null, null, null],
+                characterAbilities: Array(9).fill(null).map(() => ["", "", "", ""]),
                 summons: ["", "", "", "", "", ""],
                 subCount: 2,
                 overallMemo: "",
@@ -887,6 +889,36 @@
 
                 charDiv.appendChild(label);
                 charDiv.appendChild(inputWrapper);
+
+                // アビリティ名入力欄
+                const abiDetails = document.createElement('details');
+                abiDetails.style.marginTop = '4px';
+                const abiSummary = document.createElement('summary');
+                abiSummary.textContent = 'アビ名設定';
+                abiSummary.style.cssText = 'font-size:0.78em; color:#888; cursor:pointer;';
+                abiDetails.appendChild(abiSummary);
+                const abiGrid = document.createElement('div');
+                abiGrid.style.cssText = 'display:grid; grid-template-columns:1fr 1fr; gap:3px; margin-top:4px;';
+                const abiLabels = ['1アビ', '2アビ', '3アビ', '4アビ'];
+                abiLabels.forEach((label, ai) => {
+                    const abiInput = document.createElement('input');
+                    abiInput.type = 'text';
+                    abiInput.placeholder = label;
+                    abiInput.value = currentWorkData.setup.characterAbilities?.[i]?.[ai] || '';
+                    abiInput.style.cssText = 'background:#1a1d23; color:#e0e0e0; border:1px solid #444; padding:3px 5px; border-radius:3px; font-size:0.82em; width:100%; box-sizing:border-box;';
+                    abiInput.dataset.charIndex = i;
+                    abiInput.dataset.abiIndex = ai;
+                    abiInput.addEventListener('input', () => {
+                        if (!currentWorkData.setup.characterAbilities) currentWorkData.setup.characterAbilities = Array(9).fill(null).map(() => ["","","",""]);
+                        if (!currentWorkData.setup.characterAbilities[i]) currentWorkData.setup.characterAbilities[i] = ["","","",""];
+                        currentWorkData.setup.characterAbilities[i][ai] = abiInput.value;
+                        saveCurrentWork();
+                    });
+                    abiGrid.appendChild(abiInput);
+                });
+                abiDetails.appendChild(abiGrid);
+                charDiv.appendChild(abiDetails);
+
                 gridDiv.appendChild(charDiv);
             }
 
@@ -1217,11 +1249,25 @@
              newHistoryView.scrollTop = newHistoryView.scrollHeight;
         }
        function selectCharacter(index, skipSave = false) {
-           // 普通のユーザ操作は undo 対象にするが、プログラムからの呼び出しでは skip 可能
            if (!skipSave) saveStateForUndo();
-           currentWorkData.state.selectedCharIndex = index; document.querySelectorAll('.char-btn').forEach(btn => btn.classList.remove('selected'));
-           const selectedBtn = document.querySelector(`.char-btn[data-char-index="${index}"]`); if (selectedBtn) { selectedBtn.classList.add('selected'); }
+           currentWorkData.state.selectedCharIndex = index;
+           document.querySelectorAll('.char-btn').forEach(btn => btn.classList.remove('selected'));
+           const selectedBtn = document.querySelector(`.char-btn[data-char-index="${index}"]`);
+           if (selectedBtn) selectedBtn.classList.add('selected');
+           updateAbilityButtons(index);
            saveCurrentWork();
+       }
+
+       function updateAbilityButtons(charIndex) {
+           const defaults = ['1アビ', '2アビ', '3アビ', '4アビ'];
+           const abilities = currentWorkData.setup.characterAbilities?.[charIndex] || [];
+           defaults.forEach((def, ai) => {
+               const btn = document.getElementById(`abi-btn-${ai}`);
+               if (!btn) return;
+               const customName = abilities[ai]?.trim();
+               btn.textContent = customName || def;
+               btn.dataset.action = customName || def;
+           });
        }
         // ★V25->V27: 画面遷移関数 (V21/V17相当)
         function goToMovePhase() {
@@ -1260,13 +1306,59 @@
              setupPhase.style.display = 'none'; movePhase.style.display = 'block'; movePhase.classList.remove('playback-mode');
              showRaidPanel();
              loadStateDataToDOM(); selectCharacter(currentWorkData.state.selectedCharIndex, true);
+             updateAbilityButtons(currentWorkData.state.selectedCharIndex);
              console.log("Navigated to Move Phase (V27)"); // Debug log
         }
         function goToSetupPhase() {
             movePhase.style.display = 'none'; setupPhase.style.display = 'block';
             loadSetupDataToDOM(); loadSlotNames();
-             console.log("Navigated to Setup Phase (V27)"); // Debug log
+            console.log("Navigated to Setup Phase (V27)"); // Debug log
         }
+
+        function buildDiscordText() {
+            const setup = currentWorkData.setup;
+            const turns = currentWorkData.state.turns;
+            const raidName = currentRaidTemplate ? `【${currentRaidTemplate.name}】` : '';
+            const charNames = setup.characters.slice(0, 4 + setup.subCount).map((c, i) => c || (i === 0 ? '主人公' : `キャラ${i+1}`));
+            const summonNames = setup.summons.filter(s => s);
+
+            let lines = [];
+            lines.push(`═══ グラブル ムーブ表 ${raidName}═══`);
+            if (setup.overallMemo) lines.push(`📝 ${setup.overallMemo}`);
+            lines.push(`👥 ${charNames.join(' / ')}`);
+            if (summonNames.length) lines.push(`🔮 ${summonNames.join(' / ')}`);
+            lines.push('');
+
+            turns.forEach(turn => {
+                lines.push(`─── TURN ${turn.turnNumber} ───`);
+                if (turn.branches.length > 1) {
+                    turn.branches.forEach((branch, bi) => {
+                        lines.push(`  [分岐 ${String.fromCharCode(65+bi)}]`);
+                        if (branch.memo) lines.push(`  📝 ${branch.memo}`);
+                        branch.actions.forEach(a => lines.push(`  ${a}`));
+                    });
+                } else {
+                    const branch = turn.branches[0];
+                    if (branch.memo) lines.push(`📝 ${branch.memo}`);
+                    branch.actions.forEach(a => lines.push(a));
+                }
+            });
+            return lines.join('\n');
+        }
+
+        document.getElementById('discord-copy-btn')?.addEventListener('click', () => {
+            const text = buildDiscordText();
+            navigator.clipboard.writeText(text).then(() => {
+                const fb = document.getElementById('copy-feedback');
+                fb.textContent = '✅ コピーしました！';
+                fb.style.color = '#4caf50';
+                setTimeout(() => { fb.textContent = ''; }, 2000);
+            }).catch(() => {
+                const fb = document.getElementById('copy-feedback');
+                fb.textContent = '❌ コピー失敗';
+                fb.style.color = '#e57373';
+            });
+        });
         // V26: 分岐UI更新
         function updateBranchingUI() {
              const state = currentWorkData.state; const currentTurnData = getCurrentTurnData(false);
