@@ -5,116 +5,134 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>古戦場 効率計算ツール | GBF Tool</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; background: #0d0f14; color: #e0e0e0; min-height: 100vh; line-height: 1.5; }
+
+        :root {
+            --bg:        #0b1824;
+            --bg-1:      #0e2132;
+            --bg-2:      #122840;
+            --border:    #1c3a52;
+            --border-hi: #2a5470;
+            --accent:    #3ec8df;
+            --accent-lo: #2ba8c0;
+            --accent-hi: #78e4f5;
+            --accent-bg: rgba(62,200,223,0.08);
+            --text:      #d2e8f5;
+            --text-2:    #78aac8;
+            --text-3:    #486a85;
+            --on-accent: #071218;
+        }
+
+        body { font-family: 'Inter', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
         .container { max-width: 920px; margin: 0 auto; padding: 0 16px 80px; }
-        header { padding: 20px 0 16px; border-bottom: 2px solid #ffb400; margin-bottom: 20px; }
-        .back-link { display: inline-block; color: #888; text-decoration: none; font-size: 0.82em; margin-bottom: 8px; }
-        .back-link:hover { color: #ffb400; }
-        header h1 { font-size: clamp(1.3em, 4vw, 1.9em); color: #ffb400; }
-        header p { color: #777; font-size: 0.85em; margin-top: 3px; }
+        header { padding: 20px 0 16px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+        .back-link { display: inline-block; color: var(--text-3); text-decoration: none; font-size: 0.82em; margin-bottom: 8px; transition: color 0.15s; }
+        .back-link:hover { color: var(--accent); }
+        header h1 { font-size: clamp(1.3em, 4vw, 1.8em); color: var(--text); font-weight: 700; letter-spacing: -0.02em; }
+        header p { color: var(--text-3); font-size: 0.83em; margin-top: 3px; }
 
         /* Tabs */
         .tabs { display: flex; gap: 4px; margin-bottom: 18px; flex-wrap: wrap; }
-        .tab-btn { padding: 9px 16px; font-size: 0.88em; font-weight: 700; background: #1a1d23; color: #777; border: 1px solid #333; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
-        .tab-btn:hover { border-color: #ffb400; color: #ffb400; }
-        .tab-btn.active { background: #ffb400; color: #0d0f14; border-color: #ffb400; }
+        .tab-btn { padding: 8px 16px; font-size: 0.86em; font-weight: 600; background: var(--bg-1); color: var(--text-3); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+        .tab-btn:hover { border-color: var(--accent-lo); color: var(--accent); }
+        .tab-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
         /* Cards */
-        .card { background: #1a1d23; border: 1px solid #2c2f38; border-radius: 10px; padding: 18px; margin-bottom: 14px; }
-        .card-title { font-size: 0.92em; font-weight: 700; color: #ffb400; border-left: 3px solid #ffb400; padding-left: 10px; margin-bottom: 14px; }
+        .card { background: var(--bg-1); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 14px; }
+        .card-title { font-size: 0.9em; font-weight: 600; color: var(--accent); border-left: 3px solid var(--accent); padding-left: 10px; margin-bottom: 14px; letter-spacing: -0.01em; }
 
         /* Inputs */
-        input[type="text"], input[type="number"] { background: #0d0f14; border: 1px solid #3a3d45; border-radius: 4px; color: #e0e0e0; padding: 6px 9px; font-size: 0.88em; width: 100%; transition: border-color 0.15s; }
-        input[type="text"]:focus, input[type="number"]:focus { outline: none; border-color: #ffb400; }
-        input::placeholder { color: #444; }
+        input[type="text"], input[type="number"] { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 6px 9px; font-size: 0.88em; width: 100%; transition: border-color 0.15s; }
+        input[type="text"]:focus, input[type="number"]:focus { outline: none; border-color: var(--accent); }
+        input::placeholder { color: var(--text-3); }
 
         /* Table */
         .data-table { width: 100%; border-collapse: collapse; font-size: 0.86em; }
-        .data-table th { text-align: left; color: #777; font-weight: 600; font-size: 0.82em; padding: 6px 8px; border-bottom: 1px solid #2c2f38; }
-        .data-table td { padding: 7px 8px; border-bottom: 1px solid #1e2028; vertical-align: middle; }
-        .data-table tbody tr:hover td { background: rgba(255,180,0,0.03); }
-        .time-sel { background: #0d0f14; border: 1px solid #3a3d45; border-radius: 4px; color: #e0e0e0; padding: 5px 4px; font-size: 0.85em; cursor: pointer; transition: border-color 0.15s; }
-        .time-sel:focus { outline: none; border-color: #ffb400; }
+        .data-table th { text-align: left; color: var(--text-3); font-weight: 600; font-size: 0.82em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+        .data-table td { padding: 7px 8px; border-bottom: 1px solid rgba(28,58,82,0.6); vertical-align: middle; }
+        .data-table tbody tr:hover td { background: rgba(62,200,223,0.03); }
+        .time-sel { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 5px 4px; font-size: 0.85em; cursor: pointer; transition: border-color 0.15s; }
+        .time-sel:focus { outline: none; border-color: var(--accent); }
         .time-sel-min { width: 62px; }
         .time-sel-sec { width: 54px; }
-        .base-btn { padding: 2px 8px; font-size: 0.75em; font-weight: 700; background: transparent; border: 1px solid #3a3d45; color: #666; border-radius: 4px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-        .base-btn:hover { border-color: #ffb400; color: #ffb400; }
-        .base-btn.active { background: #ffb400; color: #0d0f14; border-color: #ffb400; }
+        .base-btn { padding: 2px 8px; font-size: 0.75em; font-weight: 600; background: transparent; border: 1px solid var(--border); color: var(--text-3); border-radius: 4px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .base-btn:hover { border-color: var(--accent-lo); color: var(--accent); }
+        .base-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
         /* Diff colors */
-        .c-vh   { color: #888; }
+        .c-vh   { color: #7090a8; }
         .c-ex   { color: #64b5f6; }
-        .c-exp  { color: #9575cd; }
-        .c-hell { color: #ef5350; }
-        .c-h250 { color: #ff7043; }
+        .c-exp  { color: #b39ddb; }
+        .c-hell { color: #ef9a9a; }
+        .c-h250 { color: #ffab91; }
 
         /* Bar */
         .bar-wrap { flex: 1; min-width: 60px; }
-        .bar-bg { background: #0d0f14; border-radius: 3px; height: 12px; overflow: hidden; }
+        .bar-bg { background: var(--bg); border-radius: 3px; height: 10px; overflow: hidden; }
         .bar-fill { height: 100%; border-radius: 3px; transition: width 0.35s; }
-        .bar-1 { background: #4caf50; }
-        .bar-2 { background: #8bc34a; }
-        .bar-3 { background: #cddc39; }
-        .bar-4 { background: #ffb400; }
-        .bar-5 { background: #ff9800; }
-        .bar-6 { background: #ff7043; }
-        .bar-7 { background: #78909c; }
+        .bar-1 { background: linear-gradient(90deg, #26c6da, #3ec8df); }
+        .bar-2 { background: linear-gradient(90deg, #29b6f6, #4fc3f7); }
+        .bar-3 { background: linear-gradient(90deg, #42a5f5, #64b5f6); }
+        .bar-4 { background: linear-gradient(90deg, #5c6bc0, #7986cb); }
+        .bar-5 { background: linear-gradient(90deg, #7e57c2, #9575cd); }
+        .bar-6 { background: linear-gradient(90deg, #ab47bc, #ce93d8); }
+        .bar-7 { background: linear-gradient(90deg, #546e7a, #78909c); }
 
         /* Rank item */
-        .rank-list { display: flex; flex-direction: column; gap: 6px; }
-        .rank-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: #0d0f14; border-radius: 6px; }
-        .rank-num { min-width: 22px; height: 22px; line-height: 22px; text-align: center; font-size: 0.72em; font-weight: 700; border-radius: 50%; background: #2c2f38; color: #777; flex-shrink: 0; }
-        .rank-num.r1 { background: #ffb400; color: #0d0f14; }
-        .rank-num.r2 { background: #9e9e9e; color: #0d0f14; }
-        .rank-num.r3 { background: #795548; color: #fff; }
+        .rank-list { display: flex; flex-direction: column; gap: 5px; }
+        .rank-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; }
+        .rank-num { min-width: 22px; height: 22px; line-height: 22px; text-align: center; font-size: 0.72em; font-weight: 700; border-radius: 50%; background: var(--bg-2); color: var(--text-3); flex-shrink: 0; }
+        .rank-num.r1 { background: var(--accent); color: var(--on-accent); }
+        .rank-num.r2 { background: #78909c; color: #fff; }
+        .rank-num.r3 { background: #6d4c41; color: #ffccbc; }
         .rank-name { flex: 0 0 80px; font-weight: 700; font-size: 0.88em; overflow: hidden; }
-        .rank-val { color: #ffb400; font-weight: 700; font-size: 0.88em; flex: 0 0 108px; }
-        .rank-pct { font-size: 0.75em; color: #555; flex: 0 0 36px; text-align: right; }
+        .rank-val { color: var(--accent); font-weight: 700; font-size: 0.88em; flex: 0 0 108px; }
+        .rank-pct { font-size: 0.75em; color: var(--text-3); flex: 0 0 36px; text-align: right; }
 
         /* Flex row */
         .frow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-        .frow label { font-size: 0.85em; color: #999; white-space: nowrap; min-width: 90px; }
+        .frow label { font-size: 0.85em; color: var(--text-2); white-space: nowrap; min-width: 90px; }
         .frow input { max-width: 160px; }
-        .frow .unit { font-size: 0.82em; color: #666; }
+        .frow .unit { font-size: 0.82em; color: var(--text-3); }
 
         /* Summary */
-        .sum-box { background: #0d0f14; border: 1px solid rgba(255,180,0,0.35); border-radius: 8px; padding: 14px 16px; margin-top: 10px; }
-        .sum-label { font-size: 0.78em; color: #888; margin-bottom: 3px; }
-        .sum-val { font-size: 1.15em; font-weight: 700; color: #ffb400; }
+        .sum-box { background: var(--bg); border: 1px solid rgba(62,200,223,0.25); border-radius: 8px; padding: 14px 16px; margin-top: 10px; }
+        .sum-label { font-size: 0.78em; color: var(--text-3); margin-bottom: 3px; }
+        .sum-val { font-size: 1.15em; font-weight: 700; color: var(--accent); }
 
         /* Note */
-        .note { font-size: 0.78em; color: #666; line-height: 1.65; }
-        .note code { background: #1a1d23; padding: 1px 5px; border-radius: 3px; color: #aaa; }
+        .note { font-size: 0.78em; color: var(--text-3); line-height: 1.65; }
+        .note code { background: var(--bg-2); padding: 1px 5px; border-radius: 3px; color: var(--text-2); }
 
         /* No data */
-        .no-data { color: #555; font-size: 0.85em; padding: 18px; text-align: center; font-style: italic; }
+        .no-data { color: var(--text-3); font-size: 0.85em; padding: 18px; text-align: center; font-style: italic; }
 
         /* Meat result row */
         .meat-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; border: 1px solid transparent; }
-        .meat-row.best { background: rgba(255,180,0,0.07); border-color: rgba(255,180,0,0.25); }
+        .meat-row.best { background: rgba(62,200,223,0.07); border-color: rgba(62,200,223,0.2); }
         .meat-row-name { font-weight: 700; font-size: 0.88em; min-width: 68px; }
         .meat-row-val { font-weight: 700; font-size: 0.95em; }
 
         /* Reference details */
-        details.card summary { cursor: pointer; font-size: 0.9em; font-weight: 700; color: #888; list-style: none; }
+        details.card summary { cursor: pointer; font-size: 0.9em; font-weight: 600; color: var(--text-3); list-style: none; }
         details.card summary::-webkit-details-marker { display: none; }
         details.card summary::before { content: '▶ '; font-size: 0.8em; }
         details.card[open] summary::before { content: '▼ '; }
-        details.card[open] summary { color: #ffb400; margin-bottom: 14px; }
+        details.card[open] summary { color: var(--accent); margin-bottom: 14px; }
 
         /* Achieve cell */
-        .ach-ok { color: #4caf50; font-weight: 700; }
-        .ach-ng { color: #ef5350; font-size: 0.85em; }
+        .ach-ok { color: #5ec462; font-weight: 700; }
+        .ach-ng { color: #ef9a9a; font-size: 0.85em; }
 
         /* External link buttons */
         .ext-links { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
-        .ext-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; font-size: 0.8em; font-weight: 600; border-radius: 6px; text-decoration: none; border: 1px solid #333; background: #1a1d23; color: #999; transition: all 0.15s; white-space: nowrap; }
-        .ext-btn:hover { border-color: #ffb400; color: #ffb400; background: rgba(255,180,0,0.06); }
-        .ext-btn.yt { border-color: #444; }
-        .ext-btn.yt:hover { border-color: #ff4444; color: #ff7070; background: rgba(255,68,68,0.06); }
+        .ext-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; font-size: 0.8em; font-weight: 600; border-radius: 6px; text-decoration: none; border: 1px solid var(--border); background: var(--bg-1); color: var(--text-2); transition: all 0.15s; white-space: nowrap; }
+        .ext-btn:hover { border-color: var(--accent-lo); color: var(--accent); background: var(--accent-bg); }
+        .ext-btn.yt:hover { border-color: #ef5350; color: #ef9a9a; background: rgba(239,83,80,0.07); }
 
         @media (max-width: 600px) {
             .data-table { font-size: 0.78em; }
@@ -134,47 +152,47 @@
                 <h1>⚔️ 古戦場 効率計算ツール</h1>
                 <p>討伐効率比較 / 目標計算 / 肉計算</p>
             </div>
-            <button id="help-open-btn" style="padding:8px 16px;background:#ffb400;border:none;color:#0d0f14;border-radius:6px;cursor:pointer;font-size:0.85em;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(255,180,0,0.35);transition:background 0.15s,transform 0.12s;" onmouseover="this.style.background='#ffd04d';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='#ffb400';this.style.transform=''">📖 使い方</button>
+            <button id="help-open-btn" style="padding:8px 16px;background:var(--accent-lo);border:none;color:var(--on-accent);border-radius:6px;cursor:pointer;font-size:0.85em;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(62,200,223,0.25);transition:background 0.15s,transform 0.12s;" onmouseover="this.style.background='var(--accent)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='var(--accent-lo)';this.style.transform=''">📖 使い方</button>
         </div>
     </header>
 
     <!-- ===== 使い方ドロワー ===== -->
-    <div id="help-drawer" style="position:fixed;top:0;right:0;height:100%;width:min(340px,88vw);background:#1a1d23;border-left:2px solid #ffb400;z-index:8001;transform:translateX(100%);transition:transform 0.25s ease;overflow-y:auto;padding:24px 20px 60px;box-shadow:-4px 0 24px rgba(0,0,0,0.5);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid #333;padding-bottom:14px;">
-            <span style="color:#ffb400;font-weight:700;font-size:1em;">📖 使い方</span>
-            <button onclick="closeHelp()" style="background:none;border:none;color:#777;font-size:1.2em;cursor:pointer;padding:4px 8px;line-height:1;">✕</button>
+    <div id="help-drawer" style="position:fixed;top:0;right:0;height:100%;width:min(340px,88vw);background:var(--bg-1);border-left:2px solid var(--accent);z-index:8001;transform:translateX(100%);transition:transform 0.25s ease;overflow-y:auto;padding:24px 20px 60px;box-shadow:-4px 0 24px rgba(0,0,0,0.5);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:14px;">
+            <span style="color:var(--accent);font-weight:700;font-size:1em;">📖 使い方</span>
+            <button onclick="closeHelp()" style="background:none;border:none;color:var(--text-3);font-size:1.2em;cursor:pointer;padding:4px 8px;line-height:1;">✕</button>
         </div>
 
-        <div style="font-size:0.85em;line-height:1.75;color:#ccc;">
+        <div style="font-size:0.85em;line-height:1.75;color:var(--text);">
 
-            <p style="color:#ffb400;font-weight:700;border-left:3px solid #ffb400;padding-left:8px;margin-bottom:10px;">📊 討伐効率タブ</p>
-            <p style="margin-bottom:8px;">各難易度の <strong style="color:#e0e0e0;">討伐時間</strong> を入力すると、貢献度/時間（効率）と肉消費ペースを自動計算します。</p>
+            <p style="color:var(--accent);font-weight:700;border-left:3px solid var(--accent);padding-left:8px;margin-bottom:10px;">📊 討伐効率タブ</p>
+            <p style="margin-bottom:8px;">各難易度の <strong style="color:var(--text);">討伐時間</strong> を入力すると、貢献度/時間（効率）と肉消費ペースを自動計算します。</p>
             <ul style="padding-left:16px;margin-bottom:14px;display:flex;flex-direction:column;gap:5px;">
-                <li><strong style="color:#e0e0e0;">分セレクト＋秒セレクト</strong> で時間入力。「1秒単位で入力」チェックで秒を自由入力に切替</li>
-                <li><strong style="color:#e0e0e0;">肉消費/h</strong> はチャンク数を考慮した実消費量（例: 100HELL = 周回数 × 20チャンク）</li>
-                <li><strong style="color:#e0e0e0;">リロ?</strong> チェックで「リロ後」の討伐時間を追加入力。演出スキップ後の実効率をランキングに反映</li>
-                <li><strong style="color:#e0e0e0;">サボ?</strong> チェックで「理想タイム+10%」のエントリをランキングに追加。少しペースが落ちたときの効率を確認できます</li>
-                <li><strong style="color:#e0e0e0;">基準ボタン</strong> を押すと、その難易度の効率に並ぶために他の難易度で必要な討伐時間を表示</li>
+                <li><strong style="color:var(--text);">分セレクト＋秒セレクト</strong> で時間入力。「1秒単位で入力」チェックで秒を自由入力に切替</li>
+                <li><strong style="color:var(--text);">肉消費/h</strong> はチャンク数を考慮した実消費量（例: 100HELL = 周回数 × 20チャンク）</li>
+                <li><strong style="color:var(--text);">リロ?</strong> チェックで「リロ後」の討伐時間を追加入力。演出スキップ後の実効率をランキングに反映</li>
+                <li><strong style="color:var(--text);">サボ?</strong> チェックで「理想タイム+10%」のエントリをランキングに追加。少しペースが落ちたときの効率を確認できます</li>
+                <li><strong style="color:var(--text);">基準ボタン</strong> を押すと、その難易度の効率に並ぶために他の難易度で必要な討伐時間を表示</li>
             </ul>
 
-            <p style="color:#ffb400;font-weight:700;border-left:3px solid #ffb400;padding-left:8px;margin-bottom:10px;">🎯 目標計算タブ</p>
-            <p style="margin-bottom:8px;">目標貢献度と現在の貢献度を選択すると、各難易度の <strong style="color:#e0e0e0;">必要回数・必要肉数</strong> を一覧表示します。</p>
+            <p style="color:var(--accent);font-weight:700;border-left:3px solid var(--accent);padding-left:8px;margin-bottom:10px;">🎯 目標計算タブ</p>
+            <p style="margin-bottom:8px;">目標貢献度と現在の貢献度を選択すると、各難易度の <strong style="color:var(--text);">必要回数・必要肉数</strong> を一覧表示します。</p>
             <ul style="padding-left:16px;margin-bottom:14px;display:flex;flex-direction:column;gap:5px;">
                 <li>必要肉数はチャンク数込みの実消費数を表示</li>
-                <li><strong style="color:#e0e0e0;">残り時間</strong>（日数+時間）を入力すると時間内に達成できるか判定表示</li>
+                <li><strong style="color:var(--text);">残り時間</strong>（日数+時間）を入力すると時間内に達成できるか判定表示</li>
                 <li>討伐効率タブで時間入力済みの難易度は所要時間も表示</li>
             </ul>
 
-            <p style="color:#ffb400;font-weight:700;border-left:3px solid #ffb400;padding-left:8px;margin-bottom:10px;">🥩 肉計算タブ</p>
+            <p style="color:var(--accent);font-weight:700;border-left:3px solid var(--accent);padding-left:8px;margin-bottom:10px;">🥩 肉計算タブ</p>
             <p style="margin-bottom:8px;">所持リソースを入力すると、全投入時の貢献度を試算します。</p>
             <ul style="padding-left:16px;margin-bottom:14px;display:flex;flex-direction:column;gap:5px;">
-                <li><strong style="color:#e0e0e0;">通常肉</strong>: HELL90〜200に使う素材</li>
-                <li><strong style="color:#e0e0e0;">250専用素材</strong>: 250HELL自発に使用。余った分は最大500個まで通常肉2個に変換可</li>
-                <li><strong style="color:#e0e0e0;">250HELL回数</strong>: 専用素材を使う予定の回数を入力すると残り素材の変換量を計算</li>
+                <li><strong style="color:var(--text);">通常肉</strong>: HELL90〜200に使う素材</li>
+                <li><strong style="color:var(--text);">250専用素材</strong>: 250HELL自発に使用。余った分は最大500個まで通常肉2個に変換可</li>
+                <li><strong style="color:var(--text);">250HELL回数</strong>: 専用素材を使う予定の回数を入力すると残り素材の変換量を計算</li>
                 <li>合計期待貢献度は250HELLと通常肉を合計した上限値</li>
             </ul>
 
-            <div style="background:#0d0f14;border-radius:6px;padding:12px;font-size:0.82em;color:#888;line-height:1.65;">
+            <div style="background:var(--bg);border-radius:6px;padding:12px;font-size:0.82em;color:var(--text-3);line-height:1.65;">
                 💡 討伐時間はブラウザに自動保存されます。<br>
                 同じブラウザ・同じデバイスなら次回も引き継がれます。
             </div>
@@ -198,8 +216,8 @@
         <div class="card">
             <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                 討伐時間の入力
-                <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;font-weight:400;color:#999;cursor:pointer;">
-                    <input type="checkbox" id="fine-mode-chk" style="width:14px;height:14px;accent-color:#ffb400;cursor:pointer;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;font-weight:400;color:var(--text-3);cursor:pointer;">
+                    <input type="checkbox" id="fine-mode-chk" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer;">
                     1秒単位で入力
                 </label>
             </div>
@@ -224,7 +242,7 @@
             </div>
         </div>
         <div class="card">
-            <div class="card-title">効率ランキング <span style="font-size:0.75em; font-weight:400; color:#666;">（討伐時間を入力した難易度のみ）</span></div>
+            <div class="card-title">効率ランキング <span style="font-size:0.75em; font-weight:400; color:var(--text-3);">（討伐時間を入力した難易度のみ）</span></div>
             <div id="eff-ranking"><div class="no-data">討伐時間を入力してください</div></div>
         </div>
         <div id="base-compare-card" class="card" style="display:none">
@@ -271,8 +289,8 @@
         <div class="card">
             <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                 🥩 所持リソース
-                <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;font-weight:400;color:#999;cursor:pointer;">
-                    <input type="checkbox" id="meat-fine-chk" style="width:14px;height:14px;accent-color:#ffb400;cursor:pointer;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;font-weight:400;color:var(--text-3);cursor:pointer;">
+                    <input type="checkbox" id="meat-fine-chk" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer;">
                     1個単位で入力
                 </label>
             </div>
@@ -395,7 +413,7 @@ function buildSecOpts(savedSec) {
 
 function buildSecInput(savedSec, cls, id) {
     if (fineMode) {
-        return `<input type="number" class="time-sel ${cls}" data-id="${id}" min="0" max="59" value="${savedSec ?? 0}" style="width:52px;background:#0d0f14;border:1px solid #3a3d45;border-radius:4px;color:#e0e0e0;padding:5px 4px;font-size:0.85em;">`;
+        return `<input type="number" class="time-sel ${cls}" data-id="${id}" min="0" max="59" value="${savedSec ?? 0}" style="width:52px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 4px;font-size:0.85em;">`;
     }
     return `<select class="time-sel ${cls}" data-id="${id}">${buildSecOpts(savedSec)}</select>`;
 }
@@ -469,8 +487,8 @@ function buildEffTable() {
         const perHour = saved ? Math.round(d.contrib / saved * 3600) : null;
         const meatPerH = (saved && (d.isMeat || d.is250)) ? Math.floor(3600 / saved) * d.chunks : null;
         const meatPerHStr = meatPerH != null
-            ? `<span style="color:#e0a060;font-weight:700">${meatPerH.toLocaleString()}</span><span style="color:#666;font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>`
-            : '<span style="color:#444">─</span>';
+            ? `<span style="color:var(--accent);font-weight:700">${meatPerH.toLocaleString()}</span><span style="color:var(--text-3);font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>`
+            : '<span style="color:var(--text-3)">─</span>';
         const isRelo = reloadEnabled.has(d.id);
         const isSabo = saboEnabled.has(d.id);
         const saved2 = killTimes2[d.id] ?? null;
@@ -481,20 +499,20 @@ function buildEffTable() {
             <td>${fmtC(d.contrib)}</td>
             <td style="white-space:nowrap">
                 <div style="display:flex;align-items:center;gap:4px;">
-                    <span style="font-size:0.75em;color:#666;min-width:28px;">${isRelo ? '1回目' : ''}</span>
+                    <span style="font-size:0.75em;color:var(--text-3);min-width:28px;">${isRelo ? '1回目' : ''}</span>
                     <select class="time-sel time-sel-min" data-id="${d.id}">${buildMinOpts(savedMin)}</select>
                     ${buildSecInput(savedSec, 'time-sel-sec', d.id)}
                 </div>
                 <div id="relo-row-${d.id}" style="display:${isRelo ? 'flex' : 'none'};align-items:center;gap:4px;margin-top:4px;">
-                    <span style="font-size:0.75em;color:#64b5f6;min-width:28px;">リロ後</span>
+                    <span style="font-size:0.75em;color:var(--accent-hi);min-width:28px;">リロ後</span>
                     <select class="time-sel time-sel-min2" data-id="${d.id}">${buildMinOpts(savedMin2)}</select>
                     ${buildSecInput(savedSec2, 'time-sel-sec2', d.id)}
                 </div>
             </td>
-            <td id="eph-${d.id}" style="color:${perHour ? '#ffb400' : '#444'};font-weight:700">${perHour ? fmtC(perHour) + '/h' : '─'}</td>
+            <td id="eph-${d.id}" style="color:${perHour ? 'var(--accent)' : 'var(--text-3)'};font-weight:700">${perHour ? fmtC(perHour) + '/h' : '─'}</td>
             <td id="mph-${d.id}">${meatPerHStr}</td>
-            <td style="color:#777;font-size:0.84em">${meatLabel(d)}</td>
-            <td style="text-align:center"><input type="checkbox" class="relo-chk" data-id="${d.id}" ${isRelo ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:#64b5f6;"></td>
+            <td style="color:var(--text-3);font-size:0.84em">${meatLabel(d)}</td>
+            <td style="text-align:center"><input type="checkbox" class="relo-chk" data-id="${d.id}" ${isRelo ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);"></td>
             <td style="text-align:center"><input type="checkbox" class="sabo-chk" data-id="${d.id}" ${isSabo ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:#ff9800;" title="理想タイム+10%のエントリをランキングに追加"></td>
             <td><button class="base-btn" data-id="${d.id}">基準</button></td>
         `;
@@ -587,10 +605,10 @@ function updateEffView() {
                 const eph1 = Math.round(d.contrib / t * 3600);
                 if (t2) {
                     const eph2 = Math.round(d.contrib / t2 * 3600);
-                    ephEl.innerHTML = `<span style="color:#aaa;font-size:0.85em">${fmtC(eph1)}</span><br><span style="color:#64b5f6;font-weight:700">${fmtC(eph2)}/h</span><span style="color:#555;font-size:0.75em"> リロ後</span>`;
+                    ephEl.innerHTML = `<span style="color:var(--text-2);font-size:0.85em">${fmtC(eph1)}</span><br><span style="color:var(--accent);font-weight:700">${fmtC(eph2)}/h</span><span style="color:var(--text-3);font-size:0.75em"> リロ後</span>`;
                 } else {
                     ephEl.textContent = fmtC(eph1) + '/h';
-                    ephEl.style.color = '#ffb400';
+                    ephEl.style.color = 'var(--accent)';
                 }
             } else {
                 ephEl.textContent = '─';
@@ -601,10 +619,10 @@ function updateEffView() {
             const tEff = t2 || t;
             if (tEff && (d.isMeat || d.is250)) {
                 const mph = Math.floor(3600 / tEff) * d.chunks;
-                const label = t2 ? '<span style="color:#555;font-size:0.75em"> リロ後</span>' : '';
-                mphEl.innerHTML = `<span style="color:#e0a060;font-weight:700">${mph.toLocaleString()}</span><span style="color:#666;font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>${label}`;
+                const label = t2 ? '<span style="color:var(--text-3);font-size:0.75em"> リロ後</span>' : '';
+                mphEl.innerHTML = `<span style="color:var(--accent);font-weight:700">${mph.toLocaleString()}</span><span style="color:var(--text-3);font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>${label}`;
             } else {
-                mphEl.innerHTML = '<span style="color:#444">─</span>';
+                mphEl.innerHTML = '<span style="color:var(--text-3)">─</span>';
             }
         }
     });
@@ -639,7 +657,7 @@ function updateEffView() {
             const rc = i < 3 ? ` r${i+1}` : '';
             return `<div class="rank-item">
                 <span class="rank-num${rc}">${i+1}</span>
-                <span class="rank-name ${diffClass(r.d)}">${r.d.name}${r.isRelo ? '<span style="color:#64b5f6;font-size:0.72em;margin-left:4px;">リロ</span>' : r.isSabo ? '<span style="color:#ff9800;font-size:0.72em;margin-left:4px;">サボ</span>' : ''}</span>
+                <span class="rank-name ${diffClass(r.d)}">${r.d.name}${r.isRelo ? '<span style="color:var(--accent-hi);font-size:0.72em;margin-left:4px;">リロ</span>' : r.isSabo ? '<span style="color:#ff9800;font-size:0.72em;margin-left:4px;">サボ</span>' : ''}</span>
                 <span class="rank-val">${fmtC(r.perH)}/h</span>
                 <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill ${barClass(i, ranked.length)}" style="width:${pct}%"></div></div></div>
                 <span class="rank-pct">${pct}%</span>
@@ -677,7 +695,7 @@ function updateEffView() {
         const actual = killTimes[d.id] || null;
         let verdict = '';
         if (actual == null) {
-            verdict = '<span style="color:#555">─ 未入力</span>';
+            verdict = '<span style="color:var(--text-3)">─ 未入力</span>';
         } else if (actual <= needed) {
             verdict = `<span class="ach-ok">✓ 基準以上</span>`;
         } else {
@@ -686,8 +704,8 @@ function updateEffView() {
         }
         html += `<tr>
             <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
-            <td style="color:#aaa">${fmtTime(Math.round(needed))}</td>
-            <td style="color:${actual ? '#ccc' : '#555'}">${actual ? fmtTime(actual) : '─'}</td>
+            <td style="color:var(--text-2)">${fmtTime(Math.round(needed))}</td>
+            <td style="color:${actual ? 'var(--text)' : 'var(--text-3)'}">${actual ? fmtTime(actual) : '─'}</td>
             <td>${verdict}</td>
         </tr>`;
     });
@@ -759,7 +777,7 @@ function updateTargetView() {
         let achCell = '';
         if (hasTime) {
             if (!t) {
-                achCell = '<td style="color:#444">─</td>';
+                achCell = '<td style="color:var(--text-3)">─</td>';
             } else {
                 const possible = Math.floor(remSec / t);
                 if (possible >= runs) {
@@ -776,7 +794,7 @@ function updateTargetView() {
             <td>${runs.toLocaleString()}回</td>
             <td style="color:${totSec ? '#ccc' : '#444'}">${fmtTime(totSec)}</td>
             ${achCell}
-            <td style="color:#777;font-size:0.84em">${meatStr}</td>
+            <td style="color:var(--text-3);font-size:0.84em">${meatStr}</td>
         </tr>`;
     });
 
@@ -794,8 +812,8 @@ function buildMeatInputs() {
     const prevMat    = parseInt(document.getElementById('m-mat')?.value)    || 0;
 
     if (meatFineMode) {
-        normalWrap.innerHTML = `<input type="number" id="m-normal" min="0" max="99999" value="${prevNormal}" style="width:110px;background:#0d0f14;border:1px solid #3a3d45;border-radius:4px;color:#e0e0e0;padding:5px 6px;font-size:0.88em;">`;
-        matWrap.innerHTML    = `<input type="number" id="m-mat"    min="0" max="99999" value="${prevMat}"    style="width:110px;background:#0d0f14;border:1px solid #3a3d45;border-radius:4px;color:#e0e0e0;padding:5px 6px;font-size:0.88em;">`;
+        normalWrap.innerHTML = `<input type="number" id="m-normal" min="0" max="99999" value="${prevNormal}" style="width:110px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:0.88em;">`;
+        matWrap.innerHTML    = `<input type="number" id="m-mat"    min="0" max="99999" value="${prevMat}"    style="width:110px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:0.88em;">`;
         document.getElementById('m-normal').addEventListener('input', updateMeatView);
         document.getElementById('m-mat').addEventListener('input', updateMeatView);
     } else {
@@ -866,9 +884,9 @@ function updateMeatView() {
         const rpm = t ? Math.floor(3600 / t) : null;
         tbl += `<tr>
             <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
-            <td style="color:#aaa">${fmtC(d.contrib)}</td>
-            <td style="color:#ffb400;font-weight:700">${fmtC(total)}</td>
-            <td style="color:#777">${rpm != null ? rpm + '回/h' : '─'}</td>
+            <td style="color:var(--text-2)">${fmtC(d.contrib)}</td>
+            <td style="color:var(--accent);font-weight:700">${fmtC(total)}</td>
+            <td style="color:var(--text-3)">${rpm != null ? rpm + '回/h' : '─'}</td>
         </tr>`;
     });
     tbl += '</tbody></table></div>';
@@ -882,19 +900,19 @@ function updateMeatView() {
 
     let totHtml = '';
     if (actualRuns250 > 0) {
-        totHtml += `<div style="font-size:0.84em;color:#777;margin-bottom:8px;padding:8px 10px;background:#0d0f14;border-radius:6px;">
+        totHtml += `<div style="font-size:0.84em;color:var(--text-3);margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:6px;">
             250HELL: <span style="color:#9575cd;font-weight:700">${actualRuns250}回 × 7,500万 = ${fmtC(contrib250total)}</span>
         </div>`;
     }
     sorted.forEach((item, i) => {
         const best = i === 0;
         const formulaStr = totalMeat > 0
-            ? `<span style="font-size:0.78em;color:#666;margin-right:6px">${fmtC(item.d.contrib)} × ${totalMeat}${actualRuns250 > 0 ? ` + ${fmtC(contrib250total)}` : ''} =</span>`
+            ? `<span style="font-size:0.78em;color:var(--text-3);margin-right:6px">${fmtC(item.d.contrib)} × ${totalMeat}${actualRuns250 > 0 ? ` + ${fmtC(contrib250total)}` : ''} =</span>`
             : '';
         totHtml += `<div class="meat-row ${best ? 'best' : ''}">
-            <span style="min-width:18px;color:${best ? '#ffb400' : '#444'};font-weight:700">${best ? '★' : ''}</span>
+            <span style="min-width:18px;color:${best ? 'var(--accent)' : 'transparent'};font-weight:700">${best ? '★' : ''}</span>
             <span class="meat-row-name ${diffClass(item.d)}">${item.d.name}</span>
-            ${formulaStr}<span class="meat-row-val" style="color:${best ? '#ffb400' : '#ccc'};font-size:${best ? '1.05em' : '0.95em'}">${fmtC(item.total)}</span>
+            ${formulaStr}<span class="meat-row-val" style="color:${best ? 'var(--accent)' : 'var(--text)'};font-size:${best ? '1.05em' : '0.95em'}">${fmtC(item.total)}</span>
         </div>`;
     });
     totalEl.innerHTML = totHtml;
