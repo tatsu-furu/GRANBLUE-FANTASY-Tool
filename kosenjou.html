@@ -135,8 +135,14 @@
     <!-- ===== TAB 1: 討伐効率 ===== -->
     <div id="tab-efficiency" class="tab-content active">
         <div class="card">
-            <div class="card-title">討伐時間の入力</div>
-            <p class="note" style="margin-bottom:12px;">討伐時間を分・秒で選択してください。設定は自動保存されます。</p>
+            <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                討伐時間の入力
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;font-weight:400;color:#999;cursor:pointer;">
+                    <input type="checkbox" id="fine-mode-chk" style="width:14px;height:14px;accent-color:#ffb400;cursor:pointer;">
+                    1秒単位で入力
+                </label>
+            </div>
+            <p class="note" style="margin-bottom:12px;">討伐時間を入力してください。設定は自動保存されます。</p>
             <div style="overflow-x:auto;">
                 <table class="data-table">
                     <thead>
@@ -294,6 +300,7 @@ try {
     reloadEnabled = new Set(r.enabled || []);
 } catch(e){}
 let baseDiffId = null;
+let fineMode = false;
 
 function saveReloadState() {
     localStorage.setItem('gbf_kj_reload', JSON.stringify({ times: killTimes2, enabled: [...reloadEnabled] }));
@@ -314,6 +321,13 @@ function buildSecOpts(savedSec) {
     return [0,5,10,15,20,25,30,35,40,45,50,55].map(s =>
         `<option value="${s}" ${savedSec === s ? 'selected' : ''}>${String(s).padStart(2,'0')}秒</option>`
     ).join('');
+}
+
+function buildSecInput(savedSec, cls, id) {
+    if (fineMode) {
+        return `<input type="number" class="time-sel ${cls}" data-id="${id}" min="0" max="59" value="${savedSec ?? 0}" style="width:52px;background:#0d0f14;border:1px solid #3a3d45;border-radius:4px;color:#e0e0e0;padding:5px 4px;font-size:0.85em;">`;
+    }
+    return `<select class="time-sel ${cls}" data-id="${id}">${buildSecOpts(savedSec)}</select>`;
 }
 
 function fmtTime(s) {
@@ -398,12 +412,12 @@ function buildEffTable() {
                 <div style="display:flex;align-items:center;gap:4px;">
                     <span style="font-size:0.75em;color:#666;min-width:28px;">${isRelo ? '1回目' : ''}</span>
                     <select class="time-sel time-sel-min" data-id="${d.id}">${buildMinOpts(savedMin)}</select>
-                    <select class="time-sel time-sel-sec" data-id="${d.id}">${buildSecOpts(savedSec)}</select>
+                    ${buildSecInput(savedSec, 'time-sel-sec', d.id)}
                 </div>
                 <div id="relo-row-${d.id}" style="display:${isRelo ? 'flex' : 'none'};align-items:center;gap:4px;margin-top:4px;">
                     <span style="font-size:0.75em;color:#64b5f6;min-width:28px;">リロ後</span>
                     <select class="time-sel time-sel-min2" data-id="${d.id}">${buildMinOpts(savedMin2)}</select>
-                    <select class="time-sel time-sel-sec2" data-id="${d.id}">${buildSecOpts(savedSec2)}</select>
+                    ${buildSecInput(savedSec2, 'time-sel-sec2', d.id)}
                 </div>
             </td>
             <td id="eph-${d.id}" style="color:${perHour ? '#ffb400' : '#444'};font-weight:700">${perHour ? fmtC(perHour) + '/h' : '─'}</td>
@@ -431,8 +445,13 @@ function buildEffTable() {
         return parseInt(minVal) * 60 + parseInt(secEl?.value || 0);
     }
 
+    function addTimeListener(el, handler) {
+        el.addEventListener('change', handler);
+        if (el.tagName === 'INPUT') el.addEventListener('input', handler);
+    }
+
     tbody.querySelectorAll('.time-sel-min, .time-sel-sec').forEach(sel => {
-        sel.addEventListener('change', e => {
+        addTimeListener(sel, e => {
             const id = e.target.dataset.id;
             const t = readTime(id);
             if (t != null && t > 0) killTimes[id] = t; else delete killTimes[id];
@@ -444,7 +463,7 @@ function buildEffTable() {
     });
 
     tbody.querySelectorAll('.time-sel-min2, .time-sel-sec2').forEach(sel => {
-        sel.addEventListener('change', e => {
+        addTimeListener(sel, e => {
             const id = e.target.dataset.id;
             const t = readTime2(id);
             if (t != null && t > 0) killTimes2[id] = t; else delete killTimes2[id];
@@ -775,6 +794,14 @@ buildEffTable();
 setupTargetInputs();
 setupMeatInputs();
 updateEffView();
+
+document.getElementById('fine-mode-chk').addEventListener('change', e => {
+    fineMode = e.target.checked;
+    buildEffTable();
+    updateEffView();
+    updateTargetView();
+    updateMeatView();
+});
 </script>
 
 <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
