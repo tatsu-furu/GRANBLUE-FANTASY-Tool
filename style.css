@@ -1,170 +1,425 @@
-/* --- ★V8: 全体・ダークモード設定 --- */
+/* =============================================
+   GBF Move Tool — Design System
+   色はCSS変数に集約。状態で色を変える方針。
+   ============================================= */
+
+:root {
+    --bg:          #17191d;
+    --surface:     #21242a;
+    --surface-2:   #282c34;
+    --surface-3:   #2f343d;
+    --border:      #363a44;
+    --border-hi:   #4a5060;
+
+    --text:        #e5e2da;
+    --text-muted:  #8c8880;
+    --text-faint:  #52504c;
+
+    --accent:      #c9a24a;
+    --accent-hi:   #ddb85c;
+    --accent-lo:   #8f6b24;
+    --accent-dim:  rgba(201,162,74,0.12);
+
+    --info:        #5a8ab8;
+    --info-dim:    rgba(90,138,184,0.15);
+
+    --danger:      #a84040;
+    --danger-hi:   #c45050;
+    --danger-dim:  rgba(168,64,64,0.15);
+
+    --on-dark:     #e5e2da;
+
+    /* ボタン共通ベース */
+    --btn-bg:      #2c3038;
+    --btn-border:  #44495a;
+    --btn-hover:   #343840;
+}
+
+/* =============================================
+   ベース
+   ============================================= */
+*, *::before, *::after { box-sizing: border-box; }
+
 body {
-    font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
-    line-height: 1.6;
-    background-color: #1a1c20; /* 濃い背景色 */
-    color: #e0e0e0; /* 明るい文字色 */
+    font-family: -apple-system, BlinkMacSystemFont,
+        "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic",
+        "Meiryo", sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    background-color: var(--bg);
+    color: var(--text);
     margin: 0;
     padding: 20px;
+    -webkit-font-smoothing: antialiased;
 }
 
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    background-color: #2c2f36; /* 少し明るい背景 */
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    border: 1px solid #444;
+    padding: 0;
 }
 
+/* =============================================
+   見出し
+   ============================================= */
 h1 {
-    color: #ffb3007a; /* グラブルの金に近い色 */
-    border-bottom: 2px solid #ffb400;
-    padding-bottom: 5px;
+    color: var(--text);
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 6px;
     margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.4em;
 }
+h1 span[style*="color"] { color: var(--accent) !important; }
+
 h2 {
-    color: #68aeff; /* 明るい青 */
-    border-bottom: 2px solid #68aeff;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
     padding-bottom: 5px;
+    padding-left: 10px;
+    border-left: 3px solid var(--accent);
+    margin-bottom: 14px;
+    font-size: 1.1em;
 }
 
-/* --- ★V8: フォーム要素 (ダークモード) --- */
+/* =============================================
+   フォーム要素
+   ============================================= */
 fieldset {
-    border: 1px solid #555;
+    border: 1px solid var(--border);
     border-radius: 4px;
-    margin-bottom: 15px;
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    background: var(--surface);
 }
 legend {
-    font-weight: bold;
-    padding: 0 10px;
-    color: #ccc;
+    font-weight: 700;
+    font-size: 0.85em;
+    padding: 0 8px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
 }
 
 input[type="text"],
 select,
 textarea {
-    background-color: #222;
-    color: #e0e0e0;
-    border: 1px solid #555;
-    border-radius: 4px;
-    padding: 8px;
+    background-color: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 7px 9px;
     font-family: inherit;
-    font-size: 0.95em;
+    font-size: 0.93em;
+    width: 100%;
 }
-
 input[type="text"]:focus,
 select:focus,
 textarea:focus {
     outline: none;
-    border-color: #4a90e2; /* フォーカス時に青く */
-    box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
+    border-color: var(--accent);
+}
+::placeholder { color: var(--text-faint); }
+
+.input-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+}
+.input-grid > div > label {
+    display: block;
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-bottom: 3px;
 }
 
-::placeholder {
-    color: #777;
+label {
+    font-size: 0.85em;
+    color: var(--text-muted);
 }
 
-/* --- ★V8: ボタン共通スタイル --- */
+/* =============================================
+   ボタン共通
+   ============================================= */
 .btn {
-    padding: 10px 15px;
-    font-size: 1em;
-    border: none;
-    border-radius: 4px;
+    display: inline-block;
+    padding: 8px 14px;
+    font-size: 0.9em;
+    font-weight: 700;
+    font-family: inherit;
+    border: 1px solid var(--btn-border);
+    border-radius: 3px;
+    background-color: var(--btn-bg);
+    color: var(--on-dark);
     cursor: pointer;
-    font-weight: bold;
-    color: rgb(255, 255, 255);
-    transition: filter 0.2s, box-shadow 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
 }
 .btn:hover {
-    filter: brightness(110%);
+    background-color: var(--btn-hover);
+    border-color: var(--border-hi);
 }
 .btn:active {
-    filter: brightness(90%);
-    box-shadow: none;
+    background-color: var(--surface-3);
 }
 .btn:disabled {
-    background-color: #555 !important;
-    color: #999;
+    background-color: var(--surface) !important;
+    border-color: var(--border) !important;
+    color: var(--text-faint) !important;
     cursor: not-allowed;
-    filter: none;
-    box-shadow: none;
 }
 
-
-/* --- ★V8: ボタン個別スタイル --- */
-
-/* メイン・リセット系 */
-#setup-complete-btn { background-color: #4a90e2; } /* プライマリ青 */
-.reset-btn { background-color: #6c757d; } /* グレー */
-#clear-all-data-btn { background-color: #e53935; } /* 警告赤 */
-
-/* 保存/ロード系 */
-#save-btn { background-color: #4CAF50; padding: 8px; } /* 緑 */
-#load-btn { background-color: #4a90e2; padding: 8px; } /* 青 */
-#delete-btn { background-color: #f0ac4ea8; padding: 8px; } /* オレンジ */
-
-/* アクションパネル */
-.action-btn {
+/* プライマリ（メイン操作） */
+#setup-complete-btn {
+    background-color: var(--accent-lo);
+    border-color: var(--accent);
+    color: #1a1400;
+    width: 100%;
+    margin-top: 4px;
     padding: 10px;
-    word-break: break-all;
-    background-color: #ffb300c0; /* アビリティ (黄) */
-    color: #1a1c20; /* 暗い文字色 */
 }
-.summon-btn {
-    padding: 10px;
-    word-break: break-all;
-    background-color: #9b59b6; /* 召喚 (紫) */
-    color: white;
+#setup-complete-btn:hover {
+    background-color: var(--accent);
+    border-color: var(--accent-hi);
 }
-[data-action="ガード"] { background-color: #0288d1; color: white; } /* ガード (青) */
-.attack-btn-off { background-color: #d9534f; } /* 攻撃OFF (赤) */
-.attack-btn-on { background-color: #5cb85c; } /* 攻撃ON (緑) */
-#goto-playback-btn { background-color: #28a745; } /* 再生 (緑) */
-#copy-history-btn { background-color: #5bc0de; } /* コピー (水色) */
 
+/* 危険・破壊的操作 */
+.reset-btn,
+#back-to-setup-btn,
+#move-reset-btn,
+#back-to-edit-btn {
+    background-color: var(--surface-2);
+    border-color: var(--border-hi);
+    color: var(--text-muted);
+}
+.reset-btn:hover,
+#back-to-setup-btn:hover,
+#move-reset-btn:hover,
+#back-to-edit-btn:hover {
+    background-color: var(--surface-3);
+    color: var(--text);
+}
 
-/* キャラ選択 */
+#clear-all-data-btn,
+#clear-weapon-image-btn {
+    background-color: var(--danger-dim);
+    border-color: var(--danger);
+    color: #e08080;
+}
+#clear-all-data-btn:hover,
+#clear-weapon-image-btn:hover {
+    background-color: var(--danger);
+    color: var(--on-dark);
+}
+
+/* 保存・ロード・エクスポート */
+#save-btn,
+#load-btn {
+    padding: 7px 12px;
+    font-size: 0.85em;
+}
+#delete-btn {
+    padding: 7px 12px;
+    font-size: 0.85em;
+    background-color: var(--danger-dim);
+    border-color: var(--danger);
+    color: #e08080;
+}
+#delete-btn:hover {
+    background-color: var(--danger);
+    color: var(--on-dark);
+}
+
+#export-btn {
+    grid-column: 1 / -1;
+}
+.import-btn-label {
+    grid-column: 1 / -1;
+    text-align: center;
+    cursor: pointer;
+}
+#import-file-input { display: none; }
+
+/* Discordコピー */
+#discord-copy-btn {
+    background-color: #3d4070;
+    border-color: #5865F2;
+    color: #b0b4e8;
+    width: 100%;
+    margin-top: 4px;
+}
+#discord-copy-btn:hover {
+    background-color: #5865F2;
+    color: #fff;
+}
+
+/* 上書き保存 */
+#overwrite-save-btn {
+    background-color: var(--accent-dim);
+    border-color: var(--accent-lo);
+    color: var(--accent);
+}
+#overwrite-save-btn:hover {
+    background-color: var(--accent-lo);
+    color: #1a1400;
+}
+
+/* 再生モード */
+#goto-playback-btn {
+    background-color: var(--info-dim);
+    border-color: var(--info);
+    color: #a0bcd8;
+}
+#goto-playback-btn:hover {
+    background-color: var(--info);
+    color: var(--on-dark);
+}
+
+/* 画像保存 */
+#save-playback-image-btn {
+    background-color: var(--danger-dim);
+    border-color: var(--danger);
+    color: #e08080;
+}
+#save-playback-image-btn:hover {
+    background-color: var(--danger);
+    color: var(--on-dark);
+}
+#save-playback-image-btn[disabled] {
+    background-color: var(--surface) !important;
+    border-color: var(--border) !important;
+    color: var(--text-faint) !important;
+}
+
+/* =============================================
+   保存/ロードセクション
+   ============================================= */
+#save-load-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 10px 14px;
+}
+#save-load-section > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* =============================================
+   アクションパネルのボタン
+   ============================================= */
+.char-select-buttons,
+.action-buttons,
+.summon-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    margin-top: 5px;
+}
+.summon-buttons {
+    grid-template-columns: 1fr 1fr;
+}
+
+/* キャラ選択ボタン */
 .char-btn {
-    padding: 8px;
-    background-color: #444;
-    border: 1px solid #666;
-    border-radius: 4px;
+    padding: 8px 6px;
+    background-color: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
     cursor: pointer;
     text-align: center;
     word-break: break-all;
-    color: #ddd;
-    transition: all 0.2s;
+    color: var(--text-muted);
+    font-size: 0.88em;
+    font-family: inherit;
+    transition: border-color 0.15s, background-color 0.15s, color 0.15s;
 }
 .char-btn.is-sub {
-    background-color: #3a3a3a;
-    color: #999;
+    color: var(--text-faint);
     font-style: italic;
 }
 .char-btn:hover {
-    border-color: #888;
+    border-color: var(--accent-lo);
+    color: var(--text);
 }
 .char-btn.selected {
-    background-color: #4a90e2;
-    color: white;
-    font-weight: bold;
-    border-color: #68aeff;
+    background-color: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 700;
 }
 
-/* --- ★V8: グリッド・レイアウト (V7と同じ) --- */
-#extra-sub-inputs {
-    display: none;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 10px;
-    grid-column: 1 / -1;
-    margin-top: 10px;
+/* アビリティボタン（通常） */
+.action-btn {
+    padding: 9px 6px;
+    word-break: break-all;
+    background-color: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font-size: 0.88em;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
 }
+.action-btn:hover {
+    background-color: var(--surface-3);
+    border-color: var(--border-hi);
+}
+
+/* 召喚石ボタン */
+.summon-btn {
+    padding: 9px 6px;
+    word-break: break-all;
+    background-color: var(--surface-2);
+    border: 1px solid var(--border-hi);
+    border-radius: 3px;
+    color: var(--text-muted);
+    font-size: 0.88em;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+.summon-btn:hover {
+    border-color: var(--accent-lo);
+    color: var(--text);
+}
+
+/* ガード */
+[data-action="ガード"] {
+    background-color: var(--info-dim);
+    border-color: var(--info);
+    color: #9abdd8;
+}
+
+/* 攻撃OFF（奥義なし） */
+.attack-btn-off {
+    background-color: var(--danger-dim);
+    border-color: var(--danger);
+    color: #d08080;
+}
+.attack-btn-off:hover {
+    background-color: var(--danger);
+    color: var(--on-dark);
+}
+
+/* 攻撃ON（奥義あり）= メイン操作 */
+.attack-btn-on {
+    background-color: var(--accent-dim);
+    border-color: var(--accent-lo);
+    color: var(--accent);
+}
+.attack-btn-on:hover {
+    background-color: var(--accent-lo);
+    color: #1a1400;
+}
+
+/* =============================================
+   グリッド・レイアウト
+   ============================================= */
 .move-grid {
     display: grid;
     grid-template-columns: 200px 1fr;
-    gap: 20px;
+    gap: 18px;
     align-items: start;
 }
 .move-grid.raid-active {
@@ -179,115 +434,134 @@ textarea:focus {
 #move-phase.playback-mode .action-panel {
     display: none;
 }
-#raid-info-panel {
-    position: sticky;
-    top: 16px;
-}
+
 .action-panel {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 13px;
 }
-#turn-counter {
-    font-size: 1.5em;
-    font-weight: bold;
-    text-align: center;
-    margin-bottom: 10px;
-    color: #e57373; /* ターン (赤系) */
+.action-panel > div > strong {
+    display: block;
+    font-size: 0.78em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    letter-spacing: 0.03em;
 }
-.char-select-buttons,
-.action-buttons,
-.summon-buttons {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 5px;
+
+#extra-sub-inputs {
+    display: none;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    grid-column: 1 / -1;
+    margin-top: 10px;
 }
+
 .reset-buttons {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
-    margin-top: 10px;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 14px;
 }
 
-/* --- ★V8: 履歴・再生 (ダークモード) --- */
-#move-history {
-    width: 100%;
-    height: 400px;
-    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
-    font-size: 0.9em;
-    padding: 10px;
-    box-sizing: border-box;
-    background-color: #111; /* ターミナル風の黒 */
-    color: #b0c4de; /* 明るい青 */
-    resize: vertical;
+/* =============================================
+   ターンカウンター
+   ============================================= */
+#turn-counter {
+    font-size: 1.4em;
+    font-weight: 700;
+    text-align: center;
+    color: var(--accent);
+    border: 1px solid var(--accent-lo);
+    background: var(--accent-dim);
+    border-radius: 3px;
+    padding: 6px 0;
+    letter-spacing: 0.08em;
 }
 
-#export-area {
-    text-align: right;
-    margin-top: 10px;
-}
-.feedback-success {
-    font-size: 0.9em;
-    color: #4CAF50;
-    margin-left: 10px;
-}
-.feedback-error {
-    font-size: 0.9em;
-    color: #e53935;
-    margin-left: 10px;
-}
-
-/* 再生モード */
+/* =============================================
+   履歴・再生パネル
+   ============================================= */
 .history-panel { display: block; }
 .playback-panel { display: none; }
 #move-phase.playback-mode .history-panel { display: none; }
 #move-phase.playback-mode .playback-panel { display: block; }
 
+#new-history-view {
+    height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px;
+    background-color: #0f1115;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.88em;
+    color: #a8b8c8;
+}
+
+.history-controls {
+    margin: 6px 0;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+#export-area {
+    text-align: right;
+    margin-top: 8px;
+}
+
+.feedback-success { font-size: 0.88em; color: #6abf6a; margin-left: 8px; }
+.feedback-error   { font-size: 0.88em; color: #d07070; margin-left: 8px; }
+
+/* 再生エリア */
 #playback-area {
     height: 400px;
     overflow-y: auto;
-    border: 1px solid #444;
-    border-radius: 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
     padding: 10px;
-    background-color: #262930;
+    background-color: var(--surface);
 }
+
 .playback-turn {
-    background-color: #333;
-    border: 1px solid #444;
-    border-radius: 5px;
+    background-color: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
     margin-bottom: 10px;
     padding: 10px;
-    transition: background-color 0.3s, border-color 0.3s;
+    transition: background-color 0.25s, border-color 0.25s;
 }
 .playback-turn.active-turn {
-    background-color: #4a402a; /* ハイライト (黄土色) */
-    border-color: #ffb30085; /* ハイライト (金) */
+    background-color: rgba(201,162,74,0.1);
+    border-color: var(--accent-lo);
 }
 .playback-turn h3 {
-    margin: 0 0 10px 0;
+    margin: 0 0 8px 0;
     padding-bottom: 5px;
-    border-bottom: 1px dashed #666;
-    color: #ffb3005e;
+    border-bottom: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 0.95em;
 }
 .playback-turn ul {
     margin: 0;
-    padding-left: 20px;
+    padding-left: 18px;
 }
 .playback-turn li {
-    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
-    font-size: 1.1em;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 1em;
     list-style: square;
-    color: #ddd;
+    color: var(--text);
 }
 .playback-memo {
-    background-color: #2a3947; /* メモ (青系) */
-    border: 1px solid #4a90e2;
-    border-radius: 4px;
+    background-color: var(--info-dim);
+    border: 1px solid var(--info);
+    border-radius: 3px;
     padding: 8px;
-    margin-top: 10px;
-    font-size: 0.95em;
+    margin-top: 8px;
+    font-size: 0.9em;
     white-space: pre-wrap;
-    color: #e0e0e0;
+    color: var(--text);
 }
 
 #playback-nav {
@@ -297,213 +571,229 @@ textarea:focus {
     margin-top: 10px;
 }
 #playback-nav-center {
-    font-size: 1.2em;
-    font-weight: bold;
-    color: #e57373;
+    font-size: 1.1em;
+    font-weight: 700;
+    color: var(--accent);
 }
+
 #mode-toggle-area {
-    margin: 10px 0;
+    margin: 8px 0;
     text-align: right;
 }
 
-/* --- ★V11: インポート/エクスポートボタン --- */
-
-/* 保存/ロードエリアのレイアウトを調整 */
-#save-load-section {
-    grid-template-columns: 1fr 1fr 1fr 1fr; /* 4列に変更 */
-    gap: 10px 15px;
-}
-
-/* ファイル入力ボタンを隠す */
-#import-file-input {
-    display: none;
-}
-
-/* ファイル入力をボタンのように見せる */
-.import-btn-label {
-    grid-column: 1 / -1; /* 横幅いっぱいに広げる */
-    background-color: #3f51b5; /* インポート (藍色) */
-    text-align: center;
-    padding: 10px 15px;
-}
-
-#export-btn {
-    grid-column: 1 / -1; /* 横幅いっぱいに広げる */
-    background-color: #00796b; /* エクスポート (緑系) */
-}
-
-/* --- ★V14: ボタンの色調整 --- */
-/* ムーブ表を画像で保存ボタンの色を変更 */
-#save-playback-image-btn {
-    background-color: #f44336; /* 赤系 (マゼンタに近い) */
-    color: white; /* テキストを白に */
-    font-weight: bold; /* 少し太字に */
-}
-
-/* 画像生成中のボタンの色 */
-#save-playback-image-btn[disabled] {
-    background-color: #b71c1c; /* 生成中は少し暗い赤に */
-    cursor: not-allowed;
-}
-
-/* --- ★V12: 編成情報（メモ・画像） --- */
-/* 全体メモ */
-#overall-memo-input {
-    width: 100%;
-    box-sizing: border-box;
-    min-height: 80px; /* 少し大きめに */
-    font-size: 0.95em;
-    resize: vertical; /* 縦方向だけリサイズ可能に */
-}
-
-/* 画像アップロード */
-#weapon-image-upload-area {
-    margin-top: 15px;
-    border: 2px dashed #555; /* 点線枠 */
-    border-radius: 5px;
-    padding: 15px;
-    text-align: center;
-    cursor: pointer;
-    background-color: #3a3a3a;
-    transition: background-color 0.2s;
-}
-#weapon-image-upload-area:hover {
-    background-color: #4a4a4a;
-    border-color: #777;
-}
-#weapon-image-preview {
-    max-width: 100%;
-    max-height: 200px; /* プレビューの高さを制限 */
-    margin-top: 10px;
-    border-radius: 4px;
-    display: none; /* JSで表示制御 */
-}
-#clear-weapon-image-btn {
-    margin-top: 5px;
-    background-color: #e53935; /* 赤 */
-    display: none; /* JSで表示制御 */
-}
-#upload-feedback {
-    font-size: 0.8em;
-    color: #aaa;
-    margin-top: 5px;
-}
-
-/* --- ★V19: ペーストボタン --- */
-#paste-image-btn {
-    margin-top: 5px;
-    margin-left: 10px; /* 画像削除ボタンとの間隔 */
-    background-color: #03a9f4; /* 水色系 */
-}
-
-.reset-buttons {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-
-/* --- ★V23: 分岐機能 --- */
-
-/* 分岐入力UI */
+/* =============================================
+   分岐機能
+   ============================================= */
 #branching-controls {
-    margin-top: 15px;
+    margin-top: 12px;
     padding: 10px;
-    border: 1px dashed #ff9800; /* オレンジの点線 */
+    border: 1px solid var(--accent-lo);
     border-radius: 4px;
-    background-color: rgba(255, 152, 0, 0.1); /* 薄いオレンジ背景 */
+    background-color: var(--accent-dim);
 }
 #branching-status {
-    font-weight: bold;
-    color: #ffb400; /* 金色 */
-    margin-bottom: 10px;
+    font-weight: 700;
+    font-size: 0.88em;
+    color: var(--accent);
+    margin-bottom: 8px;
     text-align: center;
+    letter-spacing: 0.04em;
 }
 #branching-buttons {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
-}
-#next-branch-btn { background-color: #03a9f4; } /* 水色 */
-#finish-branching-btn { background-color: #4CAF50; } /* 緑 */
-#start-branching-btn { background-color: #ff9800; margin-top: 10px; width:100%;} /* オレンジ */
-
-/* 再生モードでの分岐表示 */
-.playback-turn.has-branches {
-    padding: 0; /* 分岐があるターンの内側のパディングを削除 */
-    border-style: dashed; /* 分岐ターンは点線で囲む */
-    border-color: #ffb400;
-}
-.playback-branches-container {
-    display: flex; /* 横並びにする */
-    gap: 10px; /* 分岐間の隙間 */
-    padding: 10px; /* 内側のパディング */
-}
-.playback-branch {
-    flex: 1; /* 幅を均等に分ける */
-    border: 1px solid #555;
-    border-radius: 4px;
-    padding: 8px;
-    background-color: #3a3a3a; /* 各分岐の背景色 */
-}
-.playback-branch h4 { /* 分岐ラベル (A, B) */
-    margin: 0 0 8px 0;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #777;
-    color: #ffb400;
-    font-size: 1em;
-}
-/* 分岐があるターンの見出し (h3) はコンテナの外に表示 */
-.playback-turn.has-branches > h3 {
-    padding: 10px;
-    margin: 0;
-    border-bottom: 1px dashed #666;
+    gap: 8px;
 }
 
-/* Undoボタンを無効化 */
-#undo-last-action-btn {
-    display: none; /* V23では一旦非表示 */
+#next-branch-btn {
+    background-color: var(--info-dim);
+    border-color: var(--info);
+    color: #9abdd8;
 }
-/* --- ★V24: 分岐機能改善 --- */
-
-/* 再生モードでの分岐表示 (最大3列) */
-.playback-branches-container {
-    display: grid; /* FlexboxからGridに変更 */
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* 列数を自動調整 */
-    gap: 10px;
-    padding: 10px;
+#finish-branching-btn {
+    background-color: var(--accent-dim);
+    border-color: var(--accent-lo);
+    color: var(--accent);
+}
+#cancel-branching-btn {
+    grid-column: 1 / -1;
+    background-color: var(--danger-dim);
+    border-color: var(--danger);
+    color: #d08080;
+}
+#cancel-branching-btn:hover {
+    background-color: var(--danger);
+    color: var(--on-dark);
 }
 
-/* Undoボタンを再表示 */
-#undo-last-action-btn {
-    display: block !important; /* !importantで強制表示 */
-    background-color: #ff99007c !important; /* 色指定も念のため */
+#start-branching-btn {
+    background-color: var(--accent-dim);
+    border-color: var(--accent-lo);
+    color: var(--accent);
 }
-/* --- ★V26: 分岐機能改善 (再編集) --- */
+#start-branching-btn:hover {
+    background-color: var(--accent-lo);
+    color: #1a1400;
+}
 
-/* 分岐選択ボタン */
 #branching-selector {
     display: flex;
     justify-content: center;
-    gap: 10px;
+    gap: 8px;
     margin-bottom: 10px;
 }
 .branch-select-btn {
-    padding: 5px 15px;
-    font-size: 0.9em;
-    background-color: #555;
-    border: 1px solid #777;
-    color: #ccc;
+    padding: 4px 14px;
+    font-size: 0.88em;
+    background-color: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-muted);
     cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.2s, border-color 0.2s;
+    font-family: inherit;
+    transition: background-color 0.15s, border-color 0.15s;
 }
 .branch-select-btn.active-branch-edit {
-    background-color: #ff990050; /* オレンジ */
-    color: #1a1c20;
-    border-color: #ffb3003f;
-    font-weight: bold;
+    background-color: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 700;
 }
 .branch-select-btn:hover:not(.active-branch-edit) {
-    background-color: #666;
+    background-color: var(--surface-3);
+    border-color: var(--border-hi);
+}
+
+/* 再生モードの分岐 */
+.playback-turn.has-branches {
+    padding: 0;
+    border-color: var(--accent-lo);
+}
+.playback-turn.has-branches > h3 {
+    padding: 10px;
+    margin: 0;
+    border-bottom: 1px solid var(--border);
+}
+.playback-branches-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+    padding: 10px;
+}
+.playback-branch {
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 8px;
+    background-color: var(--surface-2);
+}
+.playback-branch h4 {
+    margin: 0 0 7px 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 0.9em;
+}
+
+/* =============================================
+   Undoボタン
+   ============================================= */
+#undo-last-action-btn {
+    display: block;
+}
+
+/* =============================================
+   画像アップロード
+   ============================================= */
+#weapon-image-upload-area {
+    margin-top: 10px;
+    border: 1px dashed var(--border-hi);
+    border-radius: 4px;
+    padding: 15px;
+    text-align: center;
+    cursor: pointer;
+    background-color: var(--surface-2);
+    transition: background-color 0.15s, border-color 0.15s;
+}
+#weapon-image-upload-area:hover {
+    background-color: var(--surface-3);
+    border-color: var(--accent-lo);
+}
+#weapon-image-preview {
+    max-width: 100%;
+    max-height: 200px;
+    margin-top: 10px;
+    border-radius: 3px;
+    display: none;
+}
+#upload-feedback {
+    font-size: 0.78em;
+    color: var(--text-faint);
+    margin-top: 4px;
+    display: block;
+}
+#clear-weapon-image-btn { display: none; }
+
+/* =============================================
+   全体メモ
+   ============================================= */
+#overall-memo-input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 80px;
+    font-size: 0.93em;
+    resize: vertical;
+}
+
+/* =============================================
+   レイドパネル
+   ============================================= */
+#raid-info-panel {
+    position: sticky;
+    top: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* =============================================
+   ショートカット details
+   ============================================= */
+details {
+    margin-bottom: 10px;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+details > summary {
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.88em;
+    color: var(--text-muted);
+    padding: 8px 12px;
+    list-style: none;
+}
+details > summary::marker,
+details > summary::-webkit-details-marker { display: none; }
+details > summary:hover { color: var(--text); }
+details[open] > summary { color: var(--accent); border-bottom: 1px solid var(--border); }
+details > div {
+    padding: 10px 12px;
+    font-size: 0.88em;
+    line-height: 1.7;
+    color: var(--text-muted);
+}
+kbd {
+    background: var(--surface-3);
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--border-hi);
+    font-size: 0.9em;
+}
+
+/* =============================================
+   スクショ取込ボタン
+   ============================================= */
+#ss-import-open-btn {
+    font-size: 0.82em;
 }

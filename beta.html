@@ -10,15 +10,15 @@
 <body>
 
     <!-- 使い方モーダル -->
-    <div id="tutorial-modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); overflow: auto;">
-        <div style="background-color: #1a1d23; margin: 2% auto; padding: 20px; border: 2px solid #ffb400; border-radius: 8px; width: 90%; max-width: 800px; max-height: 85vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="color: #ffb400; margin: 0;">📖 使い方ガイド</h2>
-                <button id="close-tutorial-btn" style="background: #d32f2f; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">✕ 閉じる</button>
+    <div id="tutorial-modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); overflow: auto;">
+        <div style="background-color: #21242a; margin: 2% auto; padding: 22px; border: 1px solid #c9a24a; border-radius: 6px; width: 90%; max-width: 800px; max-height: 85vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid #363a44; padding-bottom: 12px;">
+                <h2 style="color: #c9a24a; margin: 0; border: none; padding: 0; font-size: 1.1em;">使い方ガイド</h2>
+                <button id="close-tutorial-btn" class="btn" style="background: #a84040; border-color: #c45050; color: #e5e2da; padding: 6px 14px;">✕ 閉じる</button>
             </div>
 
-            <div style="line-height: 1.8; color: #e0e0e0;">
-                <h3 style="color: #ffb400; border-bottom: 2px solid #ffb400; padding-bottom: 5px;">🎯 基本的な使い方</h3>
+            <div style="line-height: 1.8; color: #b8b5ad;">
+                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px;">基本的な使い方</h3>
                 <ol style="padding-left: 25px;">
                     <li><strong>編成登録</strong>: キャラクター名と召喚石名を入力します</li>
                     <li><strong>武器編成画像</strong>: クリック、ドラッグ＆ドロップ、またはCtrl+Vで画像を追加できます</li>
@@ -26,7 +26,7 @@
                     <li><strong>ムーブ入力画面へ</strong>: ボタンを押してムーブ作成を開始します</li>
                 </ol>
 
-                <h3 style="color: #ffb400; border-bottom: 2px solid #ffb400; padding-bottom: 5px; margin-top: 20px;">⚔️ ムーブ入力</h3>
+                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">ムーブ入力</h3>
                 <ul style="padding-left: 25px;">
                     <li><strong>キャラ選択</strong>: 行動させるキャラを選択します（サブキャラは灰色表示）</li>
                     <li><strong>アビリティ</strong>: 1〜4アビ、ガード、キュアポなどを選択</li>
@@ -35,7 +35,7 @@
                     <li><strong>ターンメモ</strong>: 各ターンにHP予兆や敵の行動を記録できます</li>
                 </ul>
 
-                <h3 style="color: #ffb400; border-bottom: 2px solid #ffb400; padding-bottom: 5px; margin-top: 20px;">🔀 分岐システム</h3>
+                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">分岐システム</h3>
                 <p>「このターンに分岐を作成」ボタンで、複数のパターンを記録できます（2〜4分岐）</p>
                 <ul style="padding-left: 25px;">
                     <li>各分岐に独立した行動とメモを記録</li>
@@ -43,38 +43,38 @@
                     <li>「分岐をキャンセル」で取り消し可能</li>
                 </ul>
 
-                <h3 style="color: #ffb400; border-bottom: 2px solid #ffb400; padding-bottom: 5px; margin-top: 20px;">⌨️ キーボードショートカット</h3>
-                <div style="background-color: #0d0f14; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">キーボードショートカット</h3>
+                <div style="background-color: #0f1115; padding: 12px; border-radius: 4px; border: 1px solid #363a44; margin: 10px 0;">
                     <strong>基本操作:</strong><br>
-                    • <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">Ctrl+Z</kbd>: Undo（1つ前に戻る）<br>
-                    • <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">Ctrl+S</kbd>: 上書き保存<br>
+                    • <kbd>Ctrl+Z</kbd>: Undo（1つ前に戻る）<br>
+                    • <kbd>Ctrl+S</kbd>: 上書き保存<br>
                     <strong>キャラ選択:</strong><br>
-                    • <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">Q</kbd> / <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">W</kbd> / <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">E</kbd> / <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">R</kbd>: キャラ1〜4<br>
-                    • <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">A</kbd> / <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">S</kbd>: サブ1〜2<br>
+                    • <kbd>Q</kbd> / <kbd>W</kbd> / <kbd>E</kbd> / <kbd>R</kbd>: キャラ1〜4<br>
+                    • <kbd>A</kbd> / <kbd>S</kbd>: サブ1〜2<br>
                     <strong>アビリティ:</strong><br>
-                    • <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">1</kbd> 〜 <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">4</kbd>: 各アビリティ<br>
-                    • <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">G</kbd>: ガード<br>
+                    • <kbd>1</kbd> 〜 <kbd>4</kbd>: 各アビリティ<br>
+                    • <kbd>G</kbd>: ガード<br>
                     <strong>ターン終了:</strong><br>
-                    • <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">Enter</kbd>: 攻撃（奥義ON）<br>
-                    • <kbd style="background: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #555;">Shift+Enter</kbd>: 攻撃（奥義OFF）<br>
+                    • <kbd>Enter</kbd>: 攻撃（奥義ON）<br>
+                    • <kbd>Shift+Enter</kbd>: 攻撃（奥義OFF）<br>
                 </div>
 
-                <h3 style="color: #ffb400; border-bottom: 2px solid #ffb400; padding-bottom: 5px; margin-top: 20px;">▶️ 再生モード（カンペ）</h3>
+                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">再生モード（カンペ）</h3>
                 <ul style="padding-left: 25px;">
                     <li>作成したムーブ表を見やすく表示</li>
                     <li>ターンごとにハイライト表示</li>
                     <li>画像として保存可能</li>
                 </ul>
 
-                <h3 style="color: #ffb400; border-bottom: 2px solid #ffb400; padding-bottom: 5px; margin-top: 20px;">💾 データ管理</h3>
+                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">データ管理</h3>
                 <ul style="padding-left: 25px;">
                     <li><strong>スロット保存</strong>: 複数の編成とムーブを保存</li>
                     <li><strong>Export/Import</strong>: JSONファイルで他の環境に移行可能</li>
                     <li><strong>上書き保存</strong>: ムーブ入力中でも簡単に保存</li>
                 </ul>
 
-                <div style="background-color: #1a4d2e; padding: 15px; border-radius: 5px; margin-top: 20px; border-left: 4px solid #4caf50;">
-                    <strong>💡 ヒント:</strong><br>
+                <div style="background-color: rgba(90,138,184,0.1); padding: 12px; border-radius: 4px; margin-top: 16px; border-left: 3px solid #5a8ab8;">
+                    <strong>ヒント:</strong><br>
                     • データはブラウザのローカルストレージに保存されます<br>
                     • 定期的にExportでバックアップを取ることをおすすめします<br>
                     • テキスト入力中はショートカットが無効になります
@@ -84,7 +84,7 @@
     </div>
 
     <div class="container">
-        <h1>グラブル ムーブ表作成ツール <span style="font-size: 0.5em; color: #ffb400; background-color: #1a1d23; padding: 3px 8px; border-radius: 4px; border: 1px solid #ffb400;">BETA v2.0</span> <button id="open-tutorial-btn" style="margin-left: 10px; font-size: 0.4em; background-color: #4caf50; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">📖 使い方</button></h1>
+        <h1>グラブル ムーブ表作成ツール <span style="font-size: 0.5em; color: #c9a24a; background-color: #21242a; padding: 3px 8px; border-radius: 3px; border: 1px solid #8f6b24;">BETA v2.0</span> <button id="open-tutorial-btn" class="btn" style="margin-left: 10px; font-size: 0.4em; padding: 6px 12px;">使い方</button></h1>
 
         <div id="setup-phase" style="display: block;">
             <h2>1. 編成登録 / 保存ロード</h2>
@@ -125,7 +125,7 @@
                 <div id="weapon-image-upload-area" onclick="document.getElementById('weapon-image-input').click();">
                     <span id="upload-placeholder-text">
                         クリックして画像を選択 (またはドラッグ＆ドロップ)<br>
-                        <span style="font-weight: bold; color: #ffb400;">またはペースト (Ctrl+V)</span><br>
+                        <span style="font-weight: bold; color: #c9a24a;">またはペースト (Ctrl+V)</span><br>
                     </span>
                     <span id="upload-feedback">(推奨: 500KB以下 / 自動リサイズあり)</span>
                     <img id="weapon-image-preview" src="#" alt="武器編成プレビュー">
@@ -187,8 +187,8 @@
         </div> <div id="move-phase" style="display: none;">
              <h2>2. ムーブ入力</h2>
 
-            <details style="margin-bottom: 10px; padding: 8px; background-color: #1a1d23; border: 1px solid #444; border-radius: 4px;">
-                <summary style="cursor: pointer; font-weight: bold; color: #ffb400;">⌨️ キーボードショートカット</summary>
+            <details>
+                <summary>キーボードショートカット</summary>
                 <div style="margin-top: 8px; font-size: 0.9em; line-height: 1.6;">
                     <strong>基本操作:</strong><br>
                     • <kbd>Ctrl+Z</kbd>: 1つ前に戻る (Undo)<br>
@@ -216,7 +216,7 @@
                         <div id="branching-buttons">
                             <button id="next-branch-btn" class="btn">次の分岐へ</button>
                             <button id="finish-branching-btn" class="btn">分岐入力を完了</button>
-                            <button id="cancel-branching-btn" class="reset-btn btn" style="background-color: #d32f2f;">分岐をキャンセル</button>
+                            <button id="cancel-branching-btn" class="btn">分岐をキャンセル</button>
                         </div>
                     </div>
 
@@ -279,8 +279,8 @@
                         <strong>行動履歴 (ムーブ表)</strong>
                         <!-- 上部：分岐作成 と 上書き保存（元IDを使って直接ハンドラに接続） -->
                         <div class="history-controls" style="margin:6px 0; display:flex; gap:6px; flex-wrap:wrap;">
-                            <button id="start-branching-btn" class="btn" style="background-color: #afa84ccc;">このターンに分岐を作成</button>
-                            <button id="overwrite-save-btn" class="btn" style="background-color: #4CAF50;">現在のスロットに上書き保存</button>
+                            <button id="start-branching-btn" class="btn">このターンに分岐を作成</button>
+                            <button id="overwrite-save-btn" class="btn">現在のスロットに上書き保存</button>
                         </div>
                         <div id="new-history-view" style="height: 400px; overflow-y: auto; border: 1px solid #555; padding: 10px; background-color: #111; font-family: 'SFMono-Regular', Consolas, monospace; color: #b0c4de;">
                              {/* JSで履歴が描画される */}
@@ -292,7 +292,7 @@
                             <button id="back-to-setup-btn" class="reset-btn btn">編成登録/ロード画面に戻る</button>
                         </div>
                         <div id="export-area">
-                            <button id="discord-copy-btn" class="btn" style="background-color:#5865F2; width:100%; margin-top:4px;">📋 Discordにコピー</button>
+                            <button id="discord-copy-btn" class="btn">Discordにコピー</button>
                             <span id="copy-feedback"></span>
                         </div>
                     </div>
@@ -314,8 +314,8 @@
                 </div>
             </div>
             <div id="raid-info-panel" style="display:none; background:#1a1d23; border:1px solid #ffb400; border-radius:6px; overflow:hidden;">
-                <div style="padding:8px 10px; border-bottom:1px solid #333; background:#1a1d23; position:sticky; top:0; z-index:1;">
-                    <div style="font-weight:bold; color:#ffb400; font-size:0.88em;">📋 <span id="raid-panel-title">予兆一覧</span></div>
+                <div style="padding:8px 10px; border-bottom:1px solid #363a44; background:#21242a; position:sticky; top:0; z-index:1;">
+                    <div style="font-weight:bold; color:#c9a24a; font-size:0.88em;"><span id="raid-panel-title">予兆一覧</span></div>
                     <div style="color:#888; font-size:0.76em; margin-top:1px;">行クリックでメモ挿入</div>
                     <div id="raid-phase-tabs" style="display:flex; gap:4px; flex-wrap:wrap; margin-top:8px;"></div>
                 </div>
@@ -603,7 +603,7 @@
             grid?.classList.add('raid-active');
             document.getElementById('raid-panel-title').textContent = currentRaidTemplate.name + ' 予兆一覧';
             const notesEl = document.getElementById('raid-notes');
-            notesEl.innerHTML = '<strong style="color:#ffb400;">基本情報:</strong> HP ' + currentRaidTemplate.hp + ' / 制限 ' + currentRaidTemplate.timeLimit + ' / ' + currentRaidTemplate.ct + '<br>'
+            notesEl.innerHTML = '<strong style="color:#c9a24a;">基本情報:</strong> HP ' + currentRaidTemplate.hp + ' / 制限 ' + currentRaidTemplate.timeLimit + ' / ' + currentRaidTemplate.ct + '<br>'
                 + currentRaidTemplate.notes.map(n => '• ' + n).join('<br>');
             renderRaidPhaseTabs();
             renderRaidPhaseContent();
@@ -616,7 +616,7 @@
             currentRaidTemplate.phases.forEach((phase, i) => {
                 const btn = document.createElement('button');
                 btn.textContent = phase.range;
-                btn.style.cssText = 'padding:4px 10px; border-radius:4px; border:1px solid #555; cursor:pointer; font-size:0.82em; background:' + (i === currentRaidPhaseIndex ? '#ffb400' : '#2c2f36') + '; color:' + (i === currentRaidPhaseIndex ? '#000' : '#e0e0e0') + ';';
+                btn.style.cssText = 'padding:3px 10px; border-radius:3px; border:1px solid ' + (i === currentRaidPhaseIndex ? '#8f6b24' : '#363a44') + '; cursor:pointer; font-size:0.82em; background:' + (i === currentRaidPhaseIndex ? 'rgba(201,162,74,0.18)' : '#21242a') + '; color:' + (i === currentRaidPhaseIndex ? '#c9a24a' : '#8c8880') + '; font-weight:' + (i === currentRaidPhaseIndex ? 'bold' : 'normal') + ';';
                 btn.addEventListener('click', () => { currentRaidPhaseIndex = i; renderRaidPhaseTabs(); renderRaidPhaseContent(); });
                 tabsEl.appendChild(btn);
             });
@@ -628,17 +628,17 @@
             const phase = currentRaidTemplate.phases[currentRaidPhaseIndex];
             if (!phase) return;
 
-            const rowStyle = 'display:grid; grid-template-columns:70px 1fr 1fr; gap:4px; padding:5px 4px; border-bottom:1px solid #333; cursor:pointer; border-radius:3px;';
-            const headerStyle = 'display:grid; grid-template-columns:70px 1fr 1fr; gap:4px; padding:4px 4px; color:#ffb400; font-weight:bold; font-size:0.9em; border-bottom:2px solid #ffb400; margin-bottom:2px;';
+            const rowStyle = 'display:grid; grid-template-columns:70px 1fr 1fr; gap:4px; padding:5px 4px; border-bottom:1px solid #363a44; cursor:pointer; border-radius:2px;';
+            const headerStyle = 'display:grid; grid-template-columns:70px 1fr 1fr; gap:4px; padding:4px 4px; color:#c9a24a; font-weight:bold; font-size:0.85em; border-bottom:1px solid #8f6b24; margin-bottom:2px;';
 
             let html = '<div style="' + headerStyle + '"><span>条件</span><span>予兆名</span><span>解除条件</span></div>';
             phase.triggers.forEach(t => {
                 const needsClear = t.clear && t.clear !== 'なし' && !t.clear.includes('なし');
-                const clearColor = needsClear ? '#4caf50' : '#888';
+                const clearColor = needsClear ? '#7ab87a' : '#52504c';
                 const memo = '[' + t.name + '] ' + (t.note ? t.note + ' ' : '') + '解除: ' + t.clear;
-                html += '<div class="raid-row" data-memo="' + memo.replace(/"/g, '&quot;') + '" style="' + rowStyle + '" onmouseover="this.style.background=\'#2a2d35\'" onmouseout="this.style.background=\'transparent\'">'
-                    + '<span style="color:#aaa;">' + t.condition + '</span>'
-                    + '<span style="color:#e0e0e0; font-weight:bold;">' + t.name + '</span>'
+                html += '<div class="raid-row" data-memo="' + memo.replace(/"/g, '&quot;') + '" style="' + rowStyle + '" onmouseover="this.style.background=\'#282c34\'" onmouseout="this.style.background=\'transparent\'">'
+                    + '<span style="color:#8c8880;">' + t.condition + '</span>'
+                    + '<span style="color:#e5e2da; font-weight:bold;">' + t.name + '</span>'
                     + '<span style="color:' + clearColor + ';">' + t.clear + '</span>'
                     + '</div>';
                 if (t.note) {
@@ -647,14 +647,14 @@
             });
 
             if (phase.ctSpecials && phase.ctSpecials.length > 0) {
-                html += '<div style="margin-top:10px; margin-bottom:2px; color:#e57373; font-weight:bold;">CT特殊技</div>';
-                html += '<div style="' + headerStyle.replace('#ffb400','#e57373') + '"><span>予兆名</span><span>解除条件</span><span>備考</span></div>';
+                html += '<div style="margin-top:10px; margin-bottom:2px; color:#c06060; font-size:0.82em; font-weight:bold; letter-spacing:0.04em;">CT特殊技</div>';
+                html += '<div style="' + headerStyle.replace('#c9a24a','#a84040').replace('#8f6b24','#a84040') + '"><span>予兆名</span><span>解除条件</span><span>備考</span></div>';
                 phase.ctSpecials.forEach(ct => {
                     const memo = '[CT:' + ct.name + '] 解除: ' + ct.clear + (ct.note ? ' / ' + ct.note : '');
-                    html += '<div class="raid-row" data-memo="' + memo.replace(/"/g, '&quot;') + '" style="' + rowStyle.replace('grid-template-columns:70px 1fr 1fr','grid-template-columns:1fr 1fr 1fr') + '" onmouseover="this.style.background=\'#2a2d35\'" onmouseout="this.style.background=\'transparent\'">'
-                        + '<span style="color:#e0e0e0; font-weight:bold;">' + ct.name + '</span>'
-                        + '<span style="color:#4caf50;">' + ct.clear + '</span>'
-                        + '<span style="color:#777;">' + ct.note + '</span>'
+                    html += '<div class="raid-row" data-memo="' + memo.replace(/"/g, '&quot;') + '" style="' + rowStyle.replace('grid-template-columns:70px 1fr 1fr','grid-template-columns:1fr 1fr 1fr') + '" onmouseover="this.style.background=\'#282c34\'" onmouseout="this.style.background=\'transparent\'">'
+                        + '<span style="color:#e5e2da; font-weight:bold;">' + ct.name + '</span>'
+                        + '<span style="color:#7ab87a;">' + ct.clear + '</span>'
+                        + '<span style="color:#52504c;">' + ct.note + '</span>'
                         + '</div>';
                 });
             }
@@ -1592,10 +1592,10 @@
     </script>
 <!-- ===== スクショ一括取込モーダル ===== -->
 <div id="ss-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;overflow-y:auto;">
-  <div style="max-width:680px;margin:32px auto 60px;background:#1a1d23;border:1px solid #3a3d45;border-radius:12px;padding:24px 20px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <span style="font-weight:700;color:#ffb400;font-size:1em;">📷 スクショからキャラアイコン一括取込</span>
-      <button id="ss-modal-close" style="background:none;border:none;color:#aaa;font-size:1.2em;cursor:pointer;padding:4px 8px;">✕</button>
+  <div style="max-width:680px;margin:32px auto 60px;background:#21242a;border:1px solid #363a44;border-radius:6px;padding:22px 20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid #363a44;padding-bottom:10px;">
+      <span style="font-weight:700;color:#c9a24a;font-size:0.95em;">スクショからキャラアイコン一括取込</span>
+      <button id="ss-modal-close" style="background:none;border:none;color:#52504c;font-size:1.2em;cursor:pointer;padding:4px 8px;line-height:1;">✕</button>
     </div>
 
     <!-- ペーストエリア -->
