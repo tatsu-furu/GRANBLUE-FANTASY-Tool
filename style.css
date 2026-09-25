@@ -9,7 +9,7 @@ body {
 }
 
 .container {
-    max-width: 900px;
+    max-width: 1200px;
     margin: 0 auto;
     background-color: #2c2f36; /* 少し明るい背景 */
     padding: 20px;
@@ -165,12 +165,23 @@ textarea:focus {
     display: grid;
     grid-template-columns: 200px 1fr;
     gap: 20px;
+    align-items: start;
+}
+.move-grid.raid-active {
+    grid-template-columns: 200px 1fr 270px;
 }
 #move-phase.playback-mode .move-grid {
     grid-template-columns: 1fr;
 }
+#move-phase.playback-mode .move-grid.raid-active {
+    grid-template-columns: 1fr 270px;
+}
 #move-phase.playback-mode .action-panel {
     display: none;
+}
+#raid-info-panel {
+    position: sticky;
+    top: 16px;
 }
 .action-panel {
     display: flex;
