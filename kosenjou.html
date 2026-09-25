@@ -40,6 +40,9 @@
         .time-sel:focus { outline: none; border-color: #ffb400; }
         .time-sel-min { width: 62px; }
         .time-sel-sec { width: 54px; }
+        .base-btn { padding: 2px 8px; font-size: 0.75em; font-weight: 700; background: transparent; border: 1px solid #3a3d45; color: #666; border-radius: 4px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .base-btn:hover { border-color: #ffb400; color: #ffb400; }
+        .base-btn.active { background: #ffb400; color: #0d0f14; border-color: #ffb400; }
 
         /* Diff colors */
         .c-vh   { color: #888; }
@@ -143,6 +146,7 @@
                             <th>討伐時間</th>
                             <th>貢献度/時間</th>
                             <th>肉1個の貢献度</th>
+                            <th style="width:50px"></th>
                         </tr>
                     </thead>
                     <tbody id="eff-tbody"></tbody>
@@ -152,6 +156,11 @@
         <div class="card">
             <div class="card-title">効率ランキング <span style="font-size:0.75em; font-weight:400; color:#666;">（討伐時間を入力した難易度のみ）</span></div>
             <div id="eff-ranking"><div class="no-data">討伐時間を入力してください</div></div>
+        </div>
+        <div id="base-compare-card" class="card" style="display:none">
+            <div class="card-title" id="base-compare-title">基準比較</div>
+            <p class="note" style="margin-bottom:12px;">基準難易度と同じ効率（貢献度/時間）にするために必要な討伐時間</p>
+            <div id="base-compare-body"></div>
         </div>
     </div>
 
@@ -275,6 +284,7 @@ const DIFFS = [
 // ── 状態 ──
 let killTimes = {};
 try { killTimes = JSON.parse(localStorage.getItem('gbf_kj_times') || '{}'); } catch(e){}
+let baseDiffId = null;
 
 // ── ユーティリティ ──
 
@@ -362,6 +372,7 @@ function buildEffTable() {
             </td>
             <td id="eph-${d.id}" style="color:${perHour ? '#ffb400' : '#444'};font-weight:700">${perHour ? fmtC(perHour) + '/h' : '─'}</td>
             <td style="color:#777;font-size:0.84em">${meatLabel(d)}</td>
+            <td><button class="base-btn" data-id="${d.id}">基準</button></td>
         `;
         tbody.appendChild(tr);
     });
@@ -385,6 +396,14 @@ function buildEffTable() {
             updateMeatView();
         });
     });
+
+    tbody.querySelectorAll('.base-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            const id = e.target.dataset.id;
+            baseDiffId = (baseDiffId === id) ? null : id;
+            updateEffView();
+        });
+    });
 }
 
 function updateEffView() {
@@ -396,26 +415,80 @@ function updateEffView() {
         else   { el.textContent = '─'; el.style.color = '#444'; }
     });
 
+    // sync base-btn active state
+    document.querySelectorAll('.base-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.id === baseDiffId);
+    });
+
     const ranked = DIFFS
         .filter(d => killTimes[d.id])
         .map(d => ({ d, perH: Math.round(d.contrib / killTimes[d.id] * 3600) }))
         .sort((a, b) => b.perH - a.perH);
 
-    const el = document.getElementById('eff-ranking');
-    if (!ranked.length) { el.innerHTML = '<div class="no-data">討伐時間を入力してください</div>'; return; }
+    const rankEl = document.getElementById('eff-ranking');
+    if (!ranked.length) { rankEl.innerHTML = '<div class="no-data">討伐時間を入力してください</div>'; }
+    else {
+        const maxH = ranked[0].perH;
+        rankEl.innerHTML = '<div class="rank-list">' + ranked.map((r, i) => {
+            const pct = Math.round(r.perH / maxH * 100);
+            const rc = i < 3 ? ` r${i+1}` : '';
+            return `<div class="rank-item">
+                <span class="rank-num${rc}">${i+1}</span>
+                <span class="rank-name ${diffClass(r.d)}">${r.d.name}</span>
+                <span class="rank-val">${fmtC(r.perH)}/h</span>
+                <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill ${barClass(i, ranked.length)}" style="width:${pct}%"></div></div></div>
+                <span class="rank-pct">${pct}%</span>
+            </div>`;
+        }).join('') + '</div>';
+    }
 
-    const maxH = ranked[0].perH;
-    el.innerHTML = '<div class="rank-list">' + ranked.map((r, i) => {
-        const pct = Math.round(r.perH / maxH * 100);
-        const rc = i < 3 ? ` r${i+1}` : '';
-        return `<div class="rank-item">
-            <span class="rank-num${rc}">${i+1}</span>
-            <span class="rank-name ${diffClass(r.d)}">${r.d.name}</span>
-            <span class="rank-val">${fmtC(r.perH)}/h</span>
-            <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill ${barClass(i, ranked.length)}" style="width:${pct}%"></div></div></div>
-            <span class="rank-pct">${pct}%</span>
-        </div>`;
-    }).join('') + '</div>';
+    // base compare card
+    const card = document.getElementById('base-compare-card');
+    const body = document.getElementById('base-compare-body');
+    const title = document.getElementById('base-compare-title');
+
+    if (!baseDiffId || !killTimes[baseDiffId]) {
+        card.style.display = 'none';
+        return;
+    }
+
+    const baseDiff = DIFFS.find(d => d.id === baseDiffId);
+    const baseTime = killTimes[baseDiffId];
+    const basePerH = baseDiff.contrib / baseTime * 3600;
+
+    card.style.display = 'block';
+    title.textContent = `基準: ${baseDiff.name}（${fmtC(Math.round(basePerH))}/h）との比較`;
+
+    const others = DIFFS.filter(d => d.id !== baseDiffId);
+    let html = `<div style="overflow-x:auto"><table class="data-table"><thead><tr>
+        <th>難易度</th>
+        <th>同効率に必要な討伐時間</th>
+        <th>実際の討伐時間</th>
+        <th>判定</th>
+    </tr></thead><tbody>`;
+
+    others.forEach(d => {
+        const needed = d.contrib * baseTime / baseDiff.contrib;
+        const actual = killTimes[d.id] || null;
+        let verdict = '';
+        if (actual == null) {
+            verdict = '<span style="color:#555">─ 未入力</span>';
+        } else if (actual <= needed) {
+            verdict = `<span class="ach-ok">✓ 基準以上</span>`;
+        } else {
+            const slower = fmtTime(Math.round(actual - needed));
+            verdict = `<span class="ach-ng">✗ ${slower}遅い</span>`;
+        }
+        html += `<tr>
+            <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
+            <td style="color:#aaa">${fmtTime(Math.round(needed))}</td>
+            <td style="color:${actual ? '#ccc' : '#555'}">${actual ? fmtTime(actual) : '─'}</td>
+            <td>${verdict}</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    body.innerHTML = html;
 }
 
 // ── Tab 2: 目標計算 ──
