@@ -36,7 +36,10 @@
         .data-table th { text-align: left; color: #777; font-weight: 600; font-size: 0.82em; padding: 6px 8px; border-bottom: 1px solid #2c2f38; }
         .data-table td { padding: 7px 8px; border-bottom: 1px solid #1e2028; vertical-align: middle; }
         .data-table tbody tr:hover td { background: rgba(255,180,0,0.03); }
-        .time-input { width: 72px !important; }
+        .time-sel { background: #0d0f14; border: 1px solid #3a3d45; border-radius: 4px; color: #e0e0e0; padding: 5px 4px; font-size: 0.85em; cursor: pointer; transition: border-color 0.15s; }
+        .time-sel:focus { outline: none; border-color: #ffb400; }
+        .time-sel-min { width: 62px; }
+        .time-sel-sec { width: 54px; }
 
         /* Diff colors */
         .c-vh   { color: #888; }
@@ -106,7 +109,8 @@
         @media (max-width: 600px) {
             .data-table { font-size: 0.78em; }
             .data-table th, .data-table td { padding: 5px 4px; }
-            .time-input { width: 58px !important; }
+            .time-sel-min { width: 52px; }
+            .time-sel-sec { width: 46px; }
             .frow label { min-width: 70px; }
         }
     </style>
@@ -129,7 +133,7 @@
     <div id="tab-efficiency" class="tab-content active">
         <div class="card">
             <div class="card-title">討伐時間の入力</div>
-            <p class="note" style="margin-bottom:12px;">形式: <code>分:秒</code> または 秒数（例: <code>2:30</code> または <code>150</code>）。時間は自動保存されます。</p>
+            <p class="note" style="margin-bottom:12px;">討伐時間を分・秒で選択してください。設定は自動保存されます。</p>
             <div style="overflow-x:auto;">
                 <table class="data-table">
                     <thead>
@@ -277,20 +281,19 @@ let killTimes = {};
 try { killTimes = JSON.parse(localStorage.getItem('gbf_kj_times') || '{}'); } catch(e){}
 
 // ── ユーティリティ ──
-function parseTime(s) {
-    if (!s || !s.trim()) return null;
-    s = s.trim();
-    if (s.includes(':')) {
-        const [m, sec] = s.split(':').map(x => parseInt(x) || 0);
-        return m * 60 + sec;
+
+function buildMinOpts(savedMin) {
+    let html = '<option value="">─</option>';
+    for (let m = 0; m <= 30; m++) {
+        html += `<option value="${m}" ${savedMin === m ? 'selected' : ''}>${m}分</option>`;
     }
-    const n = parseFloat(s);
-    return (isNaN(n) || n <= 0) ? null : n;
+    return html;
 }
 
-function fmtTimeInput(s) {
-    const m = Math.floor(s / 60), sec = Math.round(s % 60);
-    return `${m}:${String(sec).padStart(2,'0')}`;
+function buildSecOpts(savedSec) {
+    return [0,5,10,15,20,25,30,35,40,45,50,55].map(s =>
+        `<option value="${s}" ${savedSec === s ? 'selected' : ''}>${String(s).padStart(2,'0')}秒</option>`
+    ).join('');
 }
 
 function fmtTime(s) {
@@ -350,21 +353,35 @@ function buildEffTable() {
     DIFFS.forEach(d => {
         const tr = document.createElement('tr');
         const saved = killTimes[d.id];
+        const savedMin = saved != null ? Math.floor(saved / 60) : null;
+        const savedSec = saved != null ? Math.round((saved % 60) / 5) * 5 % 60 : 0;
         const perHour = saved ? Math.round(d.contrib / saved * 3600) : null;
         tr.innerHTML = `
             <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
             <td>${fmtC(d.contrib)}</td>
-            <td><input type="text" class="time-input" data-id="${d.id}" placeholder="─:──" value="${saved ? fmtTimeInput(saved) : ''}"></td>
+            <td style="white-space:nowrap">
+                <select class="time-sel time-sel-min" data-id="${d.id}">${buildMinOpts(savedMin)}</select>
+                <select class="time-sel time-sel-sec" data-id="${d.id}">${buildSecOpts(savedSec)}</select>
+            </td>
             <td id="eph-${d.id}" style="color:${perHour ? '#ffb400' : '#444'};font-weight:700">${perHour ? fmtC(perHour) + '/h' : '─'}</td>
             <td style="color:#777;font-size:0.84em">${meatLabel(d)}</td>
         `;
         tbody.appendChild(tr);
     });
-    tbody.querySelectorAll('.time-input').forEach(inp => {
-        inp.addEventListener('input', e => {
+
+    function readTime(id) {
+        const minEl = tbody.querySelector(`.time-sel-min[data-id="${id}"]`);
+        const secEl = tbody.querySelector(`.time-sel-sec[data-id="${id}"]`);
+        const minVal = minEl?.value;
+        if (minVal === '' || minVal == null) return null;
+        return parseInt(minVal) * 60 + parseInt(secEl?.value || 0);
+    }
+
+    tbody.querySelectorAll('.time-sel').forEach(sel => {
+        sel.addEventListener('change', e => {
             const id = e.target.dataset.id;
-            const t = parseTime(e.target.value);
-            if (t) killTimes[id] = t; else delete killTimes[id];
+            const t = readTime(id);
+            if (t != null && t > 0) killTimes[id] = t; else delete killTimes[id];
             localStorage.setItem('gbf_kj_times', JSON.stringify(killTimes));
             updateEffView();
             updateTargetView();
