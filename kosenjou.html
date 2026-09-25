@@ -147,6 +147,7 @@
                             <th>貢献度/時間</th>
                             <th>肉消費/h</th>
                             <th>肉1個の貢献度</th>
+                            <th style="width:46px;text-align:center;font-size:0.78em;">リロ?</th>
                             <th style="width:50px"></th>
                         </tr>
                     </thead>
@@ -285,7 +286,18 @@ const DIFFS = [
 // ── 状態 ──
 let killTimes = {};
 try { killTimes = JSON.parse(localStorage.getItem('gbf_kj_times') || '{}'); } catch(e){}
+let killTimes2 = {};
+let reloadEnabled = new Set();
+try {
+    const r = JSON.parse(localStorage.getItem('gbf_kj_reload') || '{}');
+    killTimes2 = r.times || {};
+    reloadEnabled = new Set(r.enabled || []);
+} catch(e){}
 let baseDiffId = null;
+
+function saveReloadState() {
+    localStorage.setItem('gbf_kj_reload', JSON.stringify({ times: killTimes2, enabled: [...reloadEnabled] }));
+}
 
 // ── ユーティリティ ──
 
@@ -375,16 +387,29 @@ function buildEffTable() {
         const meatPerHStr = meatPerH != null
             ? `<span style="color:#e0a060;font-weight:700">${meatPerH.toLocaleString()}</span><span style="color:#666;font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>`
             : '<span style="color:#444">─</span>';
+        const isRelo = reloadEnabled.has(d.id);
+        const saved2 = killTimes2[d.id] ?? null;
+        const savedMin2 = saved2 != null ? Math.floor(saved2 / 60) : null;
+        const savedSec2 = saved2 != null ? Math.round((saved2 % 60) / 5) * 5 % 60 : 0;
         tr.innerHTML = `
             <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
             <td>${fmtC(d.contrib)}</td>
             <td style="white-space:nowrap">
-                <select class="time-sel time-sel-min" data-id="${d.id}">${buildMinOpts(savedMin)}</select>
-                <select class="time-sel time-sel-sec" data-id="${d.id}">${buildSecOpts(savedSec)}</select>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <span style="font-size:0.75em;color:#666;min-width:28px;">${isRelo ? '1回目' : ''}</span>
+                    <select class="time-sel time-sel-min" data-id="${d.id}">${buildMinOpts(savedMin)}</select>
+                    <select class="time-sel time-sel-sec" data-id="${d.id}">${buildSecOpts(savedSec)}</select>
+                </div>
+                <div id="relo-row-${d.id}" style="display:${isRelo ? 'flex' : 'none'};align-items:center;gap:4px;margin-top:4px;">
+                    <span style="font-size:0.75em;color:#64b5f6;min-width:28px;">リロ後</span>
+                    <select class="time-sel time-sel-min2" data-id="${d.id}">${buildMinOpts(savedMin2)}</select>
+                    <select class="time-sel time-sel-sec2" data-id="${d.id}">${buildSecOpts(savedSec2)}</select>
+                </div>
             </td>
             <td id="eph-${d.id}" style="color:${perHour ? '#ffb400' : '#444'};font-weight:700">${perHour ? fmtC(perHour) + '/h' : '─'}</td>
             <td id="mph-${d.id}">${meatPerHStr}</td>
             <td style="color:#777;font-size:0.84em">${meatLabel(d)}</td>
+            <td style="text-align:center"><input type="checkbox" class="relo-chk" data-id="${d.id}" ${isRelo ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:#64b5f6;"></td>
             <td><button class="base-btn" data-id="${d.id}">基準</button></td>
         `;
         tbody.appendChild(tr);
@@ -398,7 +423,15 @@ function buildEffTable() {
         return parseInt(minVal) * 60 + parseInt(secEl?.value || 0);
     }
 
-    tbody.querySelectorAll('.time-sel').forEach(sel => {
+    function readTime2(id) {
+        const minEl = tbody.querySelector(`.time-sel-min2[data-id="${id}"]`);
+        const secEl = tbody.querySelector(`.time-sel-sec2[data-id="${id}"]`);
+        const minVal = minEl?.value;
+        if (minVal === '' || minVal == null) return null;
+        return parseInt(minVal) * 60 + parseInt(secEl?.value || 0);
+    }
+
+    tbody.querySelectorAll('.time-sel-min, .time-sel-sec').forEach(sel => {
         sel.addEventListener('change', e => {
             const id = e.target.dataset.id;
             const t = readTime(id);
@@ -407,6 +440,30 @@ function buildEffTable() {
             updateEffView();
             updateTargetView();
             updateMeatView();
+        });
+    });
+
+    tbody.querySelectorAll('.time-sel-min2, .time-sel-sec2').forEach(sel => {
+        sel.addEventListener('change', e => {
+            const id = e.target.dataset.id;
+            const t = readTime2(id);
+            if (t != null && t > 0) killTimes2[id] = t; else delete killTimes2[id];
+            saveReloadState();
+            updateEffView();
+        });
+    });
+
+    tbody.querySelectorAll('.relo-chk').forEach(chk => {
+        chk.addEventListener('change', e => {
+            const id = e.target.dataset.id;
+            if (e.target.checked) reloadEnabled.add(id); else reloadEnabled.delete(id);
+            saveReloadState();
+            const row = document.getElementById(`relo-row-${id}`);
+            if (row) row.style.display = e.target.checked ? 'flex' : 'none';
+            // label 1回目 / 非表示 切り替え
+            const label = tbody.querySelector(`.time-sel-min[data-id="${id}"]`)?.closest('td')?.querySelector('span');
+            if (label) label.textContent = e.target.checked ? '1回目' : '';
+            updateEffView();
         });
     });
 
@@ -423,15 +480,29 @@ function updateEffView() {
     DIFFS.forEach(d => {
         const ephEl = document.getElementById(`eph-${d.id}`);
         const mphEl = document.getElementById(`mph-${d.id}`);
-        const t = killTimes[d.id];
+        const t  = killTimes[d.id];
+        const t2 = reloadEnabled.has(d.id) ? (killTimes2[d.id] || null) : null;
         if (ephEl) {
-            if (t) { ephEl.textContent = fmtC(Math.round(d.contrib / t * 3600)) + '/h'; ephEl.style.color = '#ffb400'; }
-            else   { ephEl.textContent = '─'; ephEl.style.color = '#444'; }
+            if (t) {
+                const eph1 = Math.round(d.contrib / t * 3600);
+                if (t2) {
+                    const eph2 = Math.round(d.contrib / t2 * 3600);
+                    ephEl.innerHTML = `<span style="color:#aaa;font-size:0.85em">${fmtC(eph1)}</span><br><span style="color:#64b5f6;font-weight:700">${fmtC(eph2)}/h</span><span style="color:#555;font-size:0.75em"> リロ後</span>`;
+                } else {
+                    ephEl.textContent = fmtC(eph1) + '/h';
+                    ephEl.style.color = '#ffb400';
+                }
+            } else {
+                ephEl.textContent = '─';
+                ephEl.style.color = '#444';
+            }
         }
         if (mphEl) {
-            if (t && (d.isMeat || d.is250)) {
-                const mph = Math.floor(3600 / t) * d.chunks;
-                mphEl.innerHTML = `<span style="color:#e0a060;font-weight:700">${mph.toLocaleString()}</span><span style="color:#666;font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>`;
+            const tEff = t2 || t;
+            if (tEff && (d.isMeat || d.is250)) {
+                const mph = Math.floor(3600 / tEff) * d.chunks;
+                const label = t2 ? '<span style="color:#555;font-size:0.75em"> リロ後</span>' : '';
+                mphEl.innerHTML = `<span style="color:#e0a060;font-weight:700">${mph.toLocaleString()}</span><span style="color:#666;font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>${label}`;
             } else {
                 mphEl.innerHTML = '<span style="color:#444">─</span>';
             }
@@ -445,7 +516,11 @@ function updateEffView() {
 
     const ranked = DIFFS
         .filter(d => killTimes[d.id])
-        .map(d => ({ d, perH: Math.round(d.contrib / killTimes[d.id] * 3600) }))
+        .map(d => {
+            const t = (reloadEnabled.has(d.id) && killTimes2[d.id]) ? killTimes2[d.id] : killTimes[d.id];
+            const isRelo = reloadEnabled.has(d.id) && !!killTimes2[d.id];
+            return { d, perH: Math.round(d.contrib / t * 3600), isRelo };
+        })
         .sort((a, b) => b.perH - a.perH);
 
     const rankEl = document.getElementById('eff-ranking');
@@ -457,7 +532,7 @@ function updateEffView() {
             const rc = i < 3 ? ` r${i+1}` : '';
             return `<div class="rank-item">
                 <span class="rank-num${rc}">${i+1}</span>
-                <span class="rank-name ${diffClass(r.d)}">${r.d.name}</span>
+                <span class="rank-name ${diffClass(r.d)}">${r.d.name}${r.isRelo ? '<span style="color:#64b5f6;font-size:0.72em;margin-left:4px;">リロ</span>' : ''}</span>
                 <span class="rank-val">${fmtC(r.perH)}/h</span>
                 <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill ${barClass(i, ranked.length)}" style="width:${pct}%"></div></div></div>
                 <span class="rank-pct">${pct}%</span>
