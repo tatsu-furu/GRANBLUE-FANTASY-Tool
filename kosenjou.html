@@ -257,12 +257,12 @@
             <div class="card-title">🥩 所持リソース</div>
             <div class="frow">
                 <label>通常肉</label>
-                <input type="number" id="m-normal" placeholder="0" min="0">
+                <select id="m-normal" class="time-sel" style="width:110px;"></select>
                 <span class="unit">個</span>
             </div>
             <div class="frow" style="margin-bottom:0;">
                 <label>250専用素材</label>
-                <input type="number" id="m-mat" placeholder="0" min="0">
+                <select id="m-mat" class="time-sel" style="width:110px;"></select>
                 <span class="unit">個</span>
             </div>
             <p class="note" style="margin-top:8px;">250素材は最大500個まで通常肉2個に変換可能（500回まで）</p>
@@ -747,7 +747,23 @@ function updateTargetView() {
 
 // ── Tab 3: 肉計算 ──
 function setupMeatInputs() {
-    ['m-normal','m-mat','m-250runs'].forEach(id => document.getElementById(id).addEventListener('input', updateMeatView));
+    // 通常肉: 100個単位 0〜50000
+    let normalHtml = '';
+    for (let v = 0; v <= 50000; v += 100) {
+        normalHtml += `<option value="${v}">${v.toLocaleString()}</option>`;
+    }
+    document.getElementById('m-normal').innerHTML = normalHtml;
+
+    // 250専用素材: 50個単位 0〜10000
+    let matHtml = '';
+    for (let v = 0; v <= 10000; v += 50) {
+        matHtml += `<option value="${v}">${v.toLocaleString()}</option>`;
+    }
+    document.getElementById('m-mat').innerHTML = matHtml;
+
+    document.getElementById('m-normal').addEventListener('change', updateMeatView);
+    document.getElementById('m-mat').addEventListener('change', updateMeatView);
+    document.getElementById('m-250runs').addEventListener('input', updateMeatView);
 }
 
 function updateMeatView() {
