@@ -534,7 +534,7 @@ function updateMeatView() {
 
     // 通常肉シミュ table
     let tbl = `<div style="overflow-x:auto"><table class="data-table"><thead><tr>
-        <th>難易度</th><th>貢献度/肉</th><th>${totalMeat.toLocaleString()}個 全投入</th><th>1時間の回数</th>
+        <th>難易度</th><th>1回の貢献度</th><th>× ${totalMeat.toLocaleString()}個 = 合計</th><th>1時間の回数</th>
     </tr></thead><tbody>`;
 
     meatDiffs.forEach(d => {
@@ -543,8 +543,8 @@ function updateMeatView() {
         const rpm = t ? Math.floor(3600 / t) : null;
         tbl += `<tr>
             <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
-            <td style="color:#ffb400;font-weight:700">${fmtC(d.contrib)}</td>
-            <td style="color:#ccc;font-weight:700">${fmtC(total)}</td>
+            <td style="color:#aaa">${fmtC(d.contrib)}</td>
+            <td style="color:#ffb400;font-weight:700">${fmtC(total)}</td>
             <td style="color:#777">${rpm != null ? rpm + '回/h' : '─'}</td>
         </tr>`;
     });
@@ -554,16 +554,24 @@ function updateMeatView() {
     // 合計
     const contrib250total = actualRuns250 * 75000000;
     const sorted = meatDiffs
-        .map(d => ({ d, total: contrib250total + d.contrib * totalMeat }))
+        .map(d => ({ d, meatTotal: d.contrib * totalMeat, total: contrib250total + d.contrib * totalMeat }))
         .sort((a, b) => b.total - a.total);
 
-    let totHtml = `<div style="font-size:0.82em;color:#777;margin-bottom:10px;">250HELL ${actualRuns250}回 = <span style="color:#9575cd;font-weight:700">${fmtC(contrib250total)}</span> &nbsp;+&nbsp; 通常肉${totalMeat.toLocaleString()}個（各難易度）</div>`;
+    let totHtml = '';
+    if (actualRuns250 > 0) {
+        totHtml += `<div style="font-size:0.84em;color:#777;margin-bottom:8px;padding:8px 10px;background:#0d0f14;border-radius:6px;">
+            250HELL: <span style="color:#9575cd;font-weight:700">${actualRuns250}回 × 7,500万 = ${fmtC(contrib250total)}</span>
+        </div>`;
+    }
     sorted.forEach((item, i) => {
         const best = i === 0;
+        const formulaStr = totalMeat > 0
+            ? `<span style="font-size:0.78em;color:#666;margin-right:6px">${fmtC(item.d.contrib)} × ${totalMeat}${actualRuns250 > 0 ? ` + ${fmtC(contrib250total)}` : ''} =</span>`
+            : '';
         totHtml += `<div class="meat-row ${best ? 'best' : ''}">
             <span style="min-width:18px;color:${best ? '#ffb400' : '#444'};font-weight:700">${best ? '★' : ''}</span>
             <span class="meat-row-name ${diffClass(item.d)}">${item.d.name}</span>
-            <span class="meat-row-val" style="color:${best ? '#ffb400' : '#ccc'};font-size:${best ? '1.05em' : '0.95em'}">${fmtC(item.total)}</span>
+            ${formulaStr}<span class="meat-row-val" style="color:${best ? '#ffb400' : '#ccc'};font-size:${best ? '1.05em' : '0.95em'}">${fmtC(item.total)}</span>
         </div>`;
     });
     totalEl.innerHTML = totHtml;
