@@ -583,10 +583,12 @@ function updateEffView() {
 
     const ranked = DIFFS
         .filter(d => killTimes[d.id])
-        .map(d => {
-            const t = (reloadEnabled.has(d.id) && killTimes2[d.id]) ? killTimes2[d.id] : killTimes[d.id];
-            const isRelo = reloadEnabled.has(d.id) && !!killTimes2[d.id];
-            return { d, perH: Math.round(d.contrib / t * 3600), isRelo };
+        .flatMap(d => {
+            const entries = [{ d, perH: Math.round(d.contrib / killTimes[d.id] * 3600), isRelo: false }];
+            if (reloadEnabled.has(d.id) && killTimes2[d.id]) {
+                entries.push({ d, perH: Math.round(d.contrib / killTimes2[d.id] * 3600), isRelo: true });
+            }
+            return entries;
         })
         .sort((a, b) => b.perH - a.perH);
 
