@@ -271,15 +271,15 @@
 
 <script>
 const DIFFS = [
-    { id:'vh',   name:'VH',      contrib:21400,    isMeat:false, is250:false },
-    { id:'ex',   name:'EX',      contrib:64000,    isMeat:false, is250:false },
-    { id:'exp',  name:'EX+',     contrib:126000,   isMeat:false, is250:false },
-    { id:'h90',  name:'90HELL',  contrib:305000,   isMeat:true,  is250:false },
-    { id:'h95',  name:'95HELL',  contrib:910000,   isMeat:true,  is250:false },
-    { id:'h100', name:'100HELL', contrib:2680000,  isMeat:true,  is250:false },
-    { id:'h150', name:'150HELL', contrib:4100000,  isMeat:true,  is250:false },
-    { id:'h200', name:'200HELL', contrib:20000000, isMeat:true,  is250:false },
-    { id:'h250', name:'250HELL', contrib:75000000, isMeat:false, is250:true  },
+    { id:'vh',   name:'VH',      contrib:21400,    isMeat:false, is250:false, chunks:0  },
+    { id:'ex',   name:'EX',      contrib:64000,    isMeat:false, is250:false, chunks:0  },
+    { id:'exp',  name:'EX+',     contrib:126000,   isMeat:false, is250:false, chunks:0  },
+    { id:'h90',  name:'90HELL',  contrib:305000,   isMeat:true,  is250:false, chunks:5  },
+    { id:'h95',  name:'95HELL',  contrib:910000,   isMeat:true,  is250:false, chunks:10 },
+    { id:'h100', name:'100HELL', contrib:2680000,  isMeat:true,  is250:false, chunks:20 },
+    { id:'h150', name:'150HELL', contrib:4100000,  isMeat:true,  is250:false, chunks:20 },
+    { id:'h200', name:'200HELL', contrib:20000000, isMeat:true,  is250:false, chunks:20 },
+    { id:'h250', name:'250HELL', contrib:75000000, isMeat:false, is250:true,  chunks:20 },
 ];
 
 // ── 状態 ──
@@ -364,7 +364,7 @@ function buildEffTable() {
         const savedMin = saved != null ? Math.floor(saved / 60) : null;
         const savedSec = saved != null ? Math.round((saved % 60) / 5) * 5 % 60 : 0;
         const perHour = saved ? Math.round(d.contrib / saved * 3600) : null;
-        const meatPerH = (saved && (d.isMeat || d.is250)) ? Math.floor(3600 / saved) : null;
+        const meatPerH = (saved && (d.isMeat || d.is250)) ? Math.floor(3600 / saved) * d.chunks : null;
         const meatPerHStr = meatPerH != null
             ? `<span style="color:#e0a060;font-weight:700">${meatPerH.toLocaleString()}</span><span style="color:#666;font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>`
             : '<span style="color:#444">─</span>';
@@ -423,7 +423,7 @@ function updateEffView() {
         }
         if (mphEl) {
             if (t && (d.isMeat || d.is250)) {
-                const mph = Math.floor(3600 / t);
+                const mph = Math.floor(3600 / t) * d.chunks;
                 mphEl.innerHTML = `<span style="color:#e0a060;font-weight:700">${mph.toLocaleString()}</span><span style="color:#666;font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>`;
             } else {
                 mphEl.innerHTML = '<span style="color:#444">─</span>';
