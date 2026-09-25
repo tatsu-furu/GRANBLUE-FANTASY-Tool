@@ -285,7 +285,8 @@ try { killTimes = JSON.parse(localStorage.getItem('gbf_kj_times') || '{}'); } ca
 function buildMinOpts(savedMin) {
     let html = '<option value="">─</option>';
     for (let m = 0; m <= 30; m++) {
-        html += `<option value="${m}" ${savedMin === m ? 'selected' : ''}>${m}分</option>`;
+        const sel = (savedMin === null ? m === 0 : savedMin === m) ? 'selected' : '';
+        html += `<option value="${m}" ${sel}>${m}分</option>`;
     }
     return html;
 }
