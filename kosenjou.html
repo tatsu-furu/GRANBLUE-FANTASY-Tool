@@ -306,7 +306,14 @@ function buildSecOpts(savedSec) {
 
 function fmtTime(s) {
     if (!s) return '─';
-    const m = Math.floor(s / 60), sec = Math.round(s % 60);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.round(s % 60);
+    if (h > 0) {
+        if (!m && !sec) return `${h}時間`;
+        if (!sec) return `${h}時間${m}分`;
+        return `${h}時間${m}分${String(sec).padStart(2,'0')}秒`;
+    }
     if (!m) return `${sec}秒`;
     if (!sec) return `${m}分`;
     return `${m}分${String(sec).padStart(2,'0')}秒`;
