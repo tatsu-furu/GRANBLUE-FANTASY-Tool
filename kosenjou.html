@@ -5,141 +5,283 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>古戦場 効率計算ツール | GBF Tool</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-            --bg:        #0b1824;
-            --bg-1:      #0e2132;
-            --bg-2:      #122840;
-            --border:    #1c3a52;
-            --border-hi: #2a5470;
-            --accent:    #3ec8df;
-            --accent-lo: #2ba8c0;
-            --accent-hi: #78e4f5;
-            --accent-bg: rgba(62,200,223,0.08);
-            --text:      #d2e8f5;
-            --text-2:    #78aac8;
-            --text-3:    #486a85;
-            --on-accent: #071218;
+            --bg:        #111115;
+            --bg-1:      #18181e;
+            --bg-2:      #202028;
+            --surface:   #18181e;
+            --surface-2: #202028;
+            --border:    #2c2c38;
+            --border-hi: #3c3c50;
+            --text:      #d8d5cc;
+            --text-2:    #888480;
+            --text-3:    #484540;
+            --accent:    #c09030;
+            --accent-hi: #d8a840;
+            --accent-lo: #906820;
+            --accent-bg: rgba(192,144,48,0.08);
+            --on-accent: #0c0800;
         }
 
-        body { font-family: 'Inter', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
-        .container { max-width: 920px; margin: 0 auto; padding: 0 16px 80px; }
-        header { padding: 20px 0 16px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
-        .back-link { display: inline-block; color: var(--text-3); text-decoration: none; font-size: 0.82em; margin-bottom: 8px; transition: color 0.15s; }
-        .back-link:hover { color: var(--accent); }
-        header h1 { font-size: clamp(1.3em, 4vw, 1.8em); color: var(--text); font-weight: 700; letter-spacing: -0.02em; }
-        header p { color: var(--text-3); font-size: 0.83em; margin-top: 3px; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            background-color: var(--bg);
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: var(--text);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container { max-width: 960px; margin: 0 auto; padding: 0 16px 80px; }
+
+        header {
+            padding: 12px 0 10px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 14px;
+        }
+        .back-link {
+            display: inline-block;
+            color: var(--text-3);
+            text-decoration: none;
+            font-size: 0.78em;
+            margin-bottom: 5px;
+            transition: color 0.1s;
+        }
+        .back-link:hover { color: var(--accent); text-decoration: underline; }
+        header h1 {
+            font-size: 1.25em;
+            color: var(--text);
+            font-weight: 700;
+            border-left: 3px solid var(--accent);
+            padding-left: 10px;
+        }
+        header p { color: var(--text-3); font-size: 0.78em; margin-top: 2px; padding-left: 13px; }
 
         /* Tabs */
-        .tabs { display: flex; gap: 4px; margin-bottom: 18px; flex-wrap: wrap; }
-        .tab-btn { padding: 8px 16px; font-size: 0.86em; font-weight: 600; background: var(--bg-1); color: var(--text-3); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: all 0.15s; }
-        .tab-btn:hover { border-color: var(--accent-lo); color: var(--accent); }
-        .tab-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .tab-btn {
+            padding: 7px 14px;
+            font-size: 0.82em;
+            font-weight: 600;
+            background: transparent;
+            color: var(--text-3);
+            border: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            cursor: pointer;
+            transition: color 0.1s;
+            white-space: nowrap;
+            font-family: inherit;
+        }
+        .tab-btn:hover { color: var(--text-2); }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
         /* Cards */
-        .card { background: var(--bg-1); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 14px; }
-        .card-title { font-size: 0.9em; font-weight: 600; color: var(--accent); border-left: 3px solid var(--accent); padding-left: 10px; margin-bottom: 14px; letter-spacing: -0.01em; }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+        }
+        .card-title {
+            font-size: 0.78em;
+            font-weight: 700;
+            color: var(--accent);
+            border-left: 2px solid var(--accent);
+            padding-left: 8px;
+            margin-bottom: 10px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
 
         /* Inputs */
-        input[type="text"], input[type="number"] { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 6px 9px; font-size: 0.88em; width: 100%; transition: border-color 0.15s; }
+        input[type="text"], input[type="number"] {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            color: var(--text);
+            padding: 5px 7px;
+            font-size: 0.84em;
+            width: 100%;
+            font-family: inherit;
+            transition: border-color 0.1s;
+        }
         input[type="text"]:focus, input[type="number"]:focus { outline: none; border-color: var(--accent); }
         input::placeholder { color: var(--text-3); }
 
         /* Table */
-        .data-table { width: 100%; border-collapse: collapse; font-size: 0.86em; }
-        .data-table th { text-align: left; color: var(--text-3); font-weight: 600; font-size: 0.82em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-        .data-table td { padding: 7px 8px; border-bottom: 1px solid rgba(28,58,82,0.6); vertical-align: middle; }
-        .data-table tbody tr:hover td { background: rgba(62,200,223,0.03); }
-        .time-sel { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 5px 4px; font-size: 0.85em; cursor: pointer; transition: border-color 0.15s; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.82em; }
+        .data-table th {
+            text-align: left;
+            color: var(--text-2);
+            font-weight: 700;
+            font-size: 0.78em;
+            padding: 5px 7px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .data-table td { padding: 5px 7px; border: 1px solid var(--border); vertical-align: middle; }
+        .data-table tbody tr:hover td { background: rgba(255,255,255,0.015); }
+
+        .time-sel {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            color: var(--text);
+            padding: 4px 3px;
+            font-size: 0.83em;
+            cursor: pointer;
+            font-family: inherit;
+            transition: border-color 0.1s;
+        }
         .time-sel:focus { outline: none; border-color: var(--accent); }
-        .time-sel-min { width: 62px; }
-        .time-sel-sec { width: 54px; }
-        .base-btn { padding: 2px 8px; font-size: 0.75em; font-weight: 600; background: transparent; border: 1px solid var(--border); color: var(--text-3); border-radius: 4px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-        .base-btn:hover { border-color: var(--accent-lo); color: var(--accent); }
+        .time-sel-min { width: 60px; }
+        .time-sel-sec { width: 52px; }
+
+        .base-btn {
+            padding: 2px 7px;
+            font-size: 0.72em;
+            font-weight: 700;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-3);
+            border-radius: 2px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.1s;
+            white-space: nowrap;
+        }
+        .base-btn:hover { border-color: var(--accent); color: var(--accent); }
         .base-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
-        /* Diff colors */
-        .c-vh   { color: #7090a8; }
-        .c-ex   { color: #64b5f6; }
-        .c-exp  { color: #b39ddb; }
-        .c-hell { color: #ef9a9a; }
-        .c-h250 { color: #ffab91; }
+        /* Difficulty colors */
+        .c-vh   { color: #6080a0; }
+        .c-ex   { color: #5080cc; }
+        .c-exp  { color: #8060c0; }
+        .c-hell { color: #c85050; }
+        .c-h250 { color: #c87830; }
 
         /* Bar */
-        .bar-wrap { flex: 1; min-width: 60px; }
-        .bar-bg { background: var(--bg); border-radius: 3px; height: 10px; overflow: hidden; }
-        .bar-fill { height: 100%; border-radius: 3px; transition: width 0.35s; }
-        .bar-1 { background: linear-gradient(90deg, #26c6da, #3ec8df); }
-        .bar-2 { background: linear-gradient(90deg, #29b6f6, #4fc3f7); }
-        .bar-3 { background: linear-gradient(90deg, #42a5f5, #64b5f6); }
-        .bar-4 { background: linear-gradient(90deg, #5c6bc0, #7986cb); }
-        .bar-5 { background: linear-gradient(90deg, #7e57c2, #9575cd); }
-        .bar-6 { background: linear-gradient(90deg, #ab47bc, #ce93d8); }
-        .bar-7 { background: linear-gradient(90deg, #546e7a, #78909c); }
+        .bar-wrap { flex: 1; min-width: 40px; }
+        .bar-bg { background: var(--bg); border: 1px solid var(--border); border-radius: 1px; height: 8px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 0; transition: width 0.3s; }
+        .bar-1 { background: var(--accent); }
+        .bar-2 { background: #907020; }
+        .bar-3 { background: #6a5040; }
+        .bar-4 { background: #4a3d55; }
+        .bar-5 { background: #382e3a; }
+        .bar-6 { background: #2c2830; }
+        .bar-7 { background: #222028; }
 
         /* Rank item */
-        .rank-list { display: flex; flex-direction: column; gap: 5px; }
-        .rank-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; }
-        .rank-num { min-width: 22px; height: 22px; line-height: 22px; text-align: center; font-size: 0.72em; font-weight: 700; border-radius: 50%; background: var(--bg-2); color: var(--text-3); flex-shrink: 0; }
+        .rank-list { display: flex; flex-direction: column; gap: 2px; }
+        .rank-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 10px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+        }
+        .rank-num {
+            min-width: 20px;
+            height: 20px;
+            line-height: 20px;
+            text-align: center;
+            font-size: 0.7em;
+            font-weight: 700;
+            border-radius: 2px;
+            background: var(--surface-2);
+            color: var(--text-3);
+            flex-shrink: 0;
+        }
         .rank-num.r1 { background: var(--accent); color: var(--on-accent); }
-        .rank-num.r2 { background: #78909c; color: #fff; }
-        .rank-num.r3 { background: #6d4c41; color: #ffccbc; }
-        .rank-name { flex: 0 0 80px; font-weight: 700; font-size: 0.88em; overflow: hidden; }
-        .rank-val { color: var(--accent); font-weight: 700; font-size: 0.88em; flex: 0 0 108px; }
-        .rank-pct { font-size: 0.75em; color: var(--text-3); flex: 0 0 36px; text-align: right; }
+        .rank-num.r2 { background: #505860; color: #b0b8c0; }
+        .rank-num.r3 { background: #4a3020; color: #b08060; }
+        .rank-name { flex: 0 0 100px; font-weight: 700; font-size: 0.84em; overflow: hidden; white-space: nowrap; }
+        .rank-val { color: var(--accent); font-weight: 700; font-size: 0.84em; flex: 0 0 108px; }
+        .rank-pct { font-size: 0.72em; color: var(--text-3); flex: 0 0 34px; text-align: right; }
 
         /* Flex row */
-        .frow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-        .frow label { font-size: 0.85em; color: var(--text-2); white-space: nowrap; min-width: 90px; }
+        .frow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+        .frow label { font-size: 0.82em; color: var(--text-2); white-space: nowrap; min-width: 90px; }
         .frow input { max-width: 160px; }
-        .frow .unit { font-size: 0.82em; color: var(--text-3); }
+        .frow .unit { font-size: 0.78em; color: var(--text-3); }
 
         /* Summary */
-        .sum-box { background: var(--bg); border: 1px solid rgba(62,200,223,0.25); border-radius: 8px; padding: 14px 16px; margin-top: 10px; }
-        .sum-label { font-size: 0.78em; color: var(--text-3); margin-bottom: 3px; }
-        .sum-val { font-size: 1.15em; font-weight: 700; color: var(--accent); }
+        .sum-box { background: var(--bg); border: 1px solid var(--border); border-radius: 2px; padding: 10px 12px; margin-top: 8px; }
+        .sum-label { font-size: 0.74em; color: var(--text-3); margin-bottom: 2px; }
+        .sum-val { font-size: 1.05em; font-weight: 700; color: var(--accent); }
 
         /* Note */
-        .note { font-size: 0.78em; color: var(--text-3); line-height: 1.65; }
-        .note code { background: var(--bg-2); padding: 1px 5px; border-radius: 3px; color: var(--text-2); }
+        .note { font-size: 0.77em; color: var(--text-3); line-height: 1.6; }
+        .note code { background: var(--surface-2); padding: 1px 4px; border-radius: 2px; color: var(--text-2); font-family: monospace; }
 
         /* No data */
-        .no-data { color: var(--text-3); font-size: 0.85em; padding: 18px; text-align: center; font-style: italic; }
+        .no-data { color: var(--text-3); font-size: 0.82em; padding: 14px; text-align: center; }
 
         /* Meat result row */
-        .meat-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; border: 1px solid transparent; }
-        .meat-row.best { background: rgba(62,200,223,0.07); border-color: rgba(62,200,223,0.2); }
-        .meat-row-name { font-weight: 700; font-size: 0.88em; min-width: 68px; }
-        .meat-row-val { font-weight: 700; font-size: 0.95em; }
+        .meat-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 2px; margin-bottom: 2px; border: 1px solid transparent; }
+        .meat-row.best { background: var(--accent-bg); border-color: rgba(192,144,48,0.2); }
+        .meat-row-name { font-weight: 700; font-size: 0.84em; min-width: 68px; }
+        .meat-row-val { font-weight: 700; font-size: 0.9em; }
 
         /* Reference details */
-        details.card summary { cursor: pointer; font-size: 0.9em; font-weight: 600; color: var(--text-3); list-style: none; }
+        details.card summary { cursor: pointer; font-size: 0.84em; font-weight: 600; color: var(--text-3); list-style: none; }
         details.card summary::-webkit-details-marker { display: none; }
-        details.card summary::before { content: '▶ '; font-size: 0.8em; }
+        details.card summary::before { content: '▶ '; font-size: 0.72em; }
         details.card[open] summary::before { content: '▼ '; }
-        details.card[open] summary { color: var(--accent); margin-bottom: 14px; }
+        details.card[open] summary { color: var(--accent); margin-bottom: 10px; }
 
         /* Achieve cell */
-        .ach-ok { color: #5ec462; font-weight: 700; }
-        .ach-ng { color: #ef9a9a; font-size: 0.85em; }
+        .ach-ok { color: #50b860; font-weight: 700; }
+        .ach-ng { color: #c85050; font-size: 0.84em; }
 
         /* External link buttons */
-        .ext-links { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
-        .ext-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; font-size: 0.8em; font-weight: 600; border-radius: 6px; text-decoration: none; border: 1px solid var(--border); background: var(--bg-1); color: var(--text-2); transition: all 0.15s; white-space: nowrap; }
-        .ext-btn:hover { border-color: var(--accent-lo); color: var(--accent); background: var(--accent-bg); }
-        .ext-btn.yt:hover { border-color: #ef5350; color: #ef9a9a; background: rgba(239,83,80,0.07); }
+        .ext-links { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+        .ext-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            font-size: 0.76em;
+            font-weight: 600;
+            border-radius: 2px;
+            text-decoration: none;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-2);
+            transition: border-color 0.1s, color 0.1s;
+            white-space: nowrap;
+        }
+        .ext-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .ext-btn.yt:hover { border-color: #c04040; color: #e07070; }
 
         @media (max-width: 600px) {
-            .data-table { font-size: 0.78em; }
-            .data-table th, .data-table td { padding: 5px 4px; }
-            .time-sel-min { width: 52px; }
-            .time-sel-sec { width: 46px; }
+            .data-table { font-size: 0.74em; }
+            .data-table th, .data-table td { padding: 4px 3px; }
+            .time-sel-min { width: 50px; }
+            .time-sel-sec { width: 44px; }
             .frow label { min-width: 70px; }
+            header h1 { font-size: 1.1em; }
         }
     </style>
 </head>
@@ -168,22 +310,22 @@
         <div style="margin-bottom:18px;">
             <p style="font-size:0.75em;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;">クイックスタート</p>
             <div style="display:flex;flex-direction:column;gap:8px;">
-                <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:7px;">
-                    <span style="min-width:22px;height:22px;line-height:22px;text-align:center;font-size:0.78em;font-weight:700;background:var(--accent);color:var(--on-accent);border-radius:50%;flex-shrink:0;">1</span>
+                <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:2px;">
+                    <span style="min-width:22px;height:22px;line-height:22px;text-align:center;font-size:0.78em;font-weight:700;background:var(--accent);color:var(--on-accent);border-radius:2px;flex-shrink:0;">1</span>
                     <div style="font-size:0.83em;color:var(--text-2);line-height:1.55;">
                         <strong style="color:var(--text);">📊 討伐効率タブ</strong>を開き、<br>
                         各難易度の <strong style="color:var(--text);">討伐時間（分・秒）</strong> を入力
                     </div>
                 </div>
-                <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:7px;">
-                    <span style="min-width:22px;height:22px;line-height:22px;text-align:center;font-size:0.78em;font-weight:700;background:var(--accent);color:var(--on-accent);border-radius:50%;flex-shrink:0;">2</span>
+                <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:2px;">
+                    <span style="min-width:22px;height:22px;line-height:22px;text-align:center;font-size:0.78em;font-weight:700;background:var(--accent);color:var(--on-accent);border-radius:2px;flex-shrink:0;">2</span>
                     <div style="font-size:0.83em;color:var(--text-2);line-height:1.55;">
                         <strong style="color:var(--text);">効率ランキング</strong> が自動更新 →<br>
                         最も効率のいい難易度がわかる
                     </div>
                 </div>
-                <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:7px;">
-                    <span style="min-width:22px;height:22px;line-height:22px;text-align:center;font-size:0.78em;font-weight:700;background:var(--accent);color:var(--on-accent);border-radius:50%;flex-shrink:0;">3</span>
+                <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:2px;">
+                    <span style="min-width:22px;height:22px;line-height:22px;text-align:center;font-size:0.78em;font-weight:700;background:var(--accent);color:var(--on-accent);border-radius:2px;flex-shrink:0;">3</span>
                     <div style="font-size:0.83em;color:var(--text-2);line-height:1.55;">
                         <strong style="color:var(--text);">🎯 目標計算</strong> で目標貢献度・残り時間を入力、<br>
                         <strong style="color:var(--text);">🥩 肉計算</strong> で全投入貢献度を試算
@@ -227,7 +369,7 @@
         <p style="font-size:0.75em;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;">タブ別詳細</p>
 
         <details style="margin-bottom:8px;">
-            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:7px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
+            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
                 <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> 📊 討伐効率タブ
             </summary>
             <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
@@ -243,7 +385,7 @@
         </details>
 
         <details style="margin-bottom:8px;">
-            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:7px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
+            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
                 <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> 🎯 目標計算タブ
             </summary>
             <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
@@ -257,7 +399,7 @@
         </details>
 
         <details style="margin-bottom:16px;">
-            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:7px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
+            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
                 <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> 🥩 肉計算タブ
             </summary>
             <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
