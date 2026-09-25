@@ -144,6 +144,9 @@
                         </select>
                     </div>
                 </div>
+                <div style="margin-top:8px;">
+                    <button id="ss-import-open-btn" class="btn" type="button" style="font-size:0.85em;">📷 スクショから一括取込</button>
+                </div>
                 <div id="char-inputs-container" style="margin-top: 10px;">
                     <!-- JavaScript で動的に生成 -->
                 </div>
@@ -1418,7 +1421,226 @@
         }
         initialize();
 
+        // ===== スクショ一括取込 =====
+        (function() {
+            const modal     = document.getElementById('ss-modal');
+            const pasteArea = document.getElementById('ss-paste-area');
+            const fileInput = document.getElementById('ss-file-input');
+            const canvas    = document.getElementById('ss-canvas');
+            const ctx       = canvas.getContext('2d');
+            let ssImg = null;
+            let pendingCrops = [];
+
+            document.getElementById('ss-import-open-btn').addEventListener('click', () => {
+                modal.style.display = 'block';
+                ssImg = null;
+                pendingCrops = [];
+                resetUI();
+            });
+            document.getElementById('ss-modal-close').addEventListener('click', () => { modal.style.display = 'none'; });
+            modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+
+            pasteArea.addEventListener('click', () => fileInput.click());
+            pasteArea.addEventListener('dragover', e => { e.preventDefault(); pasteArea.style.borderColor = '#ffb400'; });
+            pasteArea.addEventListener('dragleave', () => { pasteArea.style.borderColor = '#3a3d45'; });
+            pasteArea.addEventListener('drop', e => {
+                e.preventDefault();
+                pasteArea.style.borderColor = '#3a3d45';
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) loadFile(file);
+            });
+            fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+            // Ctrl+V（モーダルが開いているときのみ）
+            document.addEventListener('paste', e => {
+                if (modal.style.display === 'none') return;
+                const item = Array.from(e.clipboardData.items).find(it => it.type.startsWith('image/'));
+                if (item) loadFile(item.getAsFile());
+            });
+
+            function loadFile(file) {
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    const img = new Image();
+                    img.onload = () => { ssImg = img; showControls(); updatePreview(); };
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function resetUI() {
+                document.getElementById('ss-canvas-wrap').style.display = 'none';
+                document.getElementById('ss-controls').style.display = 'none';
+                document.getElementById('ss-crop-row').style.display = 'none';
+                document.getElementById('ss-apply-btn').style.display = 'none';
+                document.getElementById('ss-paste-hint').style.display = '';
+            }
+
+            function showControls() {
+                document.getElementById('ss-paste-hint').style.display = 'none';
+                document.getElementById('ss-canvas-wrap').style.display = 'block';
+                document.getElementById('ss-controls').style.display = 'block';
+                document.getElementById('ss-crop-row').style.display = 'block';
+                document.getElementById('ss-apply-btn').style.display = 'block';
+            }
+
+            ['ss-count','ss-top','ss-bot','ss-left','ss-right'].forEach(id => {
+                document.getElementById(id).addEventListener('input', updatePreview);
+            });
+
+            function updatePreview() {
+                if (!ssImg) return;
+
+                const count = Math.max(1, Math.min(9, parseInt(document.getElementById('ss-count').value) || 5));
+                const topPct   = parseInt(document.getElementById('ss-top').value)   / 100;
+                const botPct   = parseInt(document.getElementById('ss-bot').value)   / 100;
+                const leftPct  = parseInt(document.getElementById('ss-left').value)  / 100;
+                const rightPct = parseInt(document.getElementById('ss-right').value) / 100;
+
+                // ラベル更新
+                document.getElementById('ss-top-val').textContent   = Math.round(topPct   * 100);
+                document.getElementById('ss-bot-val').textContent   = Math.round(botPct   * 100);
+                document.getElementById('ss-left-val').textContent  = Math.round(leftPct  * 100);
+                document.getElementById('ss-right-val').textContent = Math.round(rightPct * 100);
+
+                const W = ssImg.naturalWidth;
+                const H = ssImg.naturalHeight;
+
+                // キャンバスサイズを設定（表示は CSS max-width で縮小）
+                const SCALE = Math.min(1, 640 / W);
+                canvas.width  = Math.round(W * SCALE);
+                canvas.height = Math.round(H * SCALE);
+                ctx.drawImage(ssImg, 0, 0, canvas.width, canvas.height);
+
+                const cW = canvas.width;
+                const cH = canvas.height;
+                const x0 = leftPct  * cW;
+                const x1 = rightPct * cW;
+                const y0 = topPct   * cH;
+                const y1 = Math.max(y0 + 1, botPct * cH);
+                const colW = (x1 - x0) / count;
+
+                // 切り取り範囲外を暗くする
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.fillRect(0, 0, cW, cH);
+
+                pendingCrops = [];
+                const previews = document.getElementById('ss-crop-previews');
+                previews.innerHTML = '';
+
+                for (let i = 0; i < count; i++) {
+                    const rx = x0 + i * colW;
+                    const ry = y0;
+                    const rw = colW;
+                    const rh = y1 - y0;
+                    const size = Math.min(rw, rh);
+                    const sx = rx + (rw - size) / 2;
+                    const sy = ry + (rh - size) / 2;
+
+                    // 元画像の対応座標（スケール逆算）
+                    const srcX = sx / SCALE;
+                    const srcY = sy / SCALE;
+                    const srcS = size / SCALE;
+
+                    // オーバーレイ: 明るく戻す + 黄枠
+                    ctx.drawImage(ssImg, srcX, srcY, srcS, srcS, sx, sy, size, size);
+                    ctx.strokeStyle = '#ffb400';
+                    ctx.lineWidth = Math.max(1, 2 * SCALE);
+                    ctx.strokeRect(sx + 1, sy + 1, size - 2, size - 2);
+
+                    // クロップ画像生成 (100×100)
+                    const cc = document.createElement('canvas');
+                    cc.width = cc.height = 100;
+                    cc.getContext('2d').drawImage(ssImg, srcX, srcY, srcS, srcS, 0, 0, 100, 100);
+                    const dataURL = cc.toDataURL('image/jpeg', 0.85);
+                    pendingCrops.push(dataURL);
+
+                    // プレビュー表示
+                    const wrap = document.createElement('div');
+                    wrap.style.textAlign = 'center';
+                    wrap.innerHTML = `<img src="${dataURL}" style="width:52px;height:52px;border-radius:50%;border:2px solid #555;object-fit:cover;display:block;">
+                        <div style="font-size:0.72em;color:#777;margin-top:3px;">${i+1}</div>`;
+                    previews.appendChild(wrap);
+                }
+            }
+
+            document.getElementById('ss-apply-btn').addEventListener('click', () => {
+                if (!pendingCrops.length) return;
+                if (!currentWorkData.setup.characterIcons) {
+                    currentWorkData.setup.characterIcons = Array(9).fill(null);
+                }
+                pendingCrops.forEach((src, i) => {
+                    currentWorkData.setup.characterIcons[i] = src;
+                });
+                saveCurrentWork();
+                renderCharacterInputs();
+                modal.style.display = 'none';
+            });
+        })();
+
     </script>
+<!-- ===== スクショ一括取込モーダル ===== -->
+<div id="ss-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;overflow-y:auto;">
+  <div style="max-width:680px;margin:32px auto 60px;background:#1a1d23;border:1px solid #3a3d45;border-radius:12px;padding:24px 20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <span style="font-weight:700;color:#ffb400;font-size:1em;">📷 スクショからキャラアイコン一括取込</span>
+      <button id="ss-modal-close" style="background:none;border:none;color:#aaa;font-size:1.2em;cursor:pointer;padding:4px 8px;">✕</button>
+    </div>
+
+    <!-- ペーストエリア -->
+    <div id="ss-paste-area" style="border:2px dashed #3a3d45;border-radius:8px;padding:32px 16px;text-align:center;cursor:pointer;transition:border-color 0.2s;margin-bottom:14px;">
+      <input type="file" id="ss-file-input" accept="image/*" style="display:none;">
+      <div id="ss-paste-hint" style="color:#888;font-size:0.9em;line-height:2;">
+        <span style="font-size:1.3em;">🖼️</span><br>
+        <strong style="color:#e0e0e0;">Ctrl+V</strong> でスクショを貼り付け<br>
+        またはここをクリックしてファイル選択
+      </div>
+    </div>
+
+    <!-- プレビューキャンバス -->
+    <div id="ss-canvas-wrap" style="display:none;margin-bottom:14px;overflow:hidden;border-radius:6px;background:#0d0f14;text-align:center;">
+      <canvas id="ss-canvas" style="max-width:100%;display:block;margin:0 auto;"></canvas>
+    </div>
+
+    <!-- コントロール -->
+    <div id="ss-controls" style="display:none;background:#0d0f14;border-radius:8px;padding:14px;margin-bottom:14px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;font-size:0.84em;">
+        <div>
+          <label style="color:#999;">取込人数</label><br>
+          <input type="number" id="ss-count" min="1" max="9" value="5" style="width:70px;background:#1a1d23;border:1px solid #444;color:#e0e0e0;border-radius:4px;padding:4px 6px;margin-top:4px;">
+        </div>
+        <div></div>
+        <div>
+          <label style="color:#999;">上端 Y: <span id="ss-top-val">15</span>%</label><br>
+          <input type="range" id="ss-top" min="0" max="99" value="15" style="width:100%;margin-top:4px;">
+        </div>
+        <div>
+          <label style="color:#999;">下端 Y: <span id="ss-bot-val">70</span>%</label><br>
+          <input type="range" id="ss-bot" min="1" max="100" value="70" style="width:100%;margin-top:4px;">
+        </div>
+        <div>
+          <label style="color:#999;">左端 X: <span id="ss-left-val">5</span>%</label><br>
+          <input type="range" id="ss-left" min="0" max="99" value="5" style="width:100%;margin-top:4px;">
+        </div>
+        <div>
+          <label style="color:#999;">右端 X: <span id="ss-right-val">85</span>%</label><br>
+          <input type="range" id="ss-right" min="1" max="100" value="85" style="width:100%;margin-top:4px;">
+        </div>
+      </div>
+      <p style="font-size:0.78em;color:#555;margin-top:10px;">スライダーで切り取り範囲を調整してください。黄枠がキャラ位置です。</p>
+    </div>
+
+    <!-- クロッププレビュー -->
+    <div id="ss-crop-row" style="display:none;margin-bottom:16px;">
+      <div style="font-size:0.82em;color:#888;margin-bottom:8px;">切り取り結果プレビュー（1〜9番スロットに割り当て）</div>
+      <div id="ss-crop-previews" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+    </div>
+
+    <!-- 適用ボタン -->
+    <button id="ss-apply-btn" style="display:none;width:100%;padding:12px;background:#ffb400;color:#0d0f14;font-weight:700;font-size:0.95em;border:none;border-radius:8px;cursor:pointer;">このアイコンで取込</button>
+  </div>
+</div>
+
 <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
 <script>
   kofiWidgetOverlay.draw('alt4l', { type: 'floating-chat', 'floating-chat.donateButton.text': 'Support me', 'floating-chat.donateButton.background-color': '#794bc4', 'floating-chat.donateButton.text-color': '#fff' });
