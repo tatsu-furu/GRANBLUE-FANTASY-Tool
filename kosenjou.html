@@ -564,7 +564,8 @@ function updateTargetView() {
         const runs = Math.ceil(needed / d.contrib);
         const t = killTimes[d.id];
         const totSec = t ? runs * t : null;
-        const meatStr = d.isMeat ? `${runs.toLocaleString()}個` : d.is250 ? `${runs.toLocaleString()}個(素材)` : '─';
+        const totalItems = runs * d.chunks;
+        const meatStr = d.isMeat ? `${totalItems.toLocaleString()}個` : d.is250 ? `${totalItems.toLocaleString()}個(素材)` : '─';
 
         let achCell = '';
         if (hasTime) {
