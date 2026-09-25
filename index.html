@@ -25,7 +25,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
-            font-size: 15px;
+            font-size: 16px;
             background-color: var(--bg);
             background-image:
                 linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
@@ -113,7 +113,7 @@
 
         /* ========== SECTIONS ========== */
         .section {
-            max-width: 900px;
+            max-width: 1080px;
             margin: 0 auto;
             padding: 28px 20px;
         }
@@ -148,7 +148,18 @@
         }
         .feature-card:hover { background: var(--surface-2); }
 
-        .feature-icon { font-size: 1.05em; margin-bottom: 5px; }
+        .feature-icon {
+            display: inline-block;
+            font-size: 0.65em;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            color: var(--accent);
+            border: 1px solid var(--accent-lo);
+            border-radius: 2px;
+            padding: 1px 6px;
+            margin-bottom: 7px;
+            text-transform: uppercase;
+        }
 
         .feature-card h3 {
             font-size: 0.85em;
@@ -273,7 +284,7 @@
         <h1>GRANBLUE FANTASY Tool</h1>
         <div class="hero-buttons">
             <a href="beta.html" class="btn-primary" target="_blank" rel="noopener noreferrer">ベータ版を起動 (推奨)</a>
-            <a href="kosenjou.html" class="btn-secondary" target="_blank" rel="noopener noreferrer">⚔️ 古戦場 効率計算</a>
+            <a href="kosenjou.html" class="btn-secondary" target="_blank" rel="noopener noreferrer">古戦場 効率計算</a>
             <a href="tool.html" class="btn-secondary" target="_blank" rel="noopener noreferrer">旧バージョン</a>
         </div>
     </header>
@@ -283,37 +294,37 @@
         <p class="section-title">主な機能</p>
         <div class="features">
             <div class="feature-card">
-                <div class="feature-icon">📋</div>
+                <div class="feature-icon">MOVE</div>
                 <h3>ターン別ムーブ管理</h3>
                 <p>キャラ・アビリティ・召喚石の行動をターンごとに記録。分岐ルートも複数作成できます。</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">⚔️</div>
+                <div class="feature-icon">RAID</div>
                 <h3>レイドテンプレート</h3>
                 <p>ルシゼロ・天元・ヴェルサシアのHP推移・トリガー一覧を参照しながら入力できます。</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">✏️</div>
+                <div class="feature-icon">EDIT</div>
                 <h3>アビリティ名カスタマイズ</h3>
                 <p>各キャラのアビリティボタンに固有の名前を設定。「強化のアビ」など自由に変更できます。</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">📱</div>
+                <div class="feature-icon">SHARE</div>
                 <h3>Discord出力</h3>
                 <p>作成したムーブ表をDiscord向けテキストとしてワンクリックでコピーできます。</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">💾</div>
+                <div class="feature-icon">SAVE</div>
                 <h3>スロット保存・ロード</h3>
                 <p>複数の編成とムーブをブラウザに保存。JSON形式でExport/Importも可能です。</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">▶️</div>
+                <div class="feature-icon">PLAY</div>
                 <h3>再生モード（カンペ）</h3>
                 <p>作成済みムーブ表を見やすく表示。ターンごとにハイライトして実戦で使えます。</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">⚔️</div>
+                <div class="feature-icon">CALC</div>
                 <h3><a href="kosenjou.html" style="color:var(--accent);text-decoration:none;" target="_blank">古戦場 効率計算ツール</a></h3>
                 <p>討伐効率比較・目標貢献度計算・肉計算をまとめたサブツール。どの難易度を周回すべきかひと目でわかります。</p>
             </div>
