@@ -254,15 +254,21 @@
     <!-- ===== TAB 3: 肉計算 ===== -->
     <div id="tab-meat" class="tab-content">
         <div class="card">
-            <div class="card-title">🥩 所持リソース</div>
+            <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                🥩 所持リソース
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;font-weight:400;color:#999;cursor:pointer;">
+                    <input type="checkbox" id="meat-fine-chk" style="width:14px;height:14px;accent-color:#ffb400;cursor:pointer;">
+                    1個単位で入力
+                </label>
+            </div>
             <div class="frow">
                 <label>通常肉</label>
-                <select id="m-normal" class="time-sel" style="width:110px;"></select>
+                <span id="m-normal-wrap"></span>
                 <span class="unit">個</span>
             </div>
             <div class="frow" style="margin-bottom:0;">
                 <label>250専用素材</label>
-                <select id="m-mat" class="time-sel" style="width:110px;"></select>
+                <span id="m-mat-wrap"></span>
                 <span class="unit">個</span>
             </div>
             <p class="note" style="margin-top:8px;">250素材は最大500個まで通常肉2個に変換可能（500回まで）</p>
@@ -746,24 +752,41 @@ function updateTargetView() {
 }
 
 // ── Tab 3: 肉計算 ──
+let meatFineMode = false;
+
+function buildMeatInputs() {
+    const normalWrap = document.getElementById('m-normal-wrap');
+    const matWrap    = document.getElementById('m-mat-wrap');
+    const prevNormal = parseInt(document.getElementById('m-normal')?.value) || 0;
+    const prevMat    = parseInt(document.getElementById('m-mat')?.value)    || 0;
+
+    if (meatFineMode) {
+        normalWrap.innerHTML = `<input type="number" id="m-normal" min="0" max="99999" value="${prevNormal}" style="width:110px;background:#0d0f14;border:1px solid #3a3d45;border-radius:4px;color:#e0e0e0;padding:5px 6px;font-size:0.88em;">`;
+        matWrap.innerHTML    = `<input type="number" id="m-mat"    min="0" max="99999" value="${prevMat}"    style="width:110px;background:#0d0f14;border:1px solid #3a3d45;border-radius:4px;color:#e0e0e0;padding:5px 6px;font-size:0.88em;">`;
+        document.getElementById('m-normal').addEventListener('input', updateMeatView);
+        document.getElementById('m-mat').addEventListener('input', updateMeatView);
+    } else {
+        let normalHtml = '';
+        for (let v = 0; v <= 50000; v += 100) normalHtml += `<option value="${v}" ${v === prevNormal ? 'selected' : ''}>${v.toLocaleString()}</option>`;
+        normalWrap.innerHTML = `<select id="m-normal" class="time-sel" style="width:110px;">${normalHtml}</select>`;
+
+        let matHtml = '';
+        for (let v = 0; v <= 10000; v += 50) matHtml += `<option value="${v}" ${v === prevMat ? 'selected' : ''}>${v.toLocaleString()}</option>`;
+        matWrap.innerHTML = `<select id="m-mat" class="time-sel" style="width:110px;">${matHtml}</select>`;
+
+        document.getElementById('m-normal').addEventListener('change', updateMeatView);
+        document.getElementById('m-mat').addEventListener('change', updateMeatView);
+    }
+}
+
 function setupMeatInputs() {
-    // 通常肉: 100個単位 0〜50000
-    let normalHtml = '';
-    for (let v = 0; v <= 50000; v += 100) {
-        normalHtml += `<option value="${v}">${v.toLocaleString()}</option>`;
-    }
-    document.getElementById('m-normal').innerHTML = normalHtml;
-
-    // 250専用素材: 50個単位 0〜10000
-    let matHtml = '';
-    for (let v = 0; v <= 10000; v += 50) {
-        matHtml += `<option value="${v}">${v.toLocaleString()}</option>`;
-    }
-    document.getElementById('m-mat').innerHTML = matHtml;
-
-    document.getElementById('m-normal').addEventListener('change', updateMeatView);
-    document.getElementById('m-mat').addEventListener('change', updateMeatView);
+    buildMeatInputs();
     document.getElementById('m-250runs').addEventListener('input', updateMeatView);
+    document.getElementById('meat-fine-chk').addEventListener('change', e => {
+        meatFineMode = e.target.checked;
+        buildMeatInputs();
+        updateMeatView();
+    });
 }
 
 function updateMeatView() {
