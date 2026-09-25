@@ -145,6 +145,7 @@
                             <th>貢献度/回</th>
                             <th>討伐時間</th>
                             <th>貢献度/時間</th>
+                            <th>肉消費/h</th>
                             <th>肉1個の貢献度</th>
                             <th style="width:50px"></th>
                         </tr>
@@ -363,6 +364,10 @@ function buildEffTable() {
         const savedMin = saved != null ? Math.floor(saved / 60) : null;
         const savedSec = saved != null ? Math.round((saved % 60) / 5) * 5 % 60 : 0;
         const perHour = saved ? Math.round(d.contrib / saved * 3600) : null;
+        const meatPerH = (saved && (d.isMeat || d.is250)) ? Math.floor(3600 / saved) : null;
+        const meatPerHStr = meatPerH != null
+            ? `<span style="color:#e0a060;font-weight:700">${meatPerH.toLocaleString()}</span><span style="color:#666;font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>`
+            : '<span style="color:#444">─</span>';
         tr.innerHTML = `
             <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
             <td>${fmtC(d.contrib)}</td>
@@ -371,6 +376,7 @@ function buildEffTable() {
                 <select class="time-sel time-sel-sec" data-id="${d.id}">${buildSecOpts(savedSec)}</select>
             </td>
             <td id="eph-${d.id}" style="color:${perHour ? '#ffb400' : '#444'};font-weight:700">${perHour ? fmtC(perHour) + '/h' : '─'}</td>
+            <td id="mph-${d.id}">${meatPerHStr}</td>
             <td style="color:#777;font-size:0.84em">${meatLabel(d)}</td>
             <td><button class="base-btn" data-id="${d.id}">基準</button></td>
         `;
@@ -408,11 +414,21 @@ function buildEffTable() {
 
 function updateEffView() {
     DIFFS.forEach(d => {
-        const el = document.getElementById(`eph-${d.id}`);
-        if (!el) return;
+        const ephEl = document.getElementById(`eph-${d.id}`);
+        const mphEl = document.getElementById(`mph-${d.id}`);
         const t = killTimes[d.id];
-        if (t) { el.textContent = fmtC(Math.round(d.contrib / t * 3600)) + '/h'; el.style.color = '#ffb400'; }
-        else   { el.textContent = '─'; el.style.color = '#444'; }
+        if (ephEl) {
+            if (t) { ephEl.textContent = fmtC(Math.round(d.contrib / t * 3600)) + '/h'; ephEl.style.color = '#ffb400'; }
+            else   { ephEl.textContent = '─'; ephEl.style.color = '#444'; }
+        }
+        if (mphEl) {
+            if (t && (d.isMeat || d.is250)) {
+                const mph = Math.floor(3600 / t);
+                mphEl.innerHTML = `<span style="color:#e0a060;font-weight:700">${mph.toLocaleString()}</span><span style="color:#666;font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>`;
+            } else {
+                mphEl.innerHTML = '<span style="color:#444">─</span>';
+            }
+        }
     });
 
     // sync base-btn active state
