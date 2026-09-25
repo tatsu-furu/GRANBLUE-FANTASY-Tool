@@ -127,13 +127,12 @@
                 <h1>⚔️ 古戦場 効率計算ツール</h1>
                 <p>討伐効率比較 / 目標計算 / 肉計算</p>
             </div>
-            <button id="help-open-btn" style="padding:6px 14px;background:transparent;border:1px solid #555;color:#aaa;border-radius:6px;cursor:pointer;font-size:0.82em;white-space:nowrap;transition:all 0.15s;" onmouseover="this.style.borderColor='#ffb400';this.style.color='#ffb400'" onmouseout="this.style.borderColor='#555';this.style.color='#aaa'">？ 使い方</button>
+            <button id="help-open-btn" style="padding:8px 16px;background:#ffb400;border:none;color:#0d0f14;border-radius:6px;cursor:pointer;font-size:0.85em;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(255,180,0,0.35);transition:background 0.15s,transform 0.12s;" onmouseover="this.style.background='#ffd04d';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='#ffb400';this.style.transform=''">📖 使い方</button>
         </div>
     </header>
 
     <!-- ===== 使い方ドロワー ===== -->
-    <div id="help-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:8000;" onclick="closeHelp()"></div>
-    <div id="help-drawer" style="position:fixed;top:0;right:0;height:100%;width:min(360px,92vw);background:#1a1d23;border-left:1px solid #333;z-index:8001;transform:translateX(100%);transition:transform 0.25s ease;overflow-y:auto;padding:24px 20px 60px;">
+    <div id="help-drawer" style="position:fixed;top:0;right:0;height:100%;width:min(340px,88vw);background:#1a1d23;border-left:2px solid #ffb400;z-index:8001;transform:translateX(100%);transition:transform 0.25s ease;overflow-y:auto;padding:24px 20px 60px;box-shadow:-4px 0 24px rgba(0,0,0,0.5);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid #333;padding-bottom:14px;">
             <span style="color:#ffb400;font-weight:700;font-size:1em;">📖 使い方</span>
             <button onclick="closeHelp()" style="background:none;border:none;color:#777;font-size:1.2em;cursor:pointer;padding:4px 8px;line-height:1;">✕</button>
@@ -841,11 +840,9 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 // ── 使い方ドロワー ──
 function openHelp() {
-    document.getElementById('help-overlay').style.display = 'block';
     document.getElementById('help-drawer').style.transform = 'translateX(0)';
 }
 function closeHelp() {
-    document.getElementById('help-overlay').style.display = 'none';
     document.getElementById('help-drawer').style.transform = 'translateX(100%)';
 }
 document.getElementById('help-open-btn').addEventListener('click', openHelp);
