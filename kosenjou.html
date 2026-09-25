@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>古戦場 効率計算ツール | GBF Tool</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; background: #0d0f14; color: #e0e0e0; min-height: 100vh; line-height: 1.5; }
+        .container { max-width: 920px; margin: 0 auto; padding: 0 16px 80px; }
+        header { padding: 20px 0 16px; border-bottom: 2px solid #ffb400; margin-bottom: 20px; }
+        .back-link { display: inline-block; color: #888; text-decoration: none; font-size: 0.82em; margin-bottom: 8px; }
+        .back-link:hover { color: #ffb400; }
+        header h1 { font-size: clamp(1.3em, 4vw, 1.9em); color: #ffb400; }
+        header p { color: #777; font-size: 0.85em; margin-top: 3px; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 18px; flex-wrap: wrap; }
+        .tab-btn { padding: 9px 16px; font-size: 0.88em; font-weight: 700; background: #1a1d23; color: #777; border: 1px solid #333; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+        .tab-btn:hover { border-color: #ffb400; color: #ffb400; }
+        .tab-btn.active { background: #ffb400; color: #0d0f14; border-color: #ffb400; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Cards */
+        .card { background: #1a1d23; border: 1px solid #2c2f38; border-radius: 10px; padding: 18px; margin-bottom: 14px; }
+        .card-title { font-size: 0.92em; font-weight: 700; color: #ffb400; border-left: 3px solid #ffb400; padding-left: 10px; margin-bottom: 14px; }
+
+        /* Inputs */
+        input[type="text"], input[type="number"] { background: #0d0f14; border: 1px solid #3a3d45; border-radius: 4px; color: #e0e0e0; padding: 6px 9px; font-size: 0.88em; width: 100%; transition: border-color 0.15s; }
+        input[type="text"]:focus, input[type="number"]:focus { outline: none; border-color: #ffb400; }
+        input::placeholder { color: #444; }
+
+        /* Table */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.86em; }
+        .data-table th { text-align: left; color: #777; font-weight: 600; font-size: 0.82em; padding: 6px 8px; border-bottom: 1px solid #2c2f38; }
+        .data-table td { padding: 7px 8px; border-bottom: 1px solid #1e2028; vertical-align: middle; }
+        .data-table tbody tr:hover td { background: rgba(255,180,0,0.03); }
+        .time-input { width: 72px !important; }
+
+        /* Diff colors */
+        .c-vh   { color: #888; }
+        .c-ex   { color: #64b5f6; }
+        .c-exp  { color: #9575cd; }
+        .c-hell { color: #ef5350; }
+        .c-h250 { color: #ff7043; }
+
+        /* Bar */
+        .bar-wrap { flex: 1; min-width: 60px; }
+        .bar-bg { background: #0d0f14; border-radius: 3px; height: 12px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 3px; transition: width 0.35s; }
+        .bar-1 { background: #4caf50; }
+        .bar-2 { background: #8bc34a; }
+        .bar-3 { background: #cddc39; }
+        .bar-4 { background: #ffb400; }
+        .bar-5 { background: #ff9800; }
+        .bar-6 { background: #ff7043; }
+        .bar-7 { background: #78909c; }
+
+        /* Rank item */
+        .rank-list { display: flex; flex-direction: column; gap: 6px; }
+        .rank-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: #0d0f14; border-radius: 6px; }
+        .rank-num { min-width: 22px; height: 22px; line-height: 22px; text-align: center; font-size: 0.72em; font-weight: 700; border-radius: 50%; background: #2c2f38; color: #777; flex-shrink: 0; }
+        .rank-num.r1 { background: #ffb400; color: #0d0f14; }
+        .rank-num.r2 { background: #9e9e9e; color: #0d0f14; }
+        .rank-num.r3 { background: #795548; color: #fff; }
+        .rank-name { min-width: 68px; font-weight: 700; font-size: 0.88em; }
+        .rank-val { color: #ffb400; font-weight: 700; font-size: 0.88em; min-width: 100px; }
+        .rank-pct { font-size: 0.75em; color: #555; min-width: 36px; text-align: right; }
+
+        /* Flex row */
+        .frow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+        .frow label { font-size: 0.85em; color: #999; white-space: nowrap; min-width: 90px; }
+        .frow input { max-width: 160px; }
+        .frow .unit { font-size: 0.82em; color: #666; }
+
+        /* Summary */
+        .sum-box { background: #0d0f14; border: 1px solid rgba(255,180,0,0.35); border-radius: 8px; padding: 14px 16px; margin-top: 10px; }
+        .sum-label { font-size: 0.78em; color: #888; margin-bottom: 3px; }
+        .sum-val { font-size: 1.15em; font-weight: 700; color: #ffb400; }
+
+        /* Note */
+        .note { font-size: 0.78em; color: #666; line-height: 1.65; }
+        .note code { background: #1a1d23; padding: 1px 5px; border-radius: 3px; color: #aaa; }
+
+        /* No data */
+        .no-data { color: #555; font-size: 0.85em; padding: 18px; text-align: center; font-style: italic; }
+
+        /* Meat result row */
+        .meat-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; border: 1px solid transparent; }
+        .meat-row.best { background: rgba(255,180,0,0.07); border-color: rgba(255,180,0,0.25); }
+        .meat-row-name { font-weight: 700; font-size: 0.88em; min-width: 68px; }
+        .meat-row-val { font-weight: 700; font-size: 0.95em; }
+
+        /* Reference details */
+        details.card summary { cursor: pointer; font-size: 0.9em; font-weight: 700; color: #888; list-style: none; }
+        details.card summary::-webkit-details-marker { display: none; }
+        details.card summary::before { content: '▶ '; font-size: 0.8em; }
+        details.card[open] summary::before { content: '▼ '; }
+        details.card[open] summary { color: #ffb400; margin-bottom: 14px; }
+
+        /* Achieve cell */
+        .ach-ok { color: #4caf50; font-weight: 700; }
+        .ach-ng { color: #ef5350; font-size: 0.85em; }
+
+        @media (max-width: 600px) {
+            .data-table { font-size: 0.78em; }
+            .data-table th, .data-table td { padding: 5px 4px; }
+            .time-input { width: 58px !important; }
+            .frow label { min-width: 70px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <a href="index.html" class="back-link">← TOPに戻る</a>
+        <h1>⚔️ 古戦場 効率計算ツール</h1>
+        <p>討伐効率比較 / 目標計算 / 肉計算</p>
+    </header>
+
+    <nav class="tabs">
+        <button class="tab-btn active" data-tab="efficiency">📊 討伐効率</button>
+        <button class="tab-btn" data-tab="target">🎯 目標計算</button>
+        <button class="tab-btn" data-tab="meat">🥩 肉計算</button>
+    </nav>
+
+    <!-- ===== TAB 1: 討伐効率 ===== -->
+    <div id="tab-efficiency" class="tab-content active">
+        <div class="card">
+            <div class="card-title">討伐時間の入力</div>
+            <p class="note" style="margin-bottom:12px;">形式: <code>分:秒</code> または 秒数（例: <code>2:30</code> または <code>150</code>）。時間は自動保存されます。</p>
+            <div style="overflow-x:auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>難易度</th>
+                            <th>貢献度/回</th>
+                            <th>討伐時間</th>
+                            <th>貢献度/時間</th>
+                            <th>肉1個の貢献度</th>
+                        </tr>
+                    </thead>
+                    <tbody id="eff-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">効率ランキング <span style="font-size:0.75em; font-weight:400; color:#666;">（討伐時間を入力した難易度のみ）</span></div>
+            <div id="eff-ranking"><div class="no-data">討伐時間を入力してください</div></div>
+        </div>
+    </div>
+
+    <!-- ===== TAB 2: 目標計算 ===== -->
+    <div id="tab-target" class="tab-content">
+        <div class="card">
+            <div class="card-title">目標貢献度の設定</div>
+            <div class="frow">
+                <label>目標貢献度</label>
+                <input type="text" id="t-goal" placeholder="200000000">
+                <span id="t-goal-disp" class="unit"></span>
+            </div>
+            <div class="frow">
+                <label>現在の貢献度</label>
+                <input type="text" id="t-cur" placeholder="0">
+                <span id="t-cur-disp" class="unit"></span>
+            </div>
+            <div id="t-remain-box" style="display:none;" class="sum-box">
+                <div class="sum-label">残り必要貢献度</div>
+                <div class="sum-val" id="t-remain-val">─</div>
+            </div>
+            <div style="margin-top:16px;">
+                <div class="note" style="margin-bottom:8px;">残りイベント時間（任意）</div>
+                <div class="frow" style="margin-bottom:0;">
+                    <label>残り時間</label>
+                    <input type="number" id="t-hours" placeholder="時間" min="0" max="99" style="max-width:70px;">
+                    <span class="unit">時間</span>
+                    <input type="number" id="t-mins" placeholder="分" min="0" max="59" style="max-width:70px;">
+                    <span class="unit">分</span>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">各難易度での必要回数</div>
+            <p class="note" style="margin-bottom:10px;">「討伐効率」タブで時間を入力すると所要時間も表示されます</p>
+            <div id="t-table-wrap"><div class="no-data">目標貢献度を入力してください</div></div>
+        </div>
+    </div>
+
+    <!-- ===== TAB 3: 肉計算 ===== -->
+    <div id="tab-meat" class="tab-content">
+        <div class="card">
+            <div class="card-title">🥩 所持リソース</div>
+            <div class="frow">
+                <label>通常肉</label>
+                <input type="number" id="m-normal" placeholder="0" min="0">
+                <span class="unit">個</span>
+            </div>
+            <div class="frow" style="margin-bottom:0;">
+                <label>250専用素材</label>
+                <input type="number" id="m-mat" placeholder="0" min="0">
+                <span class="unit">個</span>
+            </div>
+            <p class="note" style="margin-top:8px;">250素材は最大500個まで通常肉2個に変換可能（500回まで）</p>
+        </div>
+
+        <div class="card">
+            <div class="card-title">250HELL 作戦</div>
+            <div class="frow" style="margin-bottom:6px;">
+                <label>250HELL 回数</label>
+                <input type="number" id="m-250runs" placeholder="0" min="0">
+                <span class="unit">回（素材使用）</span>
+            </div>
+            <div id="m-250info" class="note" style="line-height:1.9;"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">通常肉 全投入シミュレーション</div>
+            <p class="note" style="margin-bottom:12px;">250HELL後の残り通常肉を各難易度に全投入した場合の期待貢献度</p>
+            <div id="m-result"><div class="no-data">所持リソースを入力してください</div></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">合計期待貢献度（250HELL + 通常肉）</div>
+            <div id="m-total"><div class="no-data">所持リソースを入力してください</div></div>
+        </div>
+    </div>
+
+    <!-- ===== レイドデータ参照 ===== -->
+    <details class="card">
+        <summary>レイドデータ 参照</summary>
+        <div style="overflow-x:auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>難易度</th>
+                        <th>貢献度/回</th>
+                        <th>敵HP</th>
+                        <th>防御値</th>
+                        <th>チャンク数</th>
+                        <th>チャンク効率</th>
+                        <th>備考</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td class="c-vh">VH</td><td>約2.1万</td><td>─</td><td>─</td><td>─</td><td>─</td><td></td></tr>
+                    <tr><td class="c-ex">EX</td><td>約6.4万</td><td>─</td><td>─</td><td>─</td><td>─</td><td></td></tr>
+                    <tr><td class="c-exp">EX+</td><td>約12.6万</td><td>─</td><td>─</td><td>─</td><td>─</td><td></td></tr>
+                    <tr><td class="c-hell">90HELL</td><td>30.5万</td><td>5,000万</td><td>100~26%: 14 / 25%~: 13</td><td>5</td><td>6.1万/個</td><td></td></tr>
+                    <tr><td class="c-hell">95HELL</td><td>91万</td><td>1億3125万</td><td>100~26%: 15 / 25%~: 14</td><td>10</td><td>9.1万/個</td><td></td></tr>
+                    <tr><td class="c-hell">100HELL</td><td>268万</td><td>2億8875万</td><td>100~26%: 15 / 25%~: 14</td><td>20</td><td>13.4万/個</td><td></td></tr>
+                    <tr><td class="c-hell">150HELL</td><td>410万</td><td>2億8875万</td><td>25（固定）</td><td>20</td><td>20.5万/個</td><td></td></tr>
+                    <tr><td class="c-hell">200HELL</td><td>2,000万</td><td>8億7780万</td><td>25（固定）</td><td>20</td><td>100万/個</td><td></td></tr>
+                    <tr><td class="c-h250">250HELL</td><td>7,500万</td><td>23億2620万</td><td>25（固定）</td><td>20</td><td>375万/個</td><td>専用素材 自発必須</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="note" style="margin-top:10px;">※250自発素材1個 → 通常肉2個に変換可能（500回まで）</p>
+    </details>
+</div>
+
+<script>
+const DIFFS = [
+    { id:'vh',   name:'VH',      contrib:21400,    isMeat:false, is250:false },
+    { id:'ex',   name:'EX',      contrib:64000,    isMeat:false, is250:false },
+    { id:'exp',  name:'EX+',     contrib:126000,   isMeat:false, is250:false },
+    { id:'h90',  name:'90HELL',  contrib:305000,   isMeat:true,  is250:false },
+    { id:'h95',  name:'95HELL',  contrib:910000,   isMeat:true,  is250:false },
+    { id:'h100', name:'100HELL', contrib:2680000,  isMeat:true,  is250:false },
+    { id:'h150', name:'150HELL', contrib:4100000,  isMeat:true,  is250:false },
+    { id:'h200', name:'200HELL', contrib:20000000, isMeat:true,  is250:false },
+    { id:'h250', name:'250HELL', contrib:75000000, isMeat:false, is250:true  },
+];
+
+// ── 状態 ──
+let killTimes = {};
+try { killTimes = JSON.parse(localStorage.getItem('gbf_kj_times') || '{}'); } catch(e){}
+
+// ── ユーティリティ ──
+function parseTime(s) {
+    if (!s || !s.trim()) return null;
+    s = s.trim();
+    if (s.includes(':')) {
+        const [m, sec] = s.split(':').map(x => parseInt(x) || 0);
+        return m * 60 + sec;
+    }
+    const n = parseFloat(s);
+    return (isNaN(n) || n <= 0) ? null : n;
+}
+
+function fmtTimeInput(s) {
+    const m = Math.floor(s / 60), sec = Math.round(s % 60);
+    return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+function fmtTime(s) {
+    if (!s) return '─';
+    const m = Math.floor(s / 60), sec = Math.round(s % 60);
+    if (!m) return `${sec}秒`;
+    if (!sec) return `${m}分`;
+    return `${m}分${String(sec).padStart(2,'0')}秒`;
+}
+
+function fmtC(n) {
+    if (n == null || isNaN(n)) return '─';
+    if (n >= 100000000) {
+        const v = n / 100000000;
+        return (v % 1 === 0 ? v.toLocaleString() : v.toFixed(2)) + '億';
+    }
+    if (n >= 10000) {
+        const v = n / 10000;
+        return (v % 1 === 0 ? v.toLocaleString() : v.toFixed(1)) + '万';
+    }
+    return n.toLocaleString();
+}
+
+function parseC(s) {
+    if (!s) return null;
+    s = s.replace(/,/g,'').trim();
+    if (s.endsWith('億')) return parseFloat(s) * 100000000;
+    if (s.endsWith('万')) return parseFloat(s) * 10000;
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+}
+
+function diffClass(d) {
+    if (d.is250) return 'c-h250';
+    if (d.isMeat) return 'c-hell';
+    if (d.id === 'exp') return 'c-exp';
+    if (d.id === 'ex') return 'c-ex';
+    return 'c-vh';
+}
+
+function barClass(rank, total) {
+    const classes = ['bar-1','bar-2','bar-3','bar-4','bar-5','bar-6','bar-7'];
+    const i = Math.min(Math.floor(rank / total * classes.length), classes.length - 1);
+    return classes[i];
+}
+
+function meatLabel(d) {
+    if (d.isMeat) return `${fmtC(d.contrib)}/肉`;
+    if (d.is250)  return `${fmtC(d.contrib)}/素材`;
+    return '─（AP消費）';
+}
+
+// ── Tab 1: 効率比較 ──
+function buildEffTable() {
+    const tbody = document.getElementById('eff-tbody');
+    tbody.innerHTML = '';
+    DIFFS.forEach(d => {
+        const tr = document.createElement('tr');
+        const saved = killTimes[d.id];
+        const perHour = saved ? Math.round(d.contrib / saved * 3600) : null;
+        tr.innerHTML = `
+            <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
+            <td>${fmtC(d.contrib)}</td>
+            <td><input type="text" class="time-input" data-id="${d.id}" placeholder="─:──" value="${saved ? fmtTimeInput(saved) : ''}"></td>
+            <td id="eph-${d.id}" style="color:${perHour ? '#ffb400' : '#444'};font-weight:700">${perHour ? fmtC(perHour) + '/h' : '─'}</td>
+            <td style="color:#777;font-size:0.84em">${meatLabel(d)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll('.time-input').forEach(inp => {
+        inp.addEventListener('input', e => {
+            const id = e.target.dataset.id;
+            const t = parseTime(e.target.value);
+            if (t) killTimes[id] = t; else delete killTimes[id];
+            localStorage.setItem('gbf_kj_times', JSON.stringify(killTimes));
+            updateEffView();
+            updateTargetView();
+            updateMeatView();
+        });
+    });
+}
+
+function updateEffView() {
+    DIFFS.forEach(d => {
+        const el = document.getElementById(`eph-${d.id}`);
+        if (!el) return;
+        const t = killTimes[d.id];
+        if (t) { el.textContent = fmtC(Math.round(d.contrib / t * 3600)) + '/h'; el.style.color = '#ffb400'; }
+        else   { el.textContent = '─'; el.style.color = '#444'; }
+    });
+
+    const ranked = DIFFS
+        .filter(d => killTimes[d.id])
+        .map(d => ({ d, perH: Math.round(d.contrib / killTimes[d.id] * 3600) }))
+        .sort((a, b) => b.perH - a.perH);
+
+    const el = document.getElementById('eff-ranking');
+    if (!ranked.length) { el.innerHTML = '<div class="no-data">討伐時間を入力してください</div>'; return; }
+
+    const maxH = ranked[0].perH;
+    el.innerHTML = '<div class="rank-list">' + ranked.map((r, i) => {
+        const pct = Math.round(r.perH / maxH * 100);
+        const rc = i < 3 ? ` r${i+1}` : '';
+        return `<div class="rank-item">
+            <span class="rank-num${rc}">${i+1}</span>
+            <span class="rank-name ${diffClass(r.d)}">${r.d.name}</span>
+            <span class="rank-val">${fmtC(r.perH)}/h</span>
+            <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill ${barClass(i, ranked.length)}" style="width:${pct}%"></div></div></div>
+            <span class="rank-pct">${pct}%</span>
+        </div>`;
+    }).join('') + '</div>';
+}
+
+// ── Tab 2: 目標計算 ──
+function setupTargetInputs() {
+    document.getElementById('t-goal').addEventListener('input', e => {
+        const n = parseC(e.target.value);
+        document.getElementById('t-goal-disp').textContent = n ? `(${fmtC(n)})` : '';
+        updateTargetView();
+    });
+    document.getElementById('t-cur').addEventListener('input', e => {
+        const n = parseC(e.target.value);
+        document.getElementById('t-cur-disp').textContent = n ? `(${fmtC(n)})` : '';
+        updateTargetView();
+    });
+    ['t-hours','t-mins'].forEach(id => document.getElementById(id).addEventListener('input', updateTargetView));
+}
+
+function updateTargetView() {
+    const goal = parseC(document.getElementById('t-goal').value);
+    const cur  = parseC(document.getElementById('t-cur').value) || 0;
+    const remBox = document.getElementById('t-remain-box');
+    const wrap   = document.getElementById('t-table-wrap');
+
+    if (!goal) { remBox.style.display = 'none'; wrap.innerHTML = '<div class="no-data">目標貢献度を入力してください</div>'; return; }
+
+    const needed = Math.max(0, goal - cur);
+    remBox.style.display = 'block';
+    document.getElementById('t-remain-val').textContent = fmtC(needed) + ' pt';
+
+    if (needed === 0) { wrap.innerHTML = '<div style="color:#4caf50;font-weight:700;padding:16px;text-align:center">🎉 目標達成済み！</div>'; return; }
+
+    const remSec = (parseInt(document.getElementById('t-hours').value) || 0) * 3600
+                 + (parseInt(document.getElementById('t-mins').value) || 0) * 60;
+
+    const hasTime = remSec > 0;
+    let html = `<div style="overflow-x:auto"><table class="data-table"><thead><tr>
+        <th>難易度</th><th>必要回数</th><th>所要時間</th>
+        ${hasTime ? '<th>残り時間内</th>' : ''}<th>必要肉/素材</th>
+    </tr></thead><tbody>`;
+
+    DIFFS.forEach(d => {
+        const runs = Math.ceil(needed / d.contrib);
+        const t = killTimes[d.id];
+        const totSec = t ? runs * t : null;
+        const meatStr = d.isMeat ? `${runs.toLocaleString()}個` : d.is250 ? `${runs.toLocaleString()}個(素材)` : '─';
+
+        let achCell = '';
+        if (hasTime) {
+            if (!t) {
+                achCell = '<td style="color:#444">─</td>';
+            } else {
+                const possible = Math.floor(remSec / t);
+                if (possible >= runs) {
+                    achCell = `<td class="ach-ok">✓ 達成可</td>`;
+                } else {
+                    const gained = d.contrib * possible;
+                    achCell = `<td class="ach-ng">${possible.toLocaleString()}回可<br>+${fmtC(gained)}</td>`;
+                }
+            }
+        }
+
+        html += `<tr>
+            <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
+            <td>${runs.toLocaleString()}回</td>
+            <td style="color:${totSec ? '#ccc' : '#444'}">${fmtTime(totSec)}</td>
+            ${achCell}
+            <td style="color:#777;font-size:0.84em">${meatStr}</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    wrap.innerHTML = html;
+}
+
+// ── Tab 3: 肉計算 ──
+function setupMeatInputs() {
+    ['m-normal','m-mat','m-250runs'].forEach(id => document.getElementById(id).addEventListener('input', updateMeatView));
+}
+
+function updateMeatView() {
+    const normalMeat = parseInt(document.getElementById('m-normal').value) || 0;
+    const mat250     = parseInt(document.getElementById('m-mat').value) || 0;
+    const runs250req = parseInt(document.getElementById('m-250runs').value) || 0;
+
+    const actualRuns250  = Math.min(runs250req, mat250);
+    const remaining250   = mat250 - actualRuns250;
+    const convertible    = Math.min(remaining250, 500);
+    const convertedMeat  = convertible * 2;
+    const totalMeat      = normalMeat + convertedMeat;
+
+    // Info
+    const info = document.getElementById('m-250info');
+    const lines = [];
+    if (runs250req > mat250) lines.push(`⚠️ 素材が${runs250req}個必要ですが${mat250}個しかありません（最大${mat250}回）`);
+    lines.push(`250HELL: ${actualRuns250}回 ← 専用素材${actualRuns250}個使用`);
+    if (remaining250 > 0) {
+        lines.push(`残り素材 ${remaining250}個 → ${convertible}個変換 → 通常肉 +${convertedMeat}個`);
+        if (remaining250 > 500) lines.push(`⚠️ 500個超えの分 (${remaining250 - 500}個) は変換不可`);
+    }
+    lines.push(`通常肉合計: ${normalMeat.toLocaleString()} + ${convertedMeat} = <strong>${totalMeat.toLocaleString()}個</strong>`);
+    info.innerHTML = lines.join('<br>');
+
+    const meatDiffs = DIFFS.filter(d => d.isMeat);
+    const resultEl  = document.getElementById('m-result');
+    const totalEl   = document.getElementById('m-total');
+
+    if (totalMeat === 0 && actualRuns250 === 0) {
+        resultEl.innerHTML = '<div class="no-data">所持リソースを入力してください</div>';
+        totalEl.innerHTML  = '<div class="no-data">所持リソースを入力してください</div>';
+        return;
+    }
+
+    // 通常肉シミュ table
+    let tbl = `<div style="overflow-x:auto"><table class="data-table"><thead><tr>
+        <th>難易度</th><th>貢献度/肉</th><th>${totalMeat.toLocaleString()}個 全投入</th><th>1時間の回数</th>
+    </tr></thead><tbody>`;
+
+    meatDiffs.forEach(d => {
+        const total = d.contrib * totalMeat;
+        const t = killTimes[d.id];
+        const rpm = t ? Math.floor(3600 / t) : null;
+        tbl += `<tr>
+            <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
+            <td style="color:#ffb400;font-weight:700">${fmtC(d.contrib)}</td>
+            <td style="color:#ccc;font-weight:700">${fmtC(total)}</td>
+            <td style="color:#777">${rpm != null ? rpm + '回/h' : '─'}</td>
+        </tr>`;
+    });
+    tbl += '</tbody></table></div>';
+    resultEl.innerHTML = tbl;
+
+    // 合計
+    const contrib250total = actualRuns250 * 75000000;
+    const sorted = meatDiffs
+        .map(d => ({ d, total: contrib250total + d.contrib * totalMeat }))
+        .sort((a, b) => b.total - a.total);
+
+    let totHtml = `<div style="font-size:0.82em;color:#777;margin-bottom:10px;">250HELL ${actualRuns250}回 = <span style="color:#9575cd;font-weight:700">${fmtC(contrib250total)}</span> &nbsp;+&nbsp; 通常肉${totalMeat.toLocaleString()}個（各難易度）</div>`;
+    sorted.forEach((item, i) => {
+        const best = i === 0;
+        totHtml += `<div class="meat-row ${best ? 'best' : ''}">
+            <span style="min-width:18px;color:${best ? '#ffb400' : '#444'};font-weight:700">${best ? '★' : ''}</span>
+            <span class="meat-row-name ${diffClass(item.d)}">${item.d.name}</span>
+            <span class="meat-row-val" style="color:${best ? '#ffb400' : '#ccc'};font-size:${best ? '1.05em' : '0.95em'}">${fmtC(item.total)}</span>
+        </div>`;
+    });
+    totalEl.innerHTML = totHtml;
+}
+
+// ── タブ切り替え ──
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+});
+
+// ── 初期化 ──
+buildEffTable();
+setupTargetInputs();
+setupMeatInputs();
+updateEffView();
+</script>
+
+<script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
+<script>
+  kofiWidgetOverlay.draw('alt4l', { type:'floating-chat', 'floating-chat.donateButton.text':'Support me', 'floating-chat.donateButton.background-color':'#794bc4', 'floating-chat.donateButton.text-color':'#fff' });
+</script>
+</body>
+</html>
