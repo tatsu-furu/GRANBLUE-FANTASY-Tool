@@ -109,6 +109,13 @@
         .ach-ok { color: #4caf50; font-weight: 700; }
         .ach-ng { color: #ef5350; font-size: 0.85em; }
 
+        /* External link buttons */
+        .ext-links { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .ext-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; font-size: 0.8em; font-weight: 600; border-radius: 6px; text-decoration: none; border: 1px solid #333; background: #1a1d23; color: #999; transition: all 0.15s; white-space: nowrap; }
+        .ext-btn:hover { border-color: #ffb400; color: #ffb400; background: rgba(255,180,0,0.06); }
+        .ext-btn.yt { border-color: #444; }
+        .ext-btn.yt:hover { border-color: #ff4444; color: #ff7070; background: rgba(255,68,68,0.06); }
+
         @media (max-width: 600px) {
             .data-table { font-size: 0.78em; }
             .data-table th, .data-table td { padding: 5px 4px; }
@@ -146,6 +153,7 @@
                 <li><strong style="color:#e0e0e0;">分セレクト＋秒セレクト</strong> で時間入力。「1秒単位で入力」チェックで秒を自由入力に切替</li>
                 <li><strong style="color:#e0e0e0;">肉消費/h</strong> はチャンク数を考慮した実消費量（例: 100HELL = 周回数 × 20チャンク）</li>
                 <li><strong style="color:#e0e0e0;">リロ?</strong> チェックで「リロ後」の討伐時間を追加入力。演出スキップ後の実効率をランキングに反映</li>
+                <li><strong style="color:#e0e0e0;">サボ?</strong> チェックで「理想タイム+10%」のエントリをランキングに追加。少しペースが落ちたときの効率を確認できます</li>
                 <li><strong style="color:#e0e0e0;">基準ボタン</strong> を押すと、その難易度の効率に並ぶために他の難易度で必要な討伐時間を表示</li>
             </ul>
 
@@ -171,6 +179,12 @@
                 同じブラウザ・同じデバイスなら次回も引き継がれます。
             </div>
         </div>
+    </div>
+
+    <div class="ext-links">
+        <a href="https://xn--bck3aza1a2if6kra4ee0hf.gamewith.jp/article/show/28687" target="_blank" rel="noopener noreferrer" class="ext-btn">📘 GameWith 攻略</a>
+        <a href="https://kamigame.jp/%E3%82%B0%E3%83%A9%E3%83%96%E3%83%AB/%E6%B1%BA%E6%88%A6%EF%BC%81%E6%98%9F%E3%81%AE%E5%8F%A4%E6%88%A6%E5%A0%B4/index.html" target="_blank" rel="noopener noreferrer" class="ext-btn">📗 神ゲー攻略</a>
+        <a href="https://www.youtube.com/results?search_query=%E5%8F%A4%E6%88%A6%E5%A0%B4+%E7%B7%A8%E6%88%90" target="_blank" rel="noopener noreferrer" class="ext-btn yt">▶ YouTube: 古戦場 編成</a>
     </div>
 
     <nav class="tabs">
@@ -201,6 +215,7 @@
                             <th>肉消費/h</th>
                             <th>肉1個の貢献度</th>
                             <th style="width:46px;text-align:center;font-size:0.78em;">リロ?</th>
+                            <th style="width:46px;text-align:center;font-size:0.78em;" title="理想タイム+10%のランキングエントリを追加">サボ?</th>
                             <th style="width:50px"></th>
                         </tr>
                     </thead>
@@ -347,16 +362,18 @@ let killTimes = {};
 try { killTimes = JSON.parse(localStorage.getItem('gbf_kj_times') || '{}'); } catch(e){}
 let killTimes2 = {};
 let reloadEnabled = new Set();
+let saboEnabled = new Set();
 try {
     const r = JSON.parse(localStorage.getItem('gbf_kj_reload') || '{}');
     killTimes2 = r.times || {};
     reloadEnabled = new Set(r.enabled || []);
+    saboEnabled = new Set(r.sabo || []);
 } catch(e){}
 let baseDiffId = null;
 let fineMode = false;
 
 function saveReloadState() {
-    localStorage.setItem('gbf_kj_reload', JSON.stringify({ times: killTimes2, enabled: [...reloadEnabled] }));
+    localStorage.setItem('gbf_kj_reload', JSON.stringify({ times: killTimes2, enabled: [...reloadEnabled], sabo: [...saboEnabled] }));
 }
 
 // ── ユーティリティ ──
@@ -455,6 +472,7 @@ function buildEffTable() {
             ? `<span style="color:#e0a060;font-weight:700">${meatPerH.toLocaleString()}</span><span style="color:#666;font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>`
             : '<span style="color:#444">─</span>';
         const isRelo = reloadEnabled.has(d.id);
+        const isSabo = saboEnabled.has(d.id);
         const saved2 = killTimes2[d.id] ?? null;
         const savedMin2 = saved2 != null ? Math.floor(saved2 / 60) : null;
         const savedSec2 = saved2 != null ? Math.round((saved2 % 60) / 5) * 5 % 60 : 0;
@@ -477,6 +495,7 @@ function buildEffTable() {
             <td id="mph-${d.id}">${meatPerHStr}</td>
             <td style="color:#777;font-size:0.84em">${meatLabel(d)}</td>
             <td style="text-align:center"><input type="checkbox" class="relo-chk" data-id="${d.id}" ${isRelo ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:#64b5f6;"></td>
+            <td style="text-align:center"><input type="checkbox" class="sabo-chk" data-id="${d.id}" ${isSabo ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:#ff9800;" title="理想タイム+10%のエントリをランキングに追加"></td>
             <td><button class="base-btn" data-id="${d.id}">基準</button></td>
         `;
         tbody.appendChild(tr);
@@ -539,6 +558,15 @@ function buildEffTable() {
         });
     });
 
+    tbody.querySelectorAll('.sabo-chk').forEach(chk => {
+        chk.addEventListener('change', e => {
+            const id = e.target.dataset.id;
+            if (e.target.checked) saboEnabled.add(id); else saboEnabled.delete(id);
+            saveReloadState();
+            updateEffView();
+        });
+    });
+
     tbody.querySelectorAll('.base-btn').forEach(btn => {
         btn.addEventListener('click', e => {
             const id = e.target.dataset.id;
@@ -589,9 +617,14 @@ function updateEffView() {
     const ranked = DIFFS
         .filter(d => killTimes[d.id])
         .flatMap(d => {
-            const entries = [{ d, perH: Math.round(d.contrib / killTimes[d.id] * 3600), isRelo: false }];
+            const entries = [{ d, perH: Math.round(d.contrib / killTimes[d.id] * 3600), isRelo: false, isSabo: false }];
             if (reloadEnabled.has(d.id) && killTimes2[d.id]) {
-                entries.push({ d, perH: Math.round(d.contrib / killTimes2[d.id] * 3600), isRelo: true });
+                entries.push({ d, perH: Math.round(d.contrib / killTimes2[d.id] * 3600), isRelo: true, isSabo: false });
+            }
+            if (saboEnabled.has(d.id)) {
+                // 理想タイム（リロ後があればリロ後）の +10% で追加エントリ
+                const baseT = (reloadEnabled.has(d.id) && killTimes2[d.id]) ? killTimes2[d.id] : killTimes[d.id];
+                entries.push({ d, perH: Math.round(d.contrib / (baseT * 1.1) * 3600), isRelo: false, isSabo: true });
             }
             return entries;
         })
@@ -606,7 +639,7 @@ function updateEffView() {
             const rc = i < 3 ? ` r${i+1}` : '';
             return `<div class="rank-item">
                 <span class="rank-num${rc}">${i+1}</span>
-                <span class="rank-name ${diffClass(r.d)}">${r.d.name}${r.isRelo ? '<span style="color:#64b5f6;font-size:0.72em;margin-left:4px;">リロ</span>' : ''}</span>
+                <span class="rank-name ${diffClass(r.d)}">${r.d.name}${r.isRelo ? '<span style="color:#64b5f6;font-size:0.72em;margin-left:4px;">リロ</span>' : r.isSabo ? '<span style="color:#ff9800;font-size:0.72em;margin-left:4px;">サボ</span>' : ''}</span>
                 <span class="rank-val">${fmtC(r.perH)}/h</span>
                 <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill ${barClass(i, ranked.length)}" style="width:${pct}%"></div></div></div>
                 <span class="rank-pct">${pct}%</span>
