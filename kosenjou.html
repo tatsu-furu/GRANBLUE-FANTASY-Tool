@@ -432,14 +432,14 @@ function setupTargetInputs() {
     document.getElementById('t-goal').innerHTML = buildContribOpts(false);
     document.getElementById('t-cur').innerHTML  = buildContribOpts(true);
 
-    // 残り日数: 0〜24日
+    // 残り日数: 0〜4日
     let daysHtml = '';
-    for (let d = 0; d <= 24; d++) daysHtml += `<option value="${d}">${d}日</option>`;
+    for (let d = 0; d <= 4; d++) daysHtml += `<option value="${d}">${d}日</option>`;
     document.getElementById('t-days').innerHTML = daysHtml;
 
-    // 残り時間: 7〜24時間
+    // 残り時間: 1〜24時間
     let hoursHtml = '';
-    for (let h = 7; h <= 24; h++) hoursHtml += `<option value="${h}">${h}時間</option>`;
+    for (let h = 1; h <= 24; h++) hoursHtml += `<option value="${h}">${h}時間</option>`;
     document.getElementById('t-hours').innerHTML = hoursHtml;
 
     ['t-goal','t-cur','t-days','t-hours'].forEach(id =>
