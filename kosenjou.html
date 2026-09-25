@@ -122,9 +122,57 @@
 <div class="container">
     <header>
         <a href="index.html" class="back-link">← TOPに戻る</a>
-        <h1>⚔️ 古戦場 効率計算ツール</h1>
-        <p>討伐効率比較 / 目標計算 / 肉計算</p>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div>
+                <h1>⚔️ 古戦場 効率計算ツール</h1>
+                <p>討伐効率比較 / 目標計算 / 肉計算</p>
+            </div>
+            <button id="help-open-btn" style="padding:6px 14px;background:transparent;border:1px solid #555;color:#aaa;border-radius:6px;cursor:pointer;font-size:0.82em;white-space:nowrap;transition:all 0.15s;" onmouseover="this.style.borderColor='#ffb400';this.style.color='#ffb400'" onmouseout="this.style.borderColor='#555';this.style.color='#aaa'">？ 使い方</button>
+        </div>
     </header>
+
+    <!-- ===== 使い方ドロワー ===== -->
+    <div id="help-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:8000;" onclick="closeHelp()"></div>
+    <div id="help-drawer" style="position:fixed;top:0;right:0;height:100%;width:min(360px,92vw);background:#1a1d23;border-left:1px solid #333;z-index:8001;transform:translateX(100%);transition:transform 0.25s ease;overflow-y:auto;padding:24px 20px 60px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid #333;padding-bottom:14px;">
+            <span style="color:#ffb400;font-weight:700;font-size:1em;">📖 使い方</span>
+            <button onclick="closeHelp()" style="background:none;border:none;color:#777;font-size:1.2em;cursor:pointer;padding:4px 8px;line-height:1;">✕</button>
+        </div>
+
+        <div style="font-size:0.85em;line-height:1.75;color:#ccc;">
+
+            <p style="color:#ffb400;font-weight:700;border-left:3px solid #ffb400;padding-left:8px;margin-bottom:10px;">📊 討伐効率タブ</p>
+            <p style="margin-bottom:8px;">各難易度の <strong style="color:#e0e0e0;">討伐時間</strong> を入力すると、貢献度/時間（効率）と肉消費ペースを自動計算します。</p>
+            <ul style="padding-left:16px;margin-bottom:14px;display:flex;flex-direction:column;gap:5px;">
+                <li><strong style="color:#e0e0e0;">分セレクト＋秒セレクト</strong> で時間入力。「1秒単位で入力」チェックで秒を自由入力に切替</li>
+                <li><strong style="color:#e0e0e0;">肉消費/h</strong> はチャンク数を考慮した実消費量（例: 100HELL = 周回数 × 20チャンク）</li>
+                <li><strong style="color:#e0e0e0;">リロ?</strong> チェックで「リロ後」の討伐時間を追加入力。演出スキップ後の実効率をランキングに反映</li>
+                <li><strong style="color:#e0e0e0;">基準ボタン</strong> を押すと、その難易度の効率に並ぶために他の難易度で必要な討伐時間を表示</li>
+            </ul>
+
+            <p style="color:#ffb400;font-weight:700;border-left:3px solid #ffb400;padding-left:8px;margin-bottom:10px;">🎯 目標計算タブ</p>
+            <p style="margin-bottom:8px;">目標貢献度と現在の貢献度を選択すると、各難易度の <strong style="color:#e0e0e0;">必要回数・必要肉数</strong> を一覧表示します。</p>
+            <ul style="padding-left:16px;margin-bottom:14px;display:flex;flex-direction:column;gap:5px;">
+                <li>必要肉数はチャンク数込みの実消費数を表示</li>
+                <li><strong style="color:#e0e0e0;">残り時間</strong>（日数+時間）を入力すると時間内に達成できるか判定表示</li>
+                <li>討伐効率タブで時間入力済みの難易度は所要時間も表示</li>
+            </ul>
+
+            <p style="color:#ffb400;font-weight:700;border-left:3px solid #ffb400;padding-left:8px;margin-bottom:10px;">🥩 肉計算タブ</p>
+            <p style="margin-bottom:8px;">所持リソースを入力すると、全投入時の貢献度を試算します。</p>
+            <ul style="padding-left:16px;margin-bottom:14px;display:flex;flex-direction:column;gap:5px;">
+                <li><strong style="color:#e0e0e0;">通常肉</strong>: HELL90〜200に使う素材</li>
+                <li><strong style="color:#e0e0e0;">250専用素材</strong>: 250HELL自発に使用。余った分は最大500個まで通常肉2個に変換可</li>
+                <li><strong style="color:#e0e0e0;">250HELL回数</strong>: 専用素材を使う予定の回数を入力すると残り素材の変換量を計算</li>
+                <li>合計期待貢献度は250HELLと通常肉を合計した上限値</li>
+            </ul>
+
+            <div style="background:#0d0f14;border-radius:6px;padding:12px;font-size:0.82em;color:#888;line-height:1.65;">
+                💡 討伐時間はブラウザに自動保存されます。<br>
+                同じブラウザ・同じデバイスなら次回も引き継がれます。
+            </div>
+        </div>
+    </div>
 
     <nav class="tabs">
         <button class="tab-btn active" data-tab="efficiency">📊 討伐効率</button>
@@ -788,6 +836,17 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     });
 });
+
+// ── 使い方ドロワー ──
+function openHelp() {
+    document.getElementById('help-overlay').style.display = 'block';
+    document.getElementById('help-drawer').style.transform = 'translateX(0)';
+}
+function closeHelp() {
+    document.getElementById('help-overlay').style.display = 'none';
+    document.getElementById('help-drawer').style.transform = 'translateX(100%)';
+}
+document.getElementById('help-open-btn').addEventListener('click', openHelp);
 
 // ── 初期化 ──
 buildEffTable();
