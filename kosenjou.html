@@ -161,13 +161,11 @@
             <div class="card-title">目標貢献度の設定</div>
             <div class="frow">
                 <label>目標貢献度</label>
-                <input type="text" id="t-goal" placeholder="200000000">
-                <span id="t-goal-disp" class="unit"></span>
+                <select id="t-goal" class="time-sel" style="width:120px"></select>
             </div>
             <div class="frow">
                 <label>現在の貢献度</label>
-                <input type="text" id="t-cur" placeholder="0">
-                <span id="t-cur-disp" class="unit"></span>
+                <select id="t-cur" class="time-sel" style="width:120px"></select>
             </div>
             <div id="t-remain-box" style="display:none;" class="sum-box">
                 <div class="sum-label">残り必要貢献度</div>
@@ -177,10 +175,8 @@
                 <div class="note" style="margin-bottom:8px;">残りイベント時間（任意）</div>
                 <div class="frow" style="margin-bottom:0;">
                     <label>残り時間</label>
-                    <input type="number" id="t-hours" placeholder="時間" min="0" max="99" style="max-width:70px;">
-                    <span class="unit">時間</span>
-                    <input type="number" id="t-mins" placeholder="分" min="0" max="59" style="max-width:70px;">
-                    <span class="unit">分</span>
+                    <select id="t-days" class="time-sel"></select>
+                    <select id="t-hours" class="time-sel"></select>
                 </div>
             </div>
         </div>
@@ -423,27 +419,41 @@ function updateEffView() {
 }
 
 // ── Tab 2: 目標計算 ──
+function buildContribOpts(includeZero) {
+    let html = '';
+    if (includeZero) html += '<option value="0">0（なし）</option>';
+    for (let v = 5; v <= 200; v += 5) {
+        html += `<option value="${v * 100000000}">${v}億</option>`;
+    }
+    return html;
+}
+
 function setupTargetInputs() {
-    document.getElementById('t-goal').addEventListener('input', e => {
-        const n = parseC(e.target.value);
-        document.getElementById('t-goal-disp').textContent = n ? `(${fmtC(n)})` : '';
-        updateTargetView();
-    });
-    document.getElementById('t-cur').addEventListener('input', e => {
-        const n = parseC(e.target.value);
-        document.getElementById('t-cur-disp').textContent = n ? `(${fmtC(n)})` : '';
-        updateTargetView();
-    });
-    ['t-hours','t-mins'].forEach(id => document.getElementById(id).addEventListener('input', updateTargetView));
+    document.getElementById('t-goal').innerHTML = buildContribOpts(false);
+    document.getElementById('t-cur').innerHTML  = buildContribOpts(true);
+
+    // 残り日数: 0〜24日
+    let daysHtml = '';
+    for (let d = 0; d <= 24; d++) daysHtml += `<option value="${d}">${d}日</option>`;
+    document.getElementById('t-days').innerHTML = daysHtml;
+
+    // 残り時間: 7〜24時間
+    let hoursHtml = '';
+    for (let h = 7; h <= 24; h++) hoursHtml += `<option value="${h}">${h}時間</option>`;
+    document.getElementById('t-hours').innerHTML = hoursHtml;
+
+    ['t-goal','t-cur','t-days','t-hours'].forEach(id =>
+        document.getElementById(id).addEventListener('change', updateTargetView)
+    );
 }
 
 function updateTargetView() {
-    const goal = parseC(document.getElementById('t-goal').value);
-    const cur  = parseC(document.getElementById('t-cur').value) || 0;
+    const goal = parseInt(document.getElementById('t-goal').value) || 0;
+    const cur  = parseInt(document.getElementById('t-cur').value)  || 0;
     const remBox = document.getElementById('t-remain-box');
     const wrap   = document.getElementById('t-table-wrap');
 
-    if (!goal) { remBox.style.display = 'none'; wrap.innerHTML = '<div class="no-data">目標貢献度を入力してください</div>'; return; }
+    if (!goal) { remBox.style.display = 'none'; wrap.innerHTML = '<div class="no-data">目標貢献度を選択してください</div>'; return; }
 
     const needed = Math.max(0, goal - cur);
     remBox.style.display = 'block';
@@ -451,8 +461,9 @@ function updateTargetView() {
 
     if (needed === 0) { wrap.innerHTML = '<div style="color:#4caf50;font-weight:700;padding:16px;text-align:center">🎉 目標達成済み！</div>'; return; }
 
-    const remSec = (parseInt(document.getElementById('t-hours').value) || 0) * 3600
-                 + (parseInt(document.getElementById('t-mins').value) || 0) * 60;
+    const remDays  = parseInt(document.getElementById('t-days').value)  || 0;
+    const remHours = parseInt(document.getElementById('t-hours').value) || 0;
+    const remSec   = (remDays * 24 + remHours) * 3600;
 
     const hasTime = remSec > 0;
     let html = `<div style="overflow-x:auto"><table class="data-table"><thead><tr>
