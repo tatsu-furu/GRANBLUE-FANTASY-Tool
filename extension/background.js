@@ -1,22 +1,33 @@
 // GBF Tool Split View — background service worker
 
+const TAG = '[GBF-ext]';
+
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
     if (message.action === 'ping') {
-        sendResponse({ installed: true, version: chrome.runtime.getManifest().version });
+        const v = chrome.runtime.getManifest().version;
+        console.log(TAG, 'ping from', sender.tab?.url, '→ v' + v);
+        sendResponse({ installed: true, version: v });
         return;
     }
     if (message.action === 'openSplit' && message.url) {
+        console.log(TAG, 'openSplit request:', message.url, 'from tab', sender.tab?.id);
         handleOpenSplit(message.url, sender.tab)
-            .then(() => sendResponse({ success: true }))
-            .catch(e => sendResponse({ success: false, error: e.message }));
+            .then(() => {
+                console.log(TAG, 'openSplit success');
+                sendResponse({ success: true });
+            })
+            .catch(e => {
+                console.error(TAG, 'openSplit error:', e.message);
+                sendResponse({ success: false, error: e.message });
+            });
         return true; // async response
     }
 });
 
 async function handleOpenSplit(url, senderTab) {
-    // Chrome 155+ では chrome.tabs.create の splitWithTabId オプションが使える
-    // それ以前は2ウィンドウを左右に並べるフォールバック
-    if (hasSplitTabsApi()) {
+    const useSplitApi = hasSplitTabsApi();
+    console.log(TAG, 'Chrome Split Tab API available:', useSplitApi);
+    if (useSplitApi) {
         await chrome.tabs.create({
             url: url,
             splitWithTabId: senderTab.id,

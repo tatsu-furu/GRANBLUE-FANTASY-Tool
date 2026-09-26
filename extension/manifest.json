@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GBF Tool Split View",
-  "version": "2.0",
+  "version": "2.2",
   "description": "グラブルツールサイトで攻略サイトを内蔵ブラウザ / Chrome Split Viewで横並び表示する拡張機能",
   "permissions": ["tabs", "windows", "declarativeNetRequest"],
   "host_permissions": [
@@ -29,6 +29,13 @@
       "path": "rules.json"
     }]
   },
+  "content_scripts": [{
+    "matches": ["*://*.gamewith.jp/*"],
+    "js": ["anti-framebust.js"],
+    "run_at": "document_start",
+    "world": "MAIN",
+    "all_frames": true
+  }],
   "action": {
     "default_title": "GBF Tool Split View"
   }

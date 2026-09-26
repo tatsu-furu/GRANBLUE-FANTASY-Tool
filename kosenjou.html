@@ -377,6 +377,14 @@
             white-space: nowrap;
         }
         #ext-pane-close:hover { color: #d08080; border-color: var(--danger); }
+        #yt-search-ui {
+            display: none;
+            padding: 12px 14px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        #yt-search-ui input { flex: 1; }
         #ext-iframe {
             flex: 1;
             border: none;
@@ -539,7 +547,7 @@
         </div>
         <div class="ext-links">
             <button class="ext-btn site-btn" data-site="gamewith"
-                data-url="https://xn--bck3aza1a2if6kra4ee0hf.gamewith.jp/article/show/28687">GameWith 攻略</button>
+                data-url="https://granbluefantasy.gamewith.jp/">GameWith 攻略</button>
             <button class="ext-btn site-btn" data-site="kamigame"
                 data-url="https://kamigame.jp/%E3%82%B0%E3%83%A9%E3%83%96%E3%83%AB/%E6%B1%BA%E6%88%A6%EF%BC%81%E6%98%9F%E3%81%AE%E5%8F%A4%E6%88%A6%E5%A0%B4/index.html">神ゲー攻略</button>
             <button class="ext-btn site-btn yt" data-site="youtube"
@@ -712,8 +720,17 @@
         <button class="epane-tab" data-site="youtube">YouTube</button>
         <button id="ext-pane-close">✕ 閉じる</button>
     </div>
+    <div id="yt-search-ui">
+        <p class="note">YouTube全体はiframe非対応のため、動画URLを直接入力して再生します。</p>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+            <input type="text" id="yt-url-input" placeholder="https://youtu.be/XXXX  または  watch?v=XXXX">
+            <button id="yt-load-btn" class="base-btn" style="padding:5px 12px;white-space:nowrap;">再生</button>
+        </div>
+        <div id="yt-url-hint" class="note" style="margin-top:6px;min-height:1em;"></div>
+    </div>
     <iframe id="ext-iframe" src="about:blank"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowfullscreen></iframe>
 </div>
 </div><!-- /split-root -->
 
@@ -1318,7 +1335,7 @@ document.getElementById('fine-mode-chk').addEventListener('change', e => {
 const SPLIT_EXT_ID = 'opopjkaffljjchnlebamdafafbclljcn';
 
 const SITES = [
-    { id: 'gamewith', label: 'GameWith', url: 'https://xn--bck3aza1a2if6kra4ee0hf.gamewith.jp/article/show/28687' },
+    { id: 'gamewith', label: 'GameWith', url: 'https://granbluefantasy.gamewith.jp/' },
     { id: 'kamigame', label: '神ゲー',   url: 'https://kamigame.jp/%E3%82%B0%E3%83%A9%E3%83%96%E3%83%AB/%E6%B1%BA%E6%88%A6%EF%BC%81%E6%98%9F%E3%81%AE%E5%8F%A4%E6%88%A6%E5%A0%B4/index.html' },
     { id: 'youtube',  label: 'YouTube',  url: 'https://www.youtube.com/results?search_query=%E5%8F%A4%E6%88%A6%E5%A0%B4+%E7%B7%A8%E6%88%90' }
 ];
@@ -1343,7 +1360,10 @@ function openSite(url, siteId) {
     } else if (currentMode === 'split') {
         if (extInstalled) {
             chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'openSplit', url }, r => {
-                if (chrome.runtime.lastError || !r?.success) openInternal(url, siteId);
+                if (chrome.runtime.lastError || !r?.success) {
+                    console.log('[GBF Tool] Split View失敗 → 内部ブラウザにフォールバック');
+                    openInternal(url, siteId);
+                }
             });
         } else {
             openInternal(url, siteId);
@@ -1354,7 +1374,6 @@ function openSite(url, siteId) {
 }
 
 function openInternal(url, siteId) {
-    document.getElementById('ext-iframe').src = url;
     document.body.classList.add('split-active');
     if (siteId) {
         currentSiteId = siteId;
@@ -1362,12 +1381,73 @@ function openInternal(url, siteId) {
             t.classList.toggle('active', t.dataset.site === siteId)
         );
     }
+
+    const ytUi = document.getElementById('yt-search-ui');
+    const iframe = document.getElementById('ext-iframe');
+
+    if (siteId === 'youtube') {
+        // YouTubeはiframe非対応 → 動画URL入力UIを表示
+        ytUi.style.display = 'block';
+        iframe.src = 'about:blank';
+        console.log('[GBF Tool] YouTube: embed UI表示');
+    } else {
+        ytUi.style.display = 'none';
+        console.log('[GBF Tool] iframe読み込み:', url);
+        iframe.src = url;
+    }
 }
 
 function closeInternal() {
     document.body.classList.remove('split-active');
     document.getElementById('ext-iframe').src = 'about:blank';
+    document.getElementById('yt-search-ui').style.display = 'none';
 }
+
+// YouTube URL → VIDEO_ID
+function extractYouTubeId(input) {
+    input = (input || '').trim();
+    const patterns = [
+        /youtu\.be\/([A-Za-z0-9_\-]{11})/,
+        /[?&]v=([A-Za-z0-9_\-]{11})/,
+        /youtube\.com\/embed\/([A-Za-z0-9_\-]{11})/,
+        /^([A-Za-z0-9_\-]{11})$/
+    ];
+    for (const p of patterns) {
+        const m = input.match(p);
+        if (m) return m[1];
+    }
+    return null;
+}
+
+document.getElementById('yt-load-btn').addEventListener('click', () => {
+    const input = document.getElementById('yt-url-input').value;
+    const videoId = extractYouTubeId(input);
+    const hint = document.getElementById('yt-url-hint');
+    if (!videoId) {
+        hint.textContent = 'URLからビデオIDを取得できませんでした';
+        hint.style.color = 'var(--danger)';
+        return;
+    }
+    hint.textContent = 'VIDEO_ID: ' + videoId;
+    hint.style.color = 'var(--text-3)';
+    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+    document.getElementById('yt-search-ui').style.display = 'none';
+    const iframe = document.getElementById('ext-iframe');
+    iframe.src = embedUrl;
+    console.log('[GBF Tool] YouTube embed:', embedUrl);
+});
+
+document.getElementById('yt-url-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('yt-load-btn').click();
+});
+
+// iframe load event (デバッグ用)
+document.getElementById('ext-iframe').addEventListener('load', () => {
+    const src = document.getElementById('ext-iframe').src;
+    if (src && src !== 'about:blank') {
+        console.log('[GBF Tool] iframe load完了:', src);
+    }
+});
 
 // ドラッグリサイズ
 (function () {
@@ -1416,7 +1496,12 @@ document.getElementById('ext-pane-close').addEventListener('click', closeInterna
 // 拡張機能チェック → 初期モード適用
 if (window.chrome?.runtime && SPLIT_EXT_ID) {
     chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'ping' }, resp => {
-        if (!chrome.runtime.lastError && resp?.installed) extInstalled = true;
+        if (!chrome.runtime.lastError && resp?.installed) {
+            extInstalled = true;
+            console.log('[GBF Tool] 拡張機能検出 v' + resp.version);
+        } else {
+            console.log('[GBF Tool] 拡張機能なし (Split View → 内部ブラウザへフォールバック)');
+        }
         applyMode(currentMode);
     });
 } else {
