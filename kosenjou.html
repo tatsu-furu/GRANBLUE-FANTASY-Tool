@@ -274,6 +274,37 @@
         }
         .ext-btn:hover { border-color: var(--accent); color: var(--accent); }
         .ext-btn.yt:hover { border-color: #c04040; color: #e07070; }
+        .ext-btn { cursor: pointer; font-family: inherit; }
+        .ext-hint { font-size: 0.72em; color: var(--text-3); align-self: center; }
+
+        /* ===== 神ゲー攻略 横並びレイアウト ===== */
+        #split-root { display: flex; height: 100vh; overflow: hidden; }
+        #main-pane { flex: 1; overflow-y: auto; min-width: 0; }
+        #split-divider {
+            display: none; width: 5px; background: var(--border);
+            cursor: col-resize; flex-shrink: 0; transition: background 0.15s; z-index: 10;
+        }
+        #split-divider:hover, #split-divider.dragging { background: var(--accent-lo); }
+        #ext-pane {
+            display: none; flex-direction: column; min-width: 280px;
+            overflow: hidden; background: var(--bg); flex-shrink: 0;
+        }
+        body.split-active { overflow: hidden; }
+        body.split-active #split-divider, body.split-active #ext-pane { display: flex; }
+        body.split-active .container { max-width: none; }
+        #ext-pane-bar {
+            display: flex; align-items: center; gap: 5px; padding: 5px 8px;
+            background: var(--surface-2); border-bottom: 1px solid var(--border);
+            flex-shrink: 0; font-size: 0.8em; color: var(--text-2);
+        }
+        #ext-pane-close {
+            margin-left: auto; font-size: 0.75em; padding: 3px 8px;
+            border: 1px solid var(--border); border-radius: 3px;
+            background: transparent; color: var(--text-3); cursor: pointer;
+            font-family: inherit;
+        }
+        #ext-pane-close:hover { color: #d08080; border-color: #a84040; }
+        #ext-iframe { flex: 1; border: none; width: 100%; background: var(--surface); }
 
         @media (max-width: 600px) {
             .data-table { font-size: 0.74em; }
@@ -286,6 +317,8 @@
     </style>
 </head>
 <body>
+<div id="split-root">
+<div id="main-pane">
 <div class="container">
     <header>
         <a href="index.html" class="back-link">← TOPに戻る</a>
@@ -419,9 +452,13 @@
     </div>
 
     <div class="ext-links">
-        <a href="https://xn--bck3aza1a2if6kra4ee0hf.gamewith.jp/article/show/28687" target="_blank" rel="noopener noreferrer" class="ext-btn">GameWith 攻略</a>
-        <a href="https://kamigame.jp/%E3%82%B0%E3%83%A9%E3%83%96%E3%83%AB/%E6%B1%BA%E6%88%A6%EF%BC%81%E6%98%9F%E3%81%AE%E5%8F%A4%E6%88%A6%E5%A0%B4/index.html" target="_blank" rel="noopener noreferrer" class="ext-btn">神ゲー攻略</a>
-        <a href="https://www.youtube.com/results?search_query=%E5%8F%A4%E6%88%A6%E5%A0%B4+%E7%B7%A8%E6%88%90" target="_blank" rel="noopener noreferrer" class="ext-btn yt">YouTube: 古戦場 編成</a>
+        <button class="ext-btn" id="kamigame-open-btn"
+            style="border-color:var(--accent-lo);color:var(--accent);">神ゲー攻略 ← 横に開く</button>
+        <a href="https://xn--bck3aza1a2if6kra4ee0hf.gamewith.jp/article/show/28687"
+            target="_blank" rel="noopener noreferrer" class="ext-btn">GameWith 攻略</a>
+        <a href="https://www.youtube.com/results?search_query=%E5%8F%A4%E6%88%A6%E5%A0%B4+%E7%B7%A8%E6%88%90"
+            target="_blank" rel="noopener noreferrer" class="ext-btn yt">YouTube: 古戦場 編成</a>
+        <span class="ext-hint">— GameWith / YouTube は拡張機能で横並び表示できます</span>
     </div>
 
     <nav class="tabs">
@@ -579,7 +616,17 @@
         </div>
         <p class="note" style="margin-top:10px;">※250自発素材1個 → 通常肉2個に変換可能（500回まで）</p>
     </details>
+</div><!-- /container -->
+</div><!-- /main-pane -->
+<div id="split-divider"></div>
+<div id="ext-pane">
+    <div id="ext-pane-bar">
+        神ゲー攻略
+        <button id="ext-pane-close">✕ 閉じる</button>
+    </div>
+    <iframe id="ext-iframe" src="about:blank"></iframe>
 </div>
+</div><!-- /split-root -->
 
 <script>
 const DIFFS = [
@@ -1175,6 +1222,38 @@ document.getElementById('fine-mode-chk').addEventListener('change', e => {
     updateTargetView();
     updateMeatView();
 });
+</script>
+
+<script>
+// ===== 神ゲー攻略 横並びパネル =====
+const KAMIGAME_URL = 'https://kamigame.jp/%E3%82%B0%E3%83%A9%E3%83%96%E3%83%AB/%E6%B1%BA%E6%88%A6%EF%BC%81%E6%98%9F%E3%81%AE%E5%8F%A4%E6%88%A6%E5%A0%B4/index.html';
+
+document.getElementById('kamigame-open-btn').addEventListener('click', () => {
+    document.getElementById('ext-iframe').src = KAMIGAME_URL;
+    document.body.classList.add('split-active');
+});
+
+document.getElementById('ext-pane-close').addEventListener('click', () => {
+    document.body.classList.remove('split-active');
+    document.getElementById('ext-iframe').src = 'about:blank';
+});
+
+// ドラッグリサイズ
+(function () {
+    const divider = document.getElementById('split-divider');
+    const extPane = document.getElementById('ext-pane');
+    let dragging = false, startX = 0, startW = 0;
+    divider.addEventListener('mousedown', e => {
+        dragging = true; startX = e.clientX; startW = extPane.offsetWidth;
+        divider.classList.add('dragging'); e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const newW = Math.max(280, Math.min(window.innerWidth * 0.7, startW + (startX - e.clientX)));
+        extPane.style.width = newW + 'px';
+    });
+    document.addEventListener('mouseup', () => { dragging = false; divider.classList.remove('dragging'); });
+})();
 </script>
 
 <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
