@@ -1,0 +1,38 @@
+{
+  "name": "gbf-damage-calc",
+  "private": true,
+  "version": "0.1.0",
+  "description": "グラブル ダメージ計算機（ベータ）: 編成画面のスクショからダメージ期待値を計算する非公式ファンツール",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ocr": "vitest run --config vitest.ocr.config.ts",
+    "fixtures:synthetic": "node scripts/make-synthetic-fixture.mjs"
+  },
+  "dependencies": {
+    "lz-string": "1.5.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tesseract.js": "5.1.1"
+  },
+  "devDependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
+    "@tesseract.js-data/jpn": "1.0.0",
+    "@types/node": "22.20.4",
+    "@types/pngjs": "6.0.5",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "jpeg-js": "0.4.4",
+    "playwright-core": "1.56.1",
+    "pngjs": "7.0.0",
+    "typescript": "5.9.3",
+    "vite": "5.4.21",
+    "vitest": "2.1.9"
+  }
+}

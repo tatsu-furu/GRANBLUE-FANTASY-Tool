@@ -1,0 +1,9 @@
+node_modules/
+.tess-cache/
+# ローカル検証用に置く tesseract の worker / core / 言語データ（VITE_TESS_BASE 用）
+public/tesseract-local/
+# 手元のスクショは公開しない（fixtures/synthetic/ の合成画像は対象外）
+fixtures/*.png
+fixtures/*.jpg
+fixtures/*.jpeg
+fixtures/*.webp

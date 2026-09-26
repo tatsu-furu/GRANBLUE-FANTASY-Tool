@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<!--
+  OCR パイプライン検証用の模擬パネル（ゲームの画像素材は使わず CSS とテキストだけで描く）。
+  実際のゲーム画面とはフォントや装飾が違うので、実スクショでの精度は fixtures/panel-001.png で確認する。
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0e1118; font-family: "IPAGothic", "IPAゴシック", "Noto Sans CJK JP", sans-serif; }
+  #panel {
+    width: 520px; padding: 14px 16px 18px; color: #f2f2ee; font-size: 17px;
+    background: linear-gradient(#1f2433, #181c28); border: 1px solid #3a4258;
+  }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 4px; }
+  .row .v { font-weight: bold; }
+  .green { color: #86e27a; }
+  .orange { color: #ffab3d; }
+  .enh { display: flex; gap: 18px; }
+  .heading {
+    margin: 12px 0 8px; padding: 5px 8px; font-weight: bold;
+    background: #2b3246; border-left: 4px solid #8aa0d8;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 26px; row-gap: 2px; }
+  .cell { display: flex; justify-content: space-between; padding: 5px 4px; border-bottom: 1px solid #2a3042; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <div class="row"><span>予測ダメージ</span><span class="v green">847,974</span></div>
+  <div class="row"><span>対土属性予測ダメージ</span><span class="v green">1,243,337</span></div>
+  <div class="row"><span>最大HP</span><span class="v">60,644</span></div>
+  <div class="row"><span>風属性スキルエンハンス</span><span class="enh"><span>20%</span><span>280%</span><span>0%</span></span></div>
+  <div class="heading">発動中の武器スキル</div>
+  <div class="grid">
+    <div class="cell"><span>攻刃</span><span>54%</span></div>
+    <div class="cell"><span>M攻刃</span><span>296%</span></div>
+    <div class="cell"><span>EX攻刃</span><span>56%</span></div>
+    <div class="cell"><span>EX攻刃(特殊)</span><span>40%</span></div>
+    <div class="cell"><span>M渾身</span><span>72.31%</span></div>
+    <div class="cell"><span>DA確率</span><span>15%</span></div>
+    <div class="cell"><span>TA確率</span><span>10%</span></div>
+    <div class="cell"><span>嵐竜方陣</span><span>60%</span></div>
+    <div class="cell"><span>HP</span><span>145%</span></div>
+    <div class="cell"><span>防御</span><span>25%</span></div>
+    <div class="cell"><span>D上限</span><span class="orange">20%</span></div>
+    <div class="cell"><span>M与ダメ</span><span>7.6%</span></div>
+    <div class="cell"><span>対有利与ダメ</span><span>25%</span></div>
+    <div class="cell"><span>通常D上限</span><span>10%</span></div>
+    <div class="cell"><span>アビD上限</span><span>91.8%</span></div>
+    <div class="cell"><span>奥義D</span><span>10%</span></div>
+    <div class="cell"><span>奥義D上限</span><span>5%</span></div>
+    <div class="cell"><span>与ダメージ</span><span>+50000</span></div>
+    <div class="cell"><span>アビ与ダメ</span><span>+190000</span></div>
+    <div class="cell"><span>奥義ゲージ上昇量</span><span>-35%</span></div>
+  </div>
+</div>
+</body>
+</html>

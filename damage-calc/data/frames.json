@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "_doc": "攻撃力の枠。同じ枠の中は加算、枠同士は乗算。mode: additive = 1 + 合計、element = 1 + 属性相性 + 合計、each = 補正1つごとに (1 + 値) を乗算。出典: https://gbf.wiki/Damage_Formula/Detailed_Damage_Formula",
+  "frames": [
+    { "id": "normal", "name": "通常攻刃", "group": "武器（通常）", "mode": "additive", "note": "攻刃・攻撃UPバフ・攻撃DOWN（マイナス値）" },
+    { "id": "normal_enmity", "name": "通常背水", "group": "武器（通常）", "mode": "additive" },
+    { "id": "normal_stamina", "name": "通常渾身", "group": "武器（通常）", "mode": "additive" },
+    { "id": "magna", "name": "マグナ攻刃", "group": "武器（マグナ）", "mode": "additive" },
+    { "id": "magna_enmity", "name": "マグナ背水", "group": "武器（マグナ）", "mode": "additive" },
+    { "id": "magna_stamina", "name": "マグナ渾身", "group": "武器（マグナ）", "mode": "additive" },
+    { "id": "ex", "name": "EX攻刃", "group": "武器（EX）", "mode": "additive", "note": "EX攻刃・EX攻刃(特殊)" },
+    { "id": "ex_enmity", "name": "EX背水", "group": "武器（EX）", "mode": "additive" },
+    { "id": "ex_stamina", "name": "EX渾身", "group": "武器（EX）", "mode": "additive" },
+    { "id": "k_series", "name": "K系攻刃", "group": "武器（その他）", "mode": "additive", "note": "K エンハンス対象の攻刃" },
+    { "id": "element", "name": "属性", "group": "属性", "mode": "element", "note": "有利 +50% / 不利 -25% + 属性加護 + 属性攻撃UP" },
+    { "id": "char_enmity", "name": "キャラ背水", "group": "キャラ", "mode": "additive", "note": "EMP・指輪・バフ" },
+    { "id": "char_stamina", "name": "キャラ渾身", "group": "キャラ", "mode": "additive", "note": "EMP・指輪・バフ" },
+    { "id": "perpetuity", "name": "永続枠", "group": "キャラ", "mode": "additive" },
+    { "id": "unique_stackable", "name": "累積独自枠", "group": "バフ", "mode": "additive" },
+    { "id": "unique", "name": "別枠（1つごとに乗算）", "group": "バフ", "mode": "each" },
+    { "id": "crew", "name": "団スキル", "group": "騎空団", "mode": "additive" },
+    { "id": "crew_ship", "name": "騎空艇", "group": "騎空団", "mode": "additive" },
+    { "id": "atk_down", "name": "攻撃DOWN（別枠）", "group": "デバフ", "mode": "additive", "note": "値はマイナスで入力" }
+  ],
+  "elementRelation": {
+    "_doc": "属性枠に足す相性補正(%)",
+    "advantage": 50,
+    "neutral": 0,
+    "disadvantage": -25
+  }
+}

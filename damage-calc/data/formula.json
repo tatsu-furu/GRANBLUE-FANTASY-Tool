@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "_doc": "減衰表・枠・項目名以外の計算定数。出典: https://gbf.wiki/Damage_Formula, https://gbf.wiki/Damage_Formula/Detailed_Damage_Formula",
+  "random": {
+    "_doc": "乱数は減衰の前に掛かる。0.95〜1.05 を 0.01 刻みで等確率とみなす",
+    "min": 0.95,
+    "max": 1.05,
+    "step": 0.01
+  },
+  "defense": {
+    "_doc": "実効防御 = 基礎防御 × (1 + 防御UP − 防御DOWN − 特殊防御DOWN)。差し引きの下限(%)",
+    "floor": -50,
+    "floorWithUnique": -60,
+    "presets": [10, 15, 20]
+  },
+  "estimate": {
+    "_doc": "パネルの予測ダメージの前提: 防御10・通常攻撃1回・戦闘中バフなし",
+    "def": 10,
+    "random": 1.0
+  },
+  "critical": {
+    "_doc": "クリティカル倍率は減衰の前に掛かる。複数行は独立に判定し、発生した行の倍率を加算する（未確定）",
+    "requiresAdvantage": true,
+    "defaultCanCrit": { "normal": true, "ca": false, "skill": true }
+  },
+  "postCap": {
+    "_doc": "減衰後の補正。suppAmplifiedBy: 与ダメ上昇が増幅される与ダメUPの種類（seraphic = 天司系、other = その他）。suppBeforeSpecialCap: 与ダメ上昇を特殊上限の前に足すか",
+    "normal": { "suppAmplifiedBy": [], "suppBeforeSpecialCap": false },
+    "ca": { "suppAmplifiedBy": ["seraphic", "other"], "suppBeforeSpecialCap": true },
+    "skill": { "suppAmplifiedBy": ["seraphic", "other"], "suppBeforeSpecialCap": true }
+  },
+  "attackDefaults": {
+    "caMultiplier": 450,
+    "skillMultiplier": 500
+  },
+  "marginalStep": 10
+}

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "_doc": "減衰（ソフトキャップ）の区分線形テーブル。thresholds は減衰前ダメージの閾値、reductions は各区間の減衰率(%)で thresholds より1つ多い。出典: https://gbf.wiki/Damage_Cap (CC BY-NC-SA 4.0)",
+  "tables": {
+    "normal": {
+      "name": "通常攻撃",
+      "attackType": "normal",
+      "thresholds": [300000, 400000, 500000, 600000],
+      "reductions": [0, 20, 40, 95, 99],
+      "source": "https://gbf.wiki/Damage_Cap"
+    },
+    "normal_assassin": {
+      "name": "通常攻撃（アサシン系バフ中）",
+      "attackType": "normal",
+      "thresholds": [1000000, 1200000, 1300000, 1500000],
+      "reductions": [0, 40, 70, 95, 99],
+      "source": "https://gbf.wiki/Damage_Cap"
+    },
+    "ca": {
+      "name": "奥義（標準）",
+      "attackType": "ca",
+      "thresholds": [1500000, 1700000, 1800000, 2500000],
+      "reductions": [0, 40, 70, 95, 99],
+      "source": "https://gbf.wiki/Damage_Cap"
+    },
+    "ca_high": {
+      "name": "奥義（5凸十天衆など）",
+      "attackType": "ca",
+      "thresholds": [1800000, 2000000, 2200000, 3000000],
+      "reductions": [0, 40, 70, 95, 99],
+      "source": "https://gbf.wiki/Damage_Cap"
+    }
+  },
+  "skillPresets": {
+    "_doc": "アビリティの減衰は技ごとに異なる。gbf.wiki の例をプリセットにする予定だが、開発環境から gbf.wiki を参照できず閾値・減衰率が未転記（thresholds/reductions が null の間は選択しても減衰表は空のまま）。倍率と上限の目安は gbf.wiki の検索結果から転記。",
+    "olivia_darker_than_dusk": {
+      "name": "Olivia「Darker than Dusk」",
+      "multiplier": 500,
+      "approxCap": 820000,
+      "thresholds": null,
+      "reductions": null,
+      "verified": false,
+      "testCase": { "input": 1000000, "expected": 820000 },
+      "source": "https://gbf.wiki/Damage_Cap"
+    },
+    "wilnas_hadron_smash": {
+      "name": "Wilnas「Hadron Smash」",
+      "multiplier": 1200,
+      "approxCap": 1300000,
+      "thresholds": null,
+      "reductions": null,
+      "verified": false,
+      "testCase": { "input": 1800000, "expected": 1305000 },
+      "source": "https://gbf.wiki/Damage_Cap"
+    }
+  },
+  "capUpLimits": {
+    "_doc": "武器スキル（スクショ由来）の上限UP合計の上限(%)。汎用 D上限 と種別上限UP を足した値に掛かる。バフ由来の上限UPには掛けない。",
+    "weapon": { "normal": 20, "ca": 100, "skill": 100 }
+  },
+  "skillExtraCap": {
+    "_doc": "倍率が maxMultiplier(%) 以下のアビは、減衰後にさらに追加減衰。倍率帯ごとに閾値1・2 を持ち、閾値1〜2 を cutBetween%、閾値2 以上を cutAbove% カット。倍率帯はアビダメUPを含まない素の倍率で決まる（gbf.wiki 検索結果より）。bands は未転記のため空で、その間は追加減衰を計算しない。",
+    "maxMultiplier": 600,
+    "cutBetween": 80,
+    "cutAbove": 99.9,
+    "scaleWithCapUp": true,
+    "verified": false,
+    "bands": []
+  },
+  "specialCaps": {
+    "_doc": "減衰後にかかるバトルごとの特殊上限。",
+    "none": { "name": "なし", "value": null },
+    "6.6M": { "name": "660万", "value": 6600000 },
+    "13.1M": { "name": "1310万", "value": 13100000 }
+  }
+}
