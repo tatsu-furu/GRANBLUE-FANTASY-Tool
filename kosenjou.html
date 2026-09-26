@@ -803,11 +803,13 @@
             <tr style="border-top:1px solid var(--border-hi)">
                 <td style="color:var(--accent);font-weight:700;" colspan="2">MODE B — chrome.debugger</td>
             </tr>
-            <tr><td>Parent tab attached</td>      <td id="d-dbg-parent" class="diag-na">—</td></tr>
-            <tr><td>GameWith iframe target</td>   <td id="d-dbg-gw-found" class="diag-na">—</td></tr>
-            <tr><td>GameWith sessionId</td>       <td id="d-dbg-gw-sid" class="diag-na">—</td></tr>
-            <tr><td>CSP bypass applied</td>       <td id="d-dbg-csp" class="diag-na">—</td></tr>
-            <tr><td>Attach error</td>             <td id="d-dbg-err" class="diag-na">—</td></tr>
+            <tr><td>Parent tab attached</td><td id="d-dbg-parent" class="diag-na">—</td></tr>
+            <tr><td>Attach error</td>       <td id="d-dbg-err" class="diag-na">—</td></tr>
+            <tr>
+                <td colspan="2" style="padding-top:5px;">
+                    <div id="d-dbg-targets" style="font-size:0.92em;"></div>
+                </td>
+            </tr>
         </table>
         <button id="diag-refresh-btn">再チェック</button>
     </div>
@@ -1643,10 +1645,55 @@ async function setDebuggerBypass(enable) {
 
 function clearDebuggerDiagRows() {
     setDiagRow('d-dbg-parent', '—', 'diag-na');
-    setDiagRow('d-dbg-gw-found', '—', 'diag-na');
-    setDiagRow('d-dbg-gw-sid', '—', 'diag-na');
-    setDiagRow('d-dbg-csp', '—', 'diag-na');
     setDiagRow('d-dbg-err', '—', 'diag-na');
+    const container = document.getElementById('d-dbg-targets');
+    if (container) container.innerHTML = '';
+}
+
+function renderDebugTargets(sessions) {
+    const container = document.getElementById('d-dbg-targets');
+    if (!container) return;
+    if (!sessions.length) {
+        container.innerHTML = '<div style="color:var(--text-3);padding:3px 0;">検出されたiframe target なし</div>';
+        return;
+    }
+
+    // Sort: GameWith first, then others
+    const sorted = [...sessions].sort((a, b) => (b.isGameWith ? 1 : 0) - (a.isGameWith ? 1 : 0));
+
+    container.innerHTML = sorted.map(s => {
+        const gwBorder = s.isGameWith ? 'var(--accent)' : 'var(--border)';
+        const gwBg     = s.isGameWith ? 'var(--accent-bg)' : 'transparent';
+        const gwLabel  = s.isGameWith ? '★ GameWith' : s.type;
+
+        let cspHtml = '';
+        if (s.isGameWith) {
+            if (s.cspApplied) {
+                cspHtml = `<div style="color:#70c070;">CSP bypass: SUCCESS</div>`;
+            } else if (s.cspError) {
+                cspHtml = `<div style="color:#e07070;">CSP bypass ERROR: ${escHtml(s.cspError)}</div>`;
+            } else {
+                cspHtml = `<div style="color:var(--text-3);">CSP bypass: 処理中…</div>`;
+            }
+        }
+
+        const urlText = s.url.length > 70 ? s.url.slice(0, 70) + '…' : s.url;
+
+        return `<div style="margin-bottom:5px;padding:5px 7px;border:1px solid ${gwBorder};border-radius:2px;background:${gwBg};">
+  <div style="display:flex;gap:8px;font-weight:${s.isGameWith ? 700 : 400};color:${s.isGameWith ? 'var(--accent)' : 'var(--text-2)'};">
+    <span>${escHtml(gwLabel)}</span>
+    <span style="color:var(--text-3);font-weight:400;font-size:0.9em;">sid: ${escHtml(s.sessionId)}</span>
+  </div>
+  <div style="color:var(--text-3);word-break:break-all;font-size:0.9em;">${escHtml(urlText)}</div>
+  ${s.title ? `<div style="color:var(--text-3);font-size:0.88em;">title: ${escHtml(s.title)}</div>` : ''}
+  <div style="color:var(--text-3);font-size:0.88em;">targetId: ${escHtml(s.targetId || '—')} | parent: ${escHtml(s.parentSession || '—')}</div>
+  ${cspHtml}
+</div>`;
+    }).join('');
+}
+
+function escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function refreshDiag() {
@@ -1717,50 +1764,13 @@ function refreshDiag() {
         // Debugger state (from MODE B)
         const dbg = resp?.debugInfo;
         if (dbg) {
-            // Parent attached
             setDiagRow('d-dbg-parent',
                 dbg.parentAttached ? 'YES' : 'NO',
                 dbg.parentAttached ? 'diag-ok' : 'diag-warn');
-
-            // GameWith iframe target detection
-            const gwSessions = (dbg.sessions || []).filter(s => s.isGameWith);
-            if (gwSessions.length > 0) {
-                setDiagRow('d-dbg-gw-found', `FOUND (${gwSessions.length}件)`, 'diag-ok');
-                // Show sessionId of first GameWith session
-                setDiagRow('d-dbg-gw-sid', gwSessions[0].sessionId, 'diag-ok');
-                // CSP applied
-                const allApplied = gwSessions.every(s => s.cspApplied);
-                const anyApplied = gwSessions.some(s => s.cspApplied);
-                if (allApplied) {
-                    setDiagRow('d-dbg-csp', `YES (全${gwSessions.length}件に適用)`, 'diag-ok');
-                } else if (anyApplied) {
-                    const cnt = gwSessions.filter(s => s.cspApplied).length;
-                    setDiagRow('d-dbg-csp', `部分適用 (${cnt}/${gwSessions.length})`, 'diag-warn');
-                } else {
-                    setDiagRow('d-dbg-csp', 'NO（適用失敗）', 'diag-err');
-                }
-                // Per-session errors
-                const errSessions = gwSessions.filter(s => s.error);
-                if (errSessions.length) {
-                    setDiagRow('d-dbg-err', errSessions[0].error, 'diag-err');
-                } else {
-                    setDiagRow('d-dbg-err', '—', 'diag-na');
-                }
-            } else if (dbg.parentAttached) {
-                setDiagRow('d-dbg-gw-found', 'NOT FOUND（OOPIFが検出されていない）', 'diag-warn');
-                setDiagRow('d-dbg-gw-sid', '—', 'diag-na');
-                setDiagRow('d-dbg-csp', '—（iframe target なし）', 'diag-na');
-                setDiagRow('d-dbg-err', dbg.error || '—', dbg.error ? 'diag-err' : 'diag-na');
-            } else {
-                clearDebuggerDiagRows();
-                if (dbg.error) setDiagRow('d-dbg-err', dbg.error, 'diag-err');
-            }
-
-            // Log all non-GameWith sessions for reference
-            const otherSessions = (dbg.sessions || []).filter(s => !s.isGameWith);
-            if (otherSessions.length) {
-                console.log('[GBF Tool] 他のiframe sessions:', otherSessions.map(s => s.url));
-            }
+            setDiagRow('d-dbg-err',
+                dbg.error || '—',
+                dbg.error ? 'diag-err' : 'diag-na');
+            renderDebugTargets(dbg.sessions || []);
         } else if (!debuggerBypassActive) {
             clearDebuggerDiagRows();
         }

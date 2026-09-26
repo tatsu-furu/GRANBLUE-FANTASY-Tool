@@ -60,12 +60,17 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
             parentAttached: dbgState.parentAttached,
             error: dbgState.error,
             sessions: [...(dbgState.sessions?.entries() || [])].map(([sid, s]) => ({
-                sessionId: sid.slice(0, 16) + (sid.length > 16 ? '…' : ''),
-                url: s.url,
-                type: s.type,
-                isGameWith: s.isGameWith,
-                cspApplied: s.cspApplied,
-                error: s.error || null
+                sessionId:     sid.slice(0, 16) + (sid.length > 16 ? '…' : ''),
+                url:           s.url,
+                type:          s.type,
+                title:         s.title,
+                targetId:      s.targetId,
+                parentSession: s.parentSessionId
+                    ? s.parentSessionId.slice(0, 8) + '…'
+                    : '(root)',
+                isGameWith:    s.isGameWith,
+                cspApplied:    s.cspApplied,
+                cspError:      s.cspError || null
             }))
         } : null;
 
@@ -238,31 +243,48 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
 
     if (method === 'Target.attachedToTarget') {
         const { sessionId, targetInfo } = params;
-        const url = targetInfo?.url || '';
-        const type = targetInfo?.type || '';
+        const url        = targetInfo?.url      || '';
+        const type       = targetInfo?.type     || '';
+        const title      = targetInfo?.title    || '';
+        const targetId   = targetInfo?.targetId || '';
+        // source.sessionId is the parent session (undefined = root tab)
+        const parentSessionId = source.sessionId || null;
         const isGameWith = url.includes('gamewith.jp');
 
         const state = debuggerState.get(tabId);
         if (state) {
             state.sessions.set(sessionId, {
-                url,
-                type,
+                url, type, title, targetId, parentSessionId,
                 isGameWith,
                 cspApplied: false,
-                error: null
+                cspError: null
             });
         }
 
-        console.log(TAG, `Target.attachedToTarget | session:${sessionId.slice(0, 8)}… | type:${type} | url:${url} | gamewith:${isGameWith}`);
+        // Detailed log — visible in Service Worker console
+        console.log(TAG, '━━ Target.attachedToTarget ━━');
+        console.log(TAG, `  sessionId:     ${sessionId}`);
+        console.log(TAG, `  type:          ${type}`);
+        console.log(TAG, `  url:           ${url}`);
+        console.log(TAG, `  title:         ${title}`);
+        console.log(TAG, `  targetId:      ${targetId}`);
+        console.log(TAG, `  parentSession: ${parentSessionId || '(root)'}`);
+        console.log(TAG, `  isGameWith:    ${isGameWith}`);
 
         if (isGameWith) {
             // Apply CSP bypass to this GameWith iframe session
-            applyBypassToTarget(tabId, sessionId).then(ok => {
-                if (state?.sessions.has(sessionId)) {
-                    state.sessions.get(sessionId).cspApplied = ok;
-                }
-            });
-            // Also set up auto-attach for nested iframes inside this GameWith iframe
+            applyBypassToTarget(tabId, sessionId)
+                .then(ok => {
+                    const sess = state?.sessions.get(sessionId);
+                    if (sess) sess.cspApplied = ok;
+                    console.log(TAG, `  CSP bypass: ${ok ? 'SUCCESS' : 'FAILED (no error thrown)'} → ${url}`);
+                })
+                .catch(e => {
+                    const sess = state?.sessions.get(sessionId);
+                    if (sess) { sess.cspApplied = false; sess.cspError = e.message; }
+                    console.error(TAG, `  CSP bypass ERROR: ${e.message} → ${url}`);
+                });
+            // Set up auto-attach for nested iframes inside this GameWith iframe
             setAutoAttachIframes(tabId, sessionId);
         }
     }
@@ -271,7 +293,8 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
         const { sessionId } = params;
         const state = debuggerState.get(tabId);
         if (state?.sessions.has(sessionId)) {
-            console.log(TAG, `Target.detachedFromTarget | session:${sessionId.slice(0, 8)}…`);
+            const sess = state.sessions.get(sessionId);
+            console.log(TAG, `Target.detachedFromTarget | session:${sessionId.slice(0, 8)}… | url:${sess?.url}`);
             state.sessions.delete(sessionId);
         }
     }
