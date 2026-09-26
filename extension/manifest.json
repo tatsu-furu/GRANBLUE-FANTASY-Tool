@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "GBF Tool Split View",
+  "version": "1.0",
+  "description": "グラブルツールサイトから攻略サイトをChrome Split Viewで横並び表示する拡張機能",
+  "permissions": ["tabs", "windows"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "externally_connectable": {
+    "matches": [
+      "*://*.alt4l.dev/*",
+      "*://localhost/*",
+      "*://127.0.0.1/*"
+    ]
+  },
+  "action": {
+    "default_title": "GBF Tool Split View"
+  }
+}

@@ -256,7 +256,7 @@
         .ach-ng { color: #c85050; font-size: 0.84em; }
 
         /* External link buttons */
-        .ext-links { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+        .ext-links { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
         .ext-btn {
             display: inline-flex;
             align-items: center;
@@ -274,6 +274,29 @@
         }
         .ext-btn:hover { border-color: var(--accent); color: var(--accent); }
         .ext-btn.yt:hover { border-color: #c04040; color: #e07070; }
+
+        /* Split view badge */
+        .split-badge {
+            display: none; /* 拡張機能が検出されたら表示 */
+            font-size: 0.65em;
+            font-weight: 700;
+            color: var(--accent-lo);
+            border: 1px solid var(--accent-lo);
+            border-radius: 2px;
+            padding: 1px 4px;
+            margin-left: 5px;
+            letter-spacing: 0.04em;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .ext-installed .split-badge { display: inline; }
+        .ext-installed .ext-btn:hover .split-badge { border-color: var(--accent); color: var(--accent); }
+        #split-ext-hint {
+            display: none;
+            font-size: 0.72em;
+            color: var(--text-3);
+            margin-left: 6px;
+        }
 
         @media (max-width: 600px) {
             .data-table { font-size: 0.74em; }
@@ -418,10 +441,23 @@
         </div>
     </div>
 
-    <div class="ext-links">
-        <a href="https://xn--bck3aza1a2if6kra4ee0hf.gamewith.jp/article/show/28687" target="_blank" rel="noopener noreferrer" class="ext-btn">GameWith 攻略</a>
-        <a href="https://kamigame.jp/%E3%82%B0%E3%83%A9%E3%83%96%E3%83%AB/%E6%B1%BA%E6%88%A6%EF%BC%81%E6%98%9F%E3%81%AE%E5%8F%A4%E6%88%A6%E5%A0%B4/index.html" target="_blank" rel="noopener noreferrer" class="ext-btn">神ゲー攻略</a>
-        <a href="https://www.youtube.com/results?search_query=%E5%8F%A4%E6%88%A6%E5%A0%B4+%E7%B7%A8%E6%88%90" target="_blank" rel="noopener noreferrer" class="ext-btn yt">YouTube: 古戦場 編成</a>
+    <div class="ext-links" id="ext-links-wrap">
+        <a href="https://xn--bck3aza1a2if6kra4ee0hf.gamewith.jp/article/show/28687"
+           target="_blank" rel="noopener noreferrer" class="ext-btn split-link"
+           data-split-url="https://xn--bck3aza1a2if6kra4ee0hf.gamewith.jp/article/show/28687">
+            GameWith 攻略<span class="split-badge">SPLIT</span>
+        </a>
+        <a href="https://kamigame.jp/%E3%82%B0%E3%83%A9%E3%83%96%E3%83%AB/%E6%B1%BA%E6%88%A6%EF%BC%81%E6%98%9F%E3%81%AE%E5%8F%A4%E6%88%A6%E5%A0%B4/index.html"
+           target="_blank" rel="noopener noreferrer" class="ext-btn split-link"
+           data-split-url="https://kamigame.jp/%E3%82%B0%E3%83%A9%E3%83%96%E3%83%AB/%E6%B1%BA%E6%88%A6%EF%BC%81%E6%98%9F%E3%81%AE%E5%8F%A4%E6%88%A6%E5%A0%B4/index.html">
+            神ゲー攻略<span class="split-badge">SPLIT</span>
+        </a>
+        <a href="https://www.youtube.com/results?search_query=%E5%8F%A4%E6%88%A6%E5%A0%B4+%E7%B7%A8%E6%88%90"
+           target="_blank" rel="noopener noreferrer" class="ext-btn yt split-link"
+           data-split-url="https://www.youtube.com/results?search_query=%E5%8F%A4%E6%88%A6%E5%A0%B4+%E7%B7%A8%E6%88%90">
+            YouTube: 古戦場 編成<span class="split-badge">SPLIT</span>
+        </a>
+        <span id="split-ext-hint">— 拡張機能を入れると横並び表示</span>
     </div>
 
     <nav class="tabs">
@@ -1175,6 +1211,39 @@ document.getElementById('fine-mode-chk').addEventListener('change', e => {
     updateTargetView();
     updateMeatView();
 });
+</script>
+
+<script>
+// ===== Split View 拡張機能連携 =====
+// 拡張機能のIDをここに設定する（拡張機能を読み込んだ後、chrome://extensions でIDを確認）
+// 未設定または拡張機能なしの場合は通常の新しいタブで開く
+const SPLIT_EXT_ID = '';  // 例: 'abcdefghijklmnopabcdefghijklmnop'
+
+(function initSplitView() {
+    if (!SPLIT_EXT_ID || !window.chrome?.runtime) return;
+
+    // 拡張機能が入っているか確認
+    chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'ping' }, (resp) => {
+        if (chrome.runtime.lastError || !resp?.installed) return;
+
+        // 拡張機能を検出 → SPLITバッジ表示 + クリックハンドラ切替
+        const wrap = document.getElementById('ext-links-wrap');
+        if (wrap) wrap.classList.add('ext-installed');
+
+        document.querySelectorAll('.split-link').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const url = btn.dataset.splitUrl || btn.href;
+                chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'openSplit', url }, (r) => {
+                    // 失敗した場合はフォールバックで新しいタブ
+                    if (chrome.runtime.lastError || !r?.success) {
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                    }
+                });
+            });
+        });
+    });
+})();
 </script>
 
 <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
