@@ -602,11 +602,10 @@
     <div id="attack-info-section">
         <div id="open-mode-bar">
             <span id="open-mode-label">攻略情報:</span>
-            <button class="mode-btn" data-mode="internal" title="ページ内iframeで横に表示">内部ブラウザ</button>
+            <button class="mode-btn" data-mode="split" title="Chrome Native Split View (拡張機能 + Chrome 155+) / 2ウィンドウ (Chrome 155未満) / 新しいタブ (拡張機能なし)">Split View</button>
             <button class="mode-btn" data-mode="sidepanel" title="Chrome Side Panel (拡張機能 + Chrome 114+)">Side Panel</button>
-            <button class="mode-btn" data-mode="split" title="Chrome Native Split View (拡張機能 + Chrome 155+)">Split View</button>
             <button class="mode-btn" data-mode="tab" title="新しいタブで開く">新しいタブ</button>
-            <span id="ext-no-ext-hint">— 拡張機能が必要</span>
+            <span id="ext-no-ext-hint">— 拡張機能でより快適に</span>
         </div>
         <div class="ext-links">
             <button class="ext-btn site-btn" data-site="gamewith"
@@ -778,11 +777,9 @@
 <div id="split-divider"></div>
 <div id="ext-pane">
     <div id="ext-pane-bar">
-        <button class="epane-tab" data-site="gamewith">GameWith</button>
-        <button class="epane-tab" data-site="kamigame">神ゲー</button>
-        <button class="epane-tab" data-site="youtube">YouTube</button>
+        <button class="epane-tab active" data-site="youtube">YouTube 動画</button>
         <button id="diag-toggle-btn" title="GameWith iframe診断パネルを表示/非表示"
-            style="font-size:0.7em;padding:2px 7px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--text-3);cursor:pointer;font-family:inherit;margin-left:4px;">iframe診断</button>
+            style="display:none;font-size:0.7em;padding:2px 7px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--text-3);cursor:pointer;font-family:inherit;margin-left:4px;">iframe診断</button>
         <button id="ext-pane-close">✕ 閉じる</button>
     </div>
     <!-- ===== Diagnostic Panel ===== -->
@@ -1440,7 +1437,8 @@ const SITES = [
     { id: 'youtube',  label: 'YouTube',  url: 'https://www.youtube.com/results?search_query=%E5%8F%A4%E6%88%A6%E5%A0%B4+%E7%B7%A8%E6%88%90' }
 ];
 
-let currentMode = localStorage.getItem('gbf_open_mode') || 'internal';
+let currentMode = localStorage.getItem('gbf_open_mode') || 'split';
+if (currentMode === 'internal') currentMode = 'split'; // migrate legacy setting
 let extInstalled = false;
 let currentSiteId = SITES[0].id;
 
@@ -1470,35 +1468,39 @@ function detectCapabilities() {
 }
 
 function openSite(url, siteId) {
-    if (currentMode === 'internal') {
+    if (siteId === 'youtube') {
+        // YouTube always uses the internal embed pane
         openInternal(url, siteId);
-    } else if (currentMode === 'sidepanel') {
-        if (extInstalled && window.chrome?.runtime) {
-            openSidePanel(url, siteId);
-        } else {
-            openInternal(url, siteId);
-        }
+        return;
+    }
+    // GameWith / 神ゲー: split → 2-window → new tab (no iframe)
+    if (currentMode === 'sidepanel' && extInstalled && window.chrome?.runtime) {
+        openSidePanel(url);
     } else if (currentMode === 'split') {
-        if (extInstalled && window.chrome?.runtime) {
-            chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'openSplit', url }, r => {
-                if (chrome.runtime.lastError || !r?.success) {
-                    console.log('[GBF Tool] Split View失敗 → 内部ブラウザにフォールバック');
-                    openInternal(url, siteId);
-                }
-            });
-        } else {
-            openInternal(url, siteId);
-        }
+        openSplitOrTab(url);
     } else {
         window.open(url, '_blank', 'noopener,noreferrer');
     }
 }
 
-function openSidePanel(url, siteId) {
+function openSplitOrTab(url) {
+    if (extInstalled && window.chrome?.runtime) {
+        chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'openSplit', url }, r => {
+            if (chrome.runtime.lastError || !r?.success) {
+                console.log('[GBF Tool] Split View失敗 → 新しいタブにフォールバック');
+                window.open(url, '_blank', 'noopener,noreferrer');
+            }
+        });
+    } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
+}
+
+function openSidePanel(url) {
     chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'openSidePanel', url }, r => {
         if (chrome.runtime.lastError || !r?.success) {
-            console.log('[GBF Tool] Side Panel失敗 (', (r?.error || chrome.runtime.lastError?.message), ') → 内部ブラウザへフォールバック');
-            openInternal(url, siteId);
+            console.log('[GBF Tool] Side Panel失敗 (', (r?.error || chrome.runtime.lastError?.message), ') → 新しいタブへフォールバック');
+            window.open(url, '_blank', 'noopener,noreferrer');
         } else {
             console.log('[GBF Tool] Side Panel opened:', url);
         }
@@ -1615,13 +1617,14 @@ document.querySelectorAll('.site-btn').forEach(btn =>
     btn.addEventListener('click', () => openSite(btn.dataset.url, btn.dataset.site))
 );
 
-// ペイン内タブ
+// ペイン内タブ (YouTube embed のみ)
 document.querySelectorAll('.epane-tab').forEach(tab =>
     tab.addEventListener('click', () => {
         const site = SITES.find(s => s.id === tab.dataset.site);
         if (site) openInternal(site.url, site.id);
     })
 );
+
 
 document.getElementById('ext-pane-close').addEventListener('click', closeInternal);
 
