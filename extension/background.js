@@ -2,8 +2,12 @@
 
 const TAG = '[GBF-ext]';
 
-// Store diagnostic reports per tab: tabId → latest report
+// Content script diagnostic reports: tabId → latest report
 const diagReports = new Map();
+
+// Debugger state per tab:
+// tabId → { parentAttached, sessions: Map<sessionId, {url, type, isGameWith, cspApplied, error}>, error }
+const debuggerState = new Map();
 
 // ===== Content script → background: iframeDiagReport =====
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -49,8 +53,22 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     if (message.action === 'getDiagResults') {
         const tabId = sender.tab?.id;
         const report = tabId != null ? diagReports.get(tabId) : null;
+        const dbgState = tabId != null ? debuggerState.get(tabId) : null;
 
-        // Also query getMatchedRules for this tab
+        // Serialize debugger state for transport
+        const debugInfo = dbgState ? {
+            parentAttached: dbgState.parentAttached,
+            error: dbgState.error,
+            sessions: [...(dbgState.sessions?.entries() || [])].map(([sid, s]) => ({
+                sessionId: sid.slice(0, 16) + (sid.length > 16 ? '…' : ''),
+                url: s.url,
+                type: s.type,
+                isGameWith: s.isGameWith,
+                cspApplied: s.cspApplied,
+                error: s.error || null
+            }))
+        } : null;
+
         chrome.declarativeNetRequest.getMatchedRules(
             { tabId, minTimeStamp: Date.now() - 60000 },
             result => {
@@ -61,7 +79,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
                     initiator: m.request.initiator
                 }));
                 console.log(TAG, 'getDiagResults: tab', tabId, '→', matches.length, 'DNR hits (60s)');
-                sendResponse({ report: report || null, dnrMatches: matches });
+                sendResponse({ report: report || null, dnrMatches: matches, debugInfo });
             }
         );
         return true;
@@ -89,7 +107,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
         return true;
     }
 
-    // MODE B: chrome.debugger で Page.setBypassCSP(true) を実行
+    // MODE B: chrome.debugger + OOPIF CSP bypass
     if (message.action === 'enableDebuggerBypass') {
         const tabId = sender.tab?.id;
         if (tabId == null) { sendResponse({ success: false, error: 'no tabId' }); return; }
@@ -110,7 +128,6 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
 });
 
 // ===== DNRデバッグ: ルールがヒットするたびにService Workerコンソールへ出力 =====
-// declarativeNetRequestFeedback パーミッションが必要（開発用拡張のみ動作）
 if (chrome.declarativeNetRequest.onRuleMatchedDebug) {
     chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(info => {
         const r = info.request;
@@ -126,20 +143,84 @@ if (chrome.declarativeNetRequest.onRuleMatchedDebug) {
     console.warn(TAG, 'onRuleMatchedDebug 未対応 — declarativeNetRequestFeedback パーミッションを確認');
 }
 
-// ===== MODE B: chrome.debugger CSP bypass =====
-const debuggerAttached = new Set(); // tabIds currently attached
+// ===== MODE B: chrome.debugger OOPIF-aware CSP bypass =====
+// Tracks which tabIds have a debugger attached
+const debuggerAttached = new Set();
+
+// Apply CSP bypass to a specific debugger target (tabId + optional sessionId)
+async function applyBypassToTarget(tabId, sessionId) {
+    const target = sessionId ? { tabId, sessionId } : { tabId };
+    const label = sessionId ? `session ${sessionId.slice(0, 8)}…` : `tab ${tabId}`;
+    try {
+        await chrome.debugger.sendCommand(target, 'Page.enable', {});
+        await chrome.debugger.sendCommand(target, 'Page.setBypassCSP', { enabled: true });
+        console.log(TAG, `Page.setBypassCSP(true) → ${label}`);
+        return true;
+    } catch (e) {
+        console.error(TAG, `Page.setBypassCSP failed for ${label}:`, e.message);
+        return false;
+    }
+}
+
+// Set up auto-attach for iframe sub-targets on a given debugger target
+async function setAutoAttachIframes(tabId, sessionId) {
+    const target = sessionId ? { tabId, sessionId } : { tabId };
+    try {
+        await chrome.debugger.sendCommand(target, 'Target.setAutoAttach', {
+            autoAttach: true,
+            waitForDebuggerOnStart: false,
+            flatten: true,               // Use flat session model
+            filter: [{ type: 'iframe', exclude: false }]
+        });
+        console.log(TAG, 'Target.setAutoAttach(iframes) set on',
+            sessionId ? `session ${sessionId.slice(0, 8)}…` : `tab ${tabId}`);
+    } catch (e) {
+        console.warn(TAG, 'Target.setAutoAttach failed:', e.message);
+    }
+}
 
 async function enableDebuggerBypass(tabId) {
-    if (!debuggerAttached.has(tabId)) {
-        await chrome.debugger.attach({ tabId }, '1.3');
-        debuggerAttached.add(tabId);
-        console.log(TAG, 'debugger attached to tab', tabId);
+    const state = {
+        parentAttached: false,
+        sessions: new Map(),
+        error: null
+    };
+    debuggerState.set(tabId, state);
+
+    try {
+        // 1. Attach to parent tab
+        if (!debuggerAttached.has(tabId)) {
+            await chrome.debugger.attach({ tabId }, '1.3');
+            debuggerAttached.add(tabId);
+            console.log(TAG, 'debugger attached to tab', tabId);
+        }
+        state.parentAttached = true;
+
+        // 2. Apply bypass to parent tab target (covers same-origin frames)
+        await applyBypassToTarget(tabId, null);
+
+        // 3. Set up auto-attach for cross-origin iframe targets (OOPIFs)
+        //    This triggers attachedToTarget events for each iframe
+        await setAutoAttachIframes(tabId, null);
+
+    } catch (e) {
+        state.error = e.message;
+        console.error(TAG, 'enableDebuggerBypass failed:', e.message);
+        throw e;
     }
-    await chrome.debugger.sendCommand({ tabId }, 'Page.setBypassCSP', { enabled: true });
-    console.log(TAG, 'Page.setBypassCSP(true) sent to tab', tabId);
 }
 
 async function disableDebuggerBypass(tabId) {
+    const state = debuggerState.get(tabId);
+    if (state) {
+        // Try to disable on all known sessions first
+        for (const [sid] of (state.sessions || [])) {
+            try {
+                await chrome.debugger.sendCommand({ tabId, sessionId: sid }, 'Page.setBypassCSP', { enabled: false });
+            } catch (_) {}
+        }
+        debuggerState.delete(tabId);
+    }
     if (debuggerAttached.has(tabId)) {
         try {
             await chrome.debugger.sendCommand({ tabId }, 'Page.setBypassCSP', { enabled: false });
@@ -150,13 +231,74 @@ async function disableDebuggerBypass(tabId) {
     }
 }
 
-// Clean up debugger attachment if tab is closed
+// ===== chrome.debugger CDP event listener (OOPIF target tracking) =====
+chrome.debugger.onEvent.addListener((source, method, params) => {
+    const tabId = source.tabId;
+    if (tabId == null) return;
+
+    if (method === 'Target.attachedToTarget') {
+        const { sessionId, targetInfo } = params;
+        const url = targetInfo?.url || '';
+        const type = targetInfo?.type || '';
+        const isGameWith = url.includes('gamewith.jp');
+
+        const state = debuggerState.get(tabId);
+        if (state) {
+            state.sessions.set(sessionId, {
+                url,
+                type,
+                isGameWith,
+                cspApplied: false,
+                error: null
+            });
+        }
+
+        console.log(TAG, `Target.attachedToTarget | session:${sessionId.slice(0, 8)}… | type:${type} | url:${url} | gamewith:${isGameWith}`);
+
+        if (isGameWith) {
+            // Apply CSP bypass to this GameWith iframe session
+            applyBypassToTarget(tabId, sessionId).then(ok => {
+                if (state?.sessions.has(sessionId)) {
+                    state.sessions.get(sessionId).cspApplied = ok;
+                }
+            });
+            // Also set up auto-attach for nested iframes inside this GameWith iframe
+            setAutoAttachIframes(tabId, sessionId);
+        }
+    }
+
+    if (method === 'Target.detachedFromTarget') {
+        const { sessionId } = params;
+        const state = debuggerState.get(tabId);
+        if (state?.sessions.has(sessionId)) {
+            console.log(TAG, `Target.detachedFromTarget | session:${sessionId.slice(0, 8)}…`);
+            state.sessions.delete(sessionId);
+        }
+    }
+});
+
+// Detach when debugger is forcibly removed (e.g. user opens DevTools)
+chrome.debugger.onDetach.addListener((source, reason) => {
+    const tabId = source.tabId;
+    if (tabId != null) {
+        console.log(TAG, 'debugger detached (external) from tab', tabId, '| reason:', reason);
+        debuggerAttached.delete(tabId);
+        const state = debuggerState.get(tabId);
+        if (state) {
+            state.parentAttached = false;
+            state.error = `外部から切断: ${reason}`;
+        }
+    }
+});
+
+// Clean up when tab is closed
 chrome.tabs.onRemoved.addListener(tabId => {
     if (debuggerAttached.has(tabId)) {
         chrome.debugger.detach({ tabId }).catch(() => {});
         debuggerAttached.delete(tabId);
-        diagReports.delete(tabId);
     }
+    debuggerState.delete(tabId);
+    diagReports.delete(tabId);
 });
 
 // ===== Split view helpers =====

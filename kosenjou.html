@@ -794,13 +794,20 @@
             </div>
         </div>
         <table class="diag-table" id="diag-table">
-            <tr><td>DNR XFO (rule#1)</td><td id="d-dnr-xfo" class="diag-na">—</td></tr>
-            <tr><td>DNR CSP (rule#2)</td><td id="d-dnr-csp" class="diag-na">—</td></tr>
-            <tr><td>Meta CSP</td>        <td id="d-meta-csp" class="diag-na">—</td></tr>
-            <tr><td>Service Worker</td>  <td id="d-sw" class="diag-na">—</td></tr>
-            <tr><td>Frame-busting JS</td><td id="d-fb" class="diag-na">—</td></tr>
-            <tr><td>iframe 状態</td>     <td id="d-iframe" class="diag-na">—</td></tr>
-            <tr><td>Debugger Bypass</td> <td id="d-debugger" class="diag-na">—</td></tr>
+            <tr><td>DNR XFO (rule#1)</td>        <td id="d-dnr-xfo" class="diag-na">—</td></tr>
+            <tr><td>DNR CSP (rule#2)</td>        <td id="d-dnr-csp" class="diag-na">—</td></tr>
+            <tr><td>Meta CSP</td>                <td id="d-meta-csp" class="diag-na">—</td></tr>
+            <tr><td>Service Worker</td>           <td id="d-sw" class="diag-na">—</td></tr>
+            <tr><td>Frame-busting JS</td>         <td id="d-fb" class="diag-na">—</td></tr>
+            <tr><td>iframe 状態</td>              <td id="d-iframe" class="diag-na">—</td></tr>
+            <tr style="border-top:1px solid var(--border-hi)">
+                <td style="color:var(--accent);font-weight:700;" colspan="2">MODE B — chrome.debugger</td>
+            </tr>
+            <tr><td>Parent tab attached</td>      <td id="d-dbg-parent" class="diag-na">—</td></tr>
+            <tr><td>GameWith iframe target</td>   <td id="d-dbg-gw-found" class="diag-na">—</td></tr>
+            <tr><td>GameWith sessionId</td>       <td id="d-dbg-gw-sid" class="diag-na">—</td></tr>
+            <tr><td>CSP bypass applied</td>       <td id="d-dbg-csp" class="diag-na">—</td></tr>
+            <tr><td>Attach error</td>             <td id="d-dbg-err" class="diag-na">—</td></tr>
         </table>
         <button id="diag-refresh-btn">再チェック</button>
     </div>
@@ -1618,22 +1625,28 @@ async function setDebuggerBypass(enable) {
         chrome.runtime.sendMessage(SPLIT_EXT_ID, { action }, resp => {
             if (chrome.runtime.lastError) {
                 console.error('[GBF Tool] debugger bypass error:', chrome.runtime.lastError.message);
+                setDiagRow('d-dbg-err', chrome.runtime.lastError.message, 'diag-err');
                 resolve(false);
                 return;
             }
             debuggerBypassActive = enable;
-            const cell = document.getElementById('d-debugger');
-            if (enable) {
-                cell.textContent = 'ON (Page.setBypassCSP active)';
-                cell.className = 'diag-warn';
-            } else {
-                cell.textContent = 'OFF';
-                cell.className = 'diag-na';
-            }
+            if (!enable) clearDebuggerDiagRows();
             console.log('[GBF Tool] debugger bypass:', enable, resp);
-            resolve(true);
+            if (!resp?.success && resp?.error) {
+                setDiagRow('d-dbg-parent', 'アタッチ失敗', 'diag-err');
+                setDiagRow('d-dbg-err', resp.error, 'diag-err');
+            }
+            resolve(resp?.success || false);
         });
     });
+}
+
+function clearDebuggerDiagRows() {
+    setDiagRow('d-dbg-parent', '—', 'diag-na');
+    setDiagRow('d-dbg-gw-found', '—', 'diag-na');
+    setDiagRow('d-dbg-gw-sid', '—', 'diag-na');
+    setDiagRow('d-dbg-csp', '—', 'diag-na');
+    setDiagRow('d-dbg-err', '—', 'diag-na');
 }
 
 function refreshDiag() {
@@ -1699,6 +1712,57 @@ function refreshDiag() {
             setDiagRow('d-meta-csp', 'データなし（iframeが表示されていないか、コンテントスクリプト未実行）', 'diag-na');
             setDiagRow('d-sw', '—', 'diag-na');
             setDiagRow('d-fb', '—', 'diag-na');
+        }
+
+        // Debugger state (from MODE B)
+        const dbg = resp?.debugInfo;
+        if (dbg) {
+            // Parent attached
+            setDiagRow('d-dbg-parent',
+                dbg.parentAttached ? 'YES' : 'NO',
+                dbg.parentAttached ? 'diag-ok' : 'diag-warn');
+
+            // GameWith iframe target detection
+            const gwSessions = (dbg.sessions || []).filter(s => s.isGameWith);
+            if (gwSessions.length > 0) {
+                setDiagRow('d-dbg-gw-found', `FOUND (${gwSessions.length}件)`, 'diag-ok');
+                // Show sessionId of first GameWith session
+                setDiagRow('d-dbg-gw-sid', gwSessions[0].sessionId, 'diag-ok');
+                // CSP applied
+                const allApplied = gwSessions.every(s => s.cspApplied);
+                const anyApplied = gwSessions.some(s => s.cspApplied);
+                if (allApplied) {
+                    setDiagRow('d-dbg-csp', `YES (全${gwSessions.length}件に適用)`, 'diag-ok');
+                } else if (anyApplied) {
+                    const cnt = gwSessions.filter(s => s.cspApplied).length;
+                    setDiagRow('d-dbg-csp', `部分適用 (${cnt}/${gwSessions.length})`, 'diag-warn');
+                } else {
+                    setDiagRow('d-dbg-csp', 'NO（適用失敗）', 'diag-err');
+                }
+                // Per-session errors
+                const errSessions = gwSessions.filter(s => s.error);
+                if (errSessions.length) {
+                    setDiagRow('d-dbg-err', errSessions[0].error, 'diag-err');
+                } else {
+                    setDiagRow('d-dbg-err', '—', 'diag-na');
+                }
+            } else if (dbg.parentAttached) {
+                setDiagRow('d-dbg-gw-found', 'NOT FOUND（OOPIFが検出されていない）', 'diag-warn');
+                setDiagRow('d-dbg-gw-sid', '—', 'diag-na');
+                setDiagRow('d-dbg-csp', '—（iframe target なし）', 'diag-na');
+                setDiagRow('d-dbg-err', dbg.error || '—', dbg.error ? 'diag-err' : 'diag-na');
+            } else {
+                clearDebuggerDiagRows();
+                if (dbg.error) setDiagRow('d-dbg-err', dbg.error, 'diag-err');
+            }
+
+            // Log all non-GameWith sessions for reference
+            const otherSessions = (dbg.sessions || []).filter(s => !s.isGameWith);
+            if (otherSessions.length) {
+                console.log('[GBF Tool] 他のiframe sessions:', otherSessions.map(s => s.url));
+            }
+        } else if (!debuggerBypassActive) {
+            clearDebuggerDiagRows();
         }
 
         updateIframeDiagRow();
