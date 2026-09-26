@@ -6,6 +6,7 @@ import p2 from '../fixtures/panel-002.json';
 import p3 from '../fixtures/panel-003.json';
 import p4 from '../fixtures/panel-004.json';
 import p5 from '../fixtures/panel-005.json';
+import p6 from '../fixtures/panel-006.json';
 import { SEARCH_FLAGS, forwardCheck, hypothesisSpace, searchHypotheses } from '../src/engine/calibrate';
 import { defaultData } from '../src/engine/data';
 import { defaultInput } from '../src/engine/defaults';
@@ -19,6 +20,7 @@ const fixtures: [string, ExpectedPanel & { displayAtk?: number }][] = [
   ['panel-003', p3 as ExpectedPanel & { displayAtk?: number }],
   ['panel-004', p4 as ExpectedPanel & { displayAtk?: number }],
   ['panel-005', p5 as ExpectedPanel & { displayAtk?: number }],
+  ['panel-006', p6 as ExpectedPanel & { displayAtk?: number }],
 ];
 
 it('仮説探索レポート', () => {
