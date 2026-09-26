@@ -662,9 +662,10 @@ function saveReloadState() {
 
 // ── ユーティリティ ──
 
-function buildMinOpts(savedMin) {
+// 250HELL は長期戦になるので90分まで選べるようにする
+function buildMinOpts(savedMin, maxMin = 30) {
     let html = '<option value="">─</option>';
-    for (let m = 0; m <= 30; m++) {
+    for (let m = 0; m <= maxMin; m++) {
         const sel = (savedMin === null ? m === 0 : savedMin === m) ? 'selected' : '';
         html += `<option value="${m}" ${sel}>${m}分</option>`;
     }
@@ -766,12 +767,12 @@ function buildEffTable() {
             <td style="white-space:nowrap">
                 <div style="display:flex;align-items:center;gap:4px;">
                     <span style="font-size:0.75em;color:var(--text-3);min-width:28px;">${isRelo ? '1回目' : ''}</span>
-                    <select class="time-sel time-sel-min" data-id="${d.id}">${buildMinOpts(savedMin)}</select>
+                    <select class="time-sel time-sel-min" data-id="${d.id}">${buildMinOpts(savedMin, d.is250 ? 90 : 30)}</select>
                     ${buildSecInput(savedSec, 'time-sel-sec', d.id)}
                 </div>
                 <div id="relo-row-${d.id}" style="display:${isRelo ? 'flex' : 'none'};align-items:center;gap:4px;margin-top:4px;">
                     <span style="font-size:0.75em;color:var(--accent-hi);min-width:28px;">リロ有</span>
-                    <select class="time-sel time-sel-min2" data-id="${d.id}">${buildMinOpts(savedMin2)}</select>
+                    <select class="time-sel time-sel-min2" data-id="${d.id}">${buildMinOpts(savedMin2, d.is250 ? 90 : 30)}</select>
                     ${buildSecInput(savedSec2, 'time-sel-sec2', d.id)}
                 </div>
             </td>
