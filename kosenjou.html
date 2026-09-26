@@ -622,6 +622,7 @@
         <button class="tab-btn active" data-tab="efficiency">討伐効率</button>
         <button class="tab-btn" data-tab="target">目標計算</button>
         <button class="tab-btn" data-tab="meat">肉計算</button>
+        <button class="tab-btn" data-tab="border">ボーダー</button>
     </nav>
 
     <!-- ===== TAB 1: 討伐効率 ===== -->
@@ -696,6 +697,9 @@
             <div id="t-table-wrap"><div class="no-data">目標貢献度を入力してください</div></div>
         </div>
     </div>
+
+    <!-- ===== TAB 4: ボーダー（kosenjou-border.js） ===== -->
+    <div id="tab-border" class="tab-content"><div id="border-panel"></div></div>
 
     <!-- ===== TAB 3: 肉計算 ===== -->
     <div id="tab-meat" class="tab-content">
@@ -1911,6 +1915,15 @@ if (window.chrome?.runtime && SPLIT_EXT_ID) {
 <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
 <script>
   kofiWidgetOverlay.draw('alt4l', { type:'floating-chat', 'floating-chat.donateButton.text':'Support me', 'floating-chat.donateButton.background-color':'#794bc4', 'floating-chat.donateButton.text-color':'#fff' });
+</script>
+<!-- ボーダー確認パネル（本番へはタブのボタン・tab-border の div・この2つの script をコピー） -->
+<script src="kosenjou-border.js"></script>
+<script>
+const borderPanel = new BorderPanel(document.getElementById('border-panel'), {
+    getDiffs: () => DIFFS,
+    getKillTimes: () => killTimes,
+});
+document.querySelector('.tab-btn[data-tab="border"]').addEventListener('click', () => borderPanel.refresh());
 </script>
 </body>
 </html>
