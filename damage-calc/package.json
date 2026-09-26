@@ -11,8 +11,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ocr": "vitest run --config vitest.ocr.config.ts",
-    "fixtures:synthetic": "node scripts/make-synthetic-fixture.mjs"
+    "test:ocr": "vitest run --config vitest.ocr.config.ts tests/ocr.ocr.test.ts",
+    "report:calibration": "vitest run --config vitest.ocr.config.ts tests/calibration.report.test.ts",
+    "fixtures:synthetic": "node scripts/make-synthetic-fixture.mjs",
+    "tesseract:local": "node scripts/copy-tesseract-local.mjs",
+    "e2e": "node scripts/e2e-smoke.mjs"
   },
   "dependencies": {
     "lz-string": "1.5.0",

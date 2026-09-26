@@ -7,3 +7,4 @@ fixtures/*.png
 fixtures/*.jpg
 fixtures/*.jpeg
 fixtures/*.webp
+.e2e-out/
