@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>古戦場 効率計算ツール | GBF Tool</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:        #111115;
+            --bg-1:      #18181e;
+            --bg-2:      #202028;
+            --surface:   #18181e;
+            --surface-2: #202028;
+            --border:    #2c2c38;
+            --border-hi: #3c3c50;
+            --text:      #d8d5cc;
+            --text-2:    #bfbbb2;
+            --text-3:    #9a968e;
+            --accent:    #c09030;
+            --accent-hi: #d8a840;
+            --accent-lo: #906820;
+            --accent-bg: rgba(192,144,48,0.08);
+            --on-accent: #0c0800;
+            --text-muted: #9a968e;
+            --accent-dim: rgba(192,144,48,0.12);
+            --danger:     #a84040;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
+            font-size: 18px;
+            line-height: 1.6;
+            background-color: var(--bg);
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: var(--text);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container { max-width: 1160px; margin: 0 auto; padding: 0 20px 80px; }
+
+        header {
+            padding: 12px 0 10px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 14px;
+        }
+        .back-link {
+            display: inline-block;
+            color: var(--text-3);
+            text-decoration: none;
+            font-size: 0.78em;
+            margin-bottom: 5px;
+            transition: color 0.1s;
+        }
+        .back-link:hover { color: var(--accent); text-decoration: underline; }
+        header h1 {
+            font-size: 1.25em;
+            color: var(--text);
+            font-weight: 700;
+            border-left: 3px solid var(--accent);
+            padding-left: 10px;
+        }
+        header p { color: var(--text-3); font-size: 0.78em; margin-top: 2px; padding-left: 13px; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .tab-btn {
+            padding: 7px 14px;
+            font-size: 0.82em;
+            font-weight: 600;
+            background: transparent;
+            color: var(--text-3);
+            border: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            cursor: pointer;
+            transition: color 0.1s;
+            white-space: nowrap;
+            font-family: inherit;
+        }
+        .tab-btn:hover { color: var(--text-2); }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+        }
+        .card-title {
+            font-size: 0.78em;
+            font-weight: 700;
+            color: var(--accent);
+            border-left: 2px solid var(--accent);
+            padding-left: 8px;
+            margin-bottom: 10px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        /* Inputs */
+        input[type="text"], input[type="number"] {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            color: var(--text);
+            padding: 5px 7px;
+            font-size: 0.84em;
+            width: 100%;
+            font-family: inherit;
+            transition: border-color 0.1s;
+        }
+        input[type="text"]:focus, input[type="number"]:focus { outline: none; border-color: var(--accent); }
+        input::placeholder { color: var(--text-3); }
+
+        /* Table */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.82em; }
+        .data-table th {
+            text-align: left;
+            color: var(--text-2);
+            font-weight: 700;
+            font-size: 0.78em;
+            padding: 5px 7px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .data-table td { padding: 5px 7px; border: 1px solid var(--border); vertical-align: middle; }
+        .data-table tbody tr:hover td { background: rgba(255,255,255,0.015); }
+
+        .time-sel {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            color: var(--text);
+            padding: 4px 3px;
+            font-size: 0.83em;
+            cursor: pointer;
+            font-family: inherit;
+            transition: border-color 0.1s;
+        }
+        .time-sel:focus { outline: none; border-color: var(--accent); }
+        .time-sel-min { width: 60px; }
+        .time-sel-sec { width: 52px; }
+
+        .base-btn {
+            padding: 2px 7px;
+            font-size: 0.72em;
+            font-weight: 700;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-3);
+            border-radius: 2px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.1s;
+            white-space: nowrap;
+        }
+        .base-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .base-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+        /* Difficulty colors */
+        .c-vh   { color: #6080a0; }
+        .c-ex   { color: #5080cc; }
+        .c-exp  { color: #8060c0; }
+        .c-hell { color: #c85050; }
+        .c-h250 { color: #c87830; }
+
+        /* Bar */
+        .bar-wrap { flex: 1; min-width: 40px; }
+        .bar-bg { background: var(--bg); border: 1px solid var(--border); border-radius: 1px; height: 8px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 0; transition: width 0.3s; }
+        .bar-1 { background: var(--accent); }
+        .bar-2 { background: #907020; }
+        .bar-3 { background: #6a5040; }
+        .bar-4 { background: #4a3d55; }
+        .bar-5 { background: #382e3a; }
+        .bar-6 { background: #2c2830; }
+        .bar-7 { background: #222028; }
+
+        /* Rank item */
+        .rank-list { display: flex; flex-direction: column; gap: 2px; }
+        .rank-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 10px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+        }
+        .rank-num {
+            min-width: 20px;
+            height: 20px;
+            line-height: 20px;
+            text-align: center;
+            font-size: 0.7em;
+            font-weight: 700;
+            border-radius: 2px;
+            background: var(--surface-2);
+            color: var(--text-3);
+            flex-shrink: 0;
+        }
+        .rank-num.r1 { background: var(--accent); color: var(--on-accent); }
+        .rank-num.r2 { background: #505860; color: #b0b8c0; }
+        .rank-num.r3 { background: #4a3020; color: #b08060; }
+        .rank-name { flex: 0 0 100px; font-weight: 700; font-size: 0.84em; overflow: hidden; white-space: nowrap; }
+        .rank-val { color: var(--accent); font-weight: 700; font-size: 0.84em; flex: 0 0 108px; }
+        .rank-pct { font-size: 0.72em; color: var(--text-3); flex: 0 0 34px; text-align: right; }
+
+        /* Flex row */
+        .frow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+        .frow label { font-size: 0.82em; color: var(--text-2); white-space: nowrap; min-width: 90px; }
+        .frow input { max-width: 160px; }
+        .frow .unit { font-size: 0.78em; color: var(--text-3); }
+
+        /* Summary */
+        .sum-box { background: var(--bg); border: 1px solid var(--border); border-radius: 2px; padding: 10px 12px; margin-top: 8px; }
+        .sum-label { font-size: 0.74em; color: var(--text-3); margin-bottom: 2px; }
+        .sum-val { font-size: 1.05em; font-weight: 700; color: var(--accent); }
+
+        /* Note */
+        .note { font-size: 0.77em; color: var(--text-3); line-height: 1.6; }
+        .note code { background: var(--surface-2); padding: 1px 4px; border-radius: 2px; color: var(--text-2); font-family: monospace; }
+
+        /* No data */
+        .no-data { color: var(--text-3); font-size: 0.82em; padding: 14px; text-align: center; }
+
+        /* Meat result row */
+        .meat-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 2px; margin-bottom: 2px; border: 1px solid transparent; }
+        .meat-row.best { background: var(--accent-bg); border-color: rgba(192,144,48,0.2); }
+        .meat-row-name { font-weight: 700; font-size: 0.84em; min-width: 68px; }
+        .meat-row-val { font-weight: 700; font-size: 0.9em; }
+
+        /* Reference details */
+        details.card summary { cursor: pointer; font-size: 0.84em; font-weight: 600; color: var(--text-3); list-style: none; }
+        details.card summary::-webkit-details-marker { display: none; }
+        details.card summary::before { content: '▶ '; font-size: 0.72em; }
+        details.card[open] summary::before { content: '▼ '; }
+        details.card[open] summary { color: var(--accent); margin-bottom: 10px; }
+
+        /* Achieve cell */
+        .ach-ok { color: #50b860; font-weight: 700; }
+        .ach-ng { color: #c85050; font-size: 0.84em; }
+
+        /* External link buttons */
+        .ext-links { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+        .ext-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            font-size: 0.76em;
+            font-weight: 600;
+            border-radius: 2px;
+            text-decoration: none;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-2);
+            transition: border-color 0.1s, color 0.1s;
+            white-space: nowrap;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .ext-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .ext-btn.yt:hover { border-color: #c04040; color: #e07070; }
+
+        /* ===== 開き方モードセレクタ ===== */
+        #open-mode-bar {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+        #open-mode-label {
+            font-size: 0.75em;
+            color: var(--text-3);
+            margin-right: 2px;
+        }
+        .mode-btn {
+            font-size: 0.75em;
+            font-weight: 700;
+            padding: 3px 10px;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            background: var(--surface);
+            color: var(--text-muted);
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.12s, border-color 0.12s, color 0.12s;
+            letter-spacing: 0.03em;
+        }
+        .mode-btn:hover { border-color: var(--accent-lo); color: var(--text); }
+        .mode-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+        #ext-no-ext-hint {
+            font-size: 0.7em;
+            color: var(--accent-lo);
+            display: none;
+        }
+
+        /* ===== Split Layout ===== */
+        #split-root { display: flex; height: 100vh; overflow: hidden; }
+        #main-pane { flex: 1; overflow-y: auto; min-width: 0; }
+        #split-divider {
+            display: none;
+            width: 5px;
+            background: var(--border);
+            cursor: col-resize;
+            flex-shrink: 0;
+            transition: background 0.15s;
+            z-index: 10;
+        }
+        #split-divider:hover, #split-divider.dragging { background: var(--accent-lo); }
+        #ext-pane {
+            display: none;
+            flex-direction: column;
+            min-width: 280px;
+            overflow: hidden;
+            background: var(--bg);
+            flex-shrink: 0;
+        }
+        body.split-active { overflow: hidden; }
+        body.split-active #split-divider,
+        body.split-active #ext-pane { display: flex; }
+        body.split-active .container { max-width: none; }
+
+        #ext-pane-bar {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 8px;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+        .epane-tab {
+            font-size: 0.78em;
+            padding: 3px 10px;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            background: var(--surface);
+            color: var(--text-muted);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.12s;
+            white-space: nowrap;
+        }
+        .epane-tab:hover { border-color: var(--accent-lo); color: var(--text); }
+        .epane-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+        #ext-pane-close {
+            margin-left: auto;
+            font-size: 0.75em;
+            padding: 3px 8px;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        #ext-pane-close:hover { color: #d08080; border-color: var(--danger); }
+        #yt-search-ui {
+            display: none;
+            padding: 12px 14px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        #yt-search-ui input { flex: 1; }
+        #ext-iframe {
+            flex: 1;
+            border: none;
+            width: 100%;
+            background: var(--surface);
+        }
+
+        @media (max-width: 600px) {
+            .data-table { font-size: 0.74em; }
+            .data-table th, .data-table td { padding: 4px 3px; }
+            .time-sel-min { width: 50px; }
+            .time-sel-sec { width: 44px; }
+            .frow label { min-width: 70px; }
+            header h1 { font-size: 1.1em; }
+        }
+    </style>
+</head>
+<body>
+<div id="split-root">
+<div id="main-pane">
+<div class="container">
+    <header>
+        <a href="index.html" class="back-link">← TOPに戻る</a>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div>
+                <h1>古戦場 効率計算ツール</h1>
+                <p>討伐効率比較 / 目標計算 / 肉計算</p>
+            </div>
+            <button id="help-open-btn" style="padding:8px 16px;background:var(--accent-lo);border:none;color:var(--on-accent);border-radius:6px;cursor:pointer;font-size:0.85em;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(62,200,223,0.25);transition:background 0.15s,transform 0.12s;" onmouseover="this.style.background='var(--accent)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='var(--accent-lo)';this.style.transform=''">使い方</button>
+        </div>
+    </header>
+
+    <!-- ===== 使い方ドロワー ===== -->
+    <div id="help-drawer" style="position:fixed;top:0;right:0;height:100%;width:min(360px,92vw);background:var(--bg-1);border-left:2px solid var(--accent);z-index:8001;transform:translateX(100%);transition:transform 0.25s ease;overflow-y:auto;padding:22px 18px 60px;box-shadow:-4px 0 24px rgba(0,0,0,0.5);">
+        <!-- ヘッダー -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+            <span style="color:var(--accent);font-weight:700;font-size:1em;">使い方</span>
+            <button onclick="closeHelp()" style="background:none;border:none;color:var(--text-3);font-size:1.2em;cursor:pointer;padding:4px 8px;line-height:1;">✕</button>
+        </div>
+
+        <!-- ① クイックスタート -->
+        <div style="margin-bottom:18px;">
+            <p style="font-size:0.75em;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;">クイックスタート</p>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:2px;">
+                    <span style="min-width:22px;height:22px;line-height:22px;text-align:center;font-size:0.78em;font-weight:700;background:var(--accent);color:var(--on-accent);border-radius:2px;flex-shrink:0;">1</span>
+                    <div style="font-size:0.83em;color:var(--text-2);line-height:1.55;">
+                        <strong style="color:var(--text);">討伐効率タブ</strong>を開き、<br>
+                        各難易度の <strong style="color:var(--text);">討伐時間（分・秒）</strong> を入力
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:2px;">
+                    <span style="min-width:22px;height:22px;line-height:22px;text-align:center;font-size:0.78em;font-weight:700;background:var(--accent);color:var(--on-accent);border-radius:2px;flex-shrink:0;">2</span>
+                    <div style="font-size:0.83em;color:var(--text-2);line-height:1.55;">
+                        <strong style="color:var(--text);">効率ランキング</strong> が自動更新 →<br>
+                        最も効率のいい難易度がわかる
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:2px;">
+                    <span style="min-width:22px;height:22px;line-height:22px;text-align:center;font-size:0.78em;font-weight:700;background:var(--accent);color:var(--on-accent);border-radius:2px;flex-shrink:0;">3</span>
+                    <div style="font-size:0.83em;color:var(--text-2);line-height:1.55;">
+                        <strong style="color:var(--text);">目標計算</strong> で目標貢献度・残り時間を入力、<br>
+                        <strong style="color:var(--text);">肉計算</strong> で全投入貢献度を試算
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);margin-bottom:14px;"></div>
+
+        <!-- ② 機能一覧（キー要素） -->
+        <div style="margin-bottom:18px;">
+            <p style="font-size:0.75em;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;">機能一覧</p>
+            <div style="display:flex;flex-direction:column;gap:5px;font-size:0.82em;">
+                <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(28,58,82,0.5);">
+                    <span style="color:var(--accent);min-width:60px;font-weight:600;">リロ?</span>
+                    <span style="color:var(--text-2);">演出スキップ後の討伐時間を入力 → リロ有の実効率をランキングに追加</span>
+                </div>
+                <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(28,58,82,0.5);">
+                    <span style="color:#ff9800;min-width:60px;font-weight:600;">バッファ?</span>
+                    <span style="color:var(--text-2);">理想タイム+10%のエントリをランキングに追加。少し余裕をもったときの効率目安</span>
+                </div>
+                <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(28,58,82,0.5);">
+                    <span style="color:var(--text-2);min-width:60px;font-weight:600;">基準</span>
+                    <span style="color:var(--text-2);">その難易度に「並ぶ」ために他の難易度で必要な時間を表示</span>
+                </div>
+                <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(28,58,82,0.5);">
+                    <span style="color:var(--text-2);min-width:60px;font-weight:600;">残り時間</span>
+                    <span style="color:var(--text-2);">（目標タブ）日数+時間を入力 → 時間内に達成可能か判定</span>
+                </div>
+                <div style="display:flex;gap:8px;padding:6px 0;">
+                    <span style="color:var(--text-2);min-width:60px;font-weight:600;">250素材</span>
+                    <span style="color:var(--text-2);">（肉タブ）余り分を最大500個まで通常肉2個に変換して計算</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);margin-bottom:14px;"></div>
+
+        <!-- ③ タブ別詳細 (collapsible) -->
+        <p style="font-size:0.75em;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;">タブ別詳細</p>
+
+        <details style="margin-bottom:8px;">
+            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
+                <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> 討伐効率タブ
+            </summary>
+            <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
+                <p style="margin-bottom:6px;">各難易度の討伐時間（分・秒）を入力すると <strong style="color:var(--text);">貢献度/時間</strong> と <strong style="color:var(--text);">肉消費ペース</strong> を自動計算します。</p>
+                <ul style="padding-left:14px;display:flex;flex-direction:column;gap:4px;">
+                    <li><strong style="color:var(--text);">分・秒セレクト</strong> で入力。「1秒単位で入力」チェックで秒を自由入力に切替</li>
+                    <li><strong style="color:var(--text);">肉消費/h</strong> はチャンク数考慮の実消費量（例: 100HELL = 周回数×20個）</li>
+                    <li><strong style="color:var(--text);">リロ?</strong> チェック → リロ有の討伐時間を追加入力、実効率をランキングに反映</li>
+                    <li><strong style="color:#ff9800;">バッファ?</strong> チェック → 「理想より10%遅い」ランキングエントリを追加。余裕を見た効率目安として使える</li>
+                    <li><strong style="color:var(--text);">基準ボタン</strong> → 選択難易度に並ぶために他の難易度で必要な時間を一覧表示</li>
+                </ul>
+            </div>
+        </details>
+
+        <details style="margin-bottom:8px;">
+            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
+                <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> 目標計算タブ
+            </summary>
+            <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
+                <p style="margin-bottom:6px;">目標貢献度と現在の貢献度を選択すると <strong style="color:var(--text);">必要回数・必要肉数</strong> を一覧表示します。</p>
+                <ul style="padding-left:14px;display:flex;flex-direction:column;gap:4px;">
+                    <li>必要肉数はチャンク数込みの実消費数を表示</li>
+                    <li><strong style="color:var(--text);">残り時間</strong>（日数＋時間）を入力 → 時間内に達成できるか判定</li>
+                    <li>討伐効率タブで時間入力済みの難易度は所要時間も表示</li>
+                </ul>
+            </div>
+        </details>
+
+        <details style="margin-bottom:16px;">
+            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
+                <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> 肉計算タブ
+            </summary>
+            <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
+                <p style="margin-bottom:6px;">所持リソースを入力して全投入時の貢献度を試算します。</p>
+                <ul style="padding-left:14px;display:flex;flex-direction:column;gap:4px;">
+                    <li><strong style="color:var(--text);">通常肉</strong>: HELL90〜200に使う素材</li>
+                    <li><strong style="color:var(--text);">250専用素材</strong>: 250HELL自発に必須。余り分は最大500個まで通常肉2個に変換可</li>
+                    <li><strong style="color:var(--text);">250HELL回数</strong>: 使う予定の回数を入力すると残り素材の変換量を計算</li>
+                    <li>合計期待貢献度 = 250HELL分 + 通常肉全投入の上限値</li>
+                </ul>
+            </div>
+        </details>
+
+        <div style="background:var(--bg);border-radius:6px;padding:10px 12px;font-size:0.8em;color:var(--text-3);line-height:1.65;">
+            ※ 討伐時間はブラウザに自動保存。同じブラウザ・デバイスなら次回も引き継がれます。
+        </div>
+    </div>
+
+    <div id="attack-info-section">
+        <div id="open-mode-bar">
+            <span id="open-mode-label">攻略情報:</span>
+            <button class="mode-btn" data-mode="internal">内部ブラウザ</button>
+            <button class="mode-btn" data-mode="split">Split View</button>
+            <button class="mode-btn" data-mode="tab">新しいタブ</button>
+            <span id="ext-no-ext-hint">— 拡張機能が必要</span>
+        </div>
+        <div class="ext-links">
+            <button class="ext-btn site-btn" data-site="gamewith"
+                data-url="https://granbluefantasy.gamewith.jp/">GameWith 攻略</button>
+            <button class="ext-btn site-btn" data-site="kamigame"
+                data-url="https://kamigame.jp/%E3%82%B0%E3%83%A9%E3%83%96%E3%83%AB/%E6%B1%BA%E6%88%A6%EF%BC%81%E6%98%9F%E3%81%AE%E5%8F%A4%E6%88%A6%E5%A0%B4/index.html">神ゲー攻略</button>
+            <button class="ext-btn site-btn yt" data-site="youtube"
+                data-url="https://www.youtube.com/results?search_query=%E5%8F%A4%E6%88%A6%E5%A0%B4+%E7%B7%A8%E6%88%90">YouTube: 古戦場 編成</button>
+        </div>
+    </div>
+
+    <nav class="tabs">
+        <button class="tab-btn active" data-tab="efficiency">討伐効率</button>
+        <button class="tab-btn" data-tab="target">目標計算</button>
+        <button class="tab-btn" data-tab="meat">肉計算</button>
+    </nav>
+
+    <!-- ===== TAB 1: 討伐効率 ===== -->
+    <div id="tab-efficiency" class="tab-content active">
+        <div class="card">
+            <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                討伐時間の入力
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;font-weight:400;color:var(--text-3);cursor:pointer;">
+                    <input type="checkbox" id="fine-mode-chk" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer;">
+                    1秒単位で入力
+                </label>
+            </div>
+            <p class="note" style="margin-bottom:12px;">討伐時間を入力してください。設定は自動保存されます。</p>
+            <div style="overflow-x:auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>難易度</th>
+                            <th>貢献度/回</th>
+                            <th>討伐時間</th>
+                            <th>貢献度/時間</th>
+                            <th>肉消費/h</th>
+                            <th>肉1個の貢献度</th>
+                            <th style="width:46px;text-align:center;font-size:0.78em;">リロ?</th>
+                            <th style="width:64px;min-width:64px;text-align:center;font-size:0.78em;white-space:nowrap;" title="理想タイム+10%のランキングエントリを追加（バッファあり）">バッファ?</th>
+                            <th style="width:50px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="eff-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">効率ランキング <span style="font-size:0.75em; font-weight:400; color:var(--text-3);">（討伐時間を入力した難易度のみ）</span></div>
+            <div id="eff-ranking"><div class="no-data">討伐時間を入力してください</div></div>
+        </div>
+        <div id="base-compare-card" class="card" style="display:none">
+            <div class="card-title" id="base-compare-title">基準比較</div>
+            <p class="note" style="margin-bottom:12px;">基準難易度と同じ効率（貢献度/時間）にするために必要な討伐時間</p>
+            <div id="base-compare-body"></div>
+        </div>
+    </div>
+
+    <!-- ===== TAB 2: 目標計算 ===== -->
+    <div id="tab-target" class="tab-content">
+        <div class="card">
+            <div class="card-title">目標貢献度の設定</div>
+            <div class="frow">
+                <label>目標貢献度</label>
+                <select id="t-goal" class="time-sel" style="width:120px"></select>
+            </div>
+            <div class="frow">
+                <label>現在の貢献度</label>
+                <select id="t-cur" class="time-sel" style="width:120px"></select>
+            </div>
+            <div id="t-remain-box" style="display:none;" class="sum-box">
+                <div class="sum-label">残り必要貢献度</div>
+                <div class="sum-val" id="t-remain-val">─</div>
+            </div>
+            <div style="margin-top:16px;">
+                <div class="note" style="margin-bottom:8px;">残りイベント時間（任意）</div>
+                <div class="frow" style="margin-bottom:0;">
+                    <label>残り時間</label>
+                    <select id="t-days" class="time-sel"></select>
+                    <select id="t-hours" class="time-sel"></select>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">各難易度での必要回数</div>
+            <p class="note" style="margin-bottom:10px;">「討伐効率」タブで時間を入力すると所要時間も表示されます</p>
+            <div id="t-table-wrap"><div class="no-data">目標貢献度を入力してください</div></div>
+        </div>
+    </div>
+
+    <!-- ===== TAB 3: 肉計算 ===== -->
+    <div id="tab-meat" class="tab-content">
+        <div class="card">
+            <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                所持リソース
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;font-weight:400;color:var(--text-3);cursor:pointer;">
+                    <input type="checkbox" id="meat-fine-chk" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer;">
+                    1個単位で入力
+                </label>
+            </div>
+            <div class="frow">
+                <label>通常肉</label>
+                <span id="m-normal-wrap"></span>
+                <span class="unit">個</span>
+            </div>
+            <div class="frow" style="margin-bottom:0;">
+                <label>250専用素材</label>
+                <span id="m-mat-wrap"></span>
+                <span class="unit">個</span>
+            </div>
+            <p class="note" style="margin-top:8px;">250素材は最大500個まで通常肉2個に変換可能（500回まで）</p>
+        </div>
+
+        <div class="card">
+            <div class="card-title">250HELL 作戦</div>
+            <div class="frow" style="margin-bottom:6px;">
+                <label>250HELL 回数</label>
+                <input type="number" id="m-250runs" placeholder="0" min="0">
+                <span class="unit">回（素材使用）</span>
+            </div>
+            <div id="m-250info" class="note" style="line-height:1.9;"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">通常肉 全投入シミュレーション</div>
+            <p class="note" style="margin-bottom:12px;">250HELL後の残り通常肉を各難易度に全投入した場合の期待貢献度</p>
+            <div id="m-result"><div class="no-data">所持リソースを入力してください</div></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">合計期待貢献度（250HELL + 通常肉）</div>
+            <div id="m-total"><div class="no-data">所持リソースを入力してください</div></div>
+        </div>
+    </div>
+
+    <!-- ===== レイドデータ参照 ===== -->
+    <details class="card">
+        <summary>レイドデータ 参照</summary>
+        <div style="overflow-x:auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>難易度</th>
+                        <th>貢献度/回</th>
+                        <th>敵HP</th>
+                        <th>防御値</th>
+                        <th>チャンク数</th>
+                        <th>チャンク効率</th>
+                        <th>備考</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td class="c-vh">VH</td><td>約2.1万</td><td>─</td><td>─</td><td>─</td><td>─</td><td></td></tr>
+                    <tr><td class="c-ex">EX</td><td>約6.4万</td><td>─</td><td>─</td><td>─</td><td>─</td><td></td></tr>
+                    <tr><td class="c-exp">EX+</td><td>約12.6万</td><td>─</td><td>─</td><td>─</td><td>─</td><td></td></tr>
+                    <tr><td class="c-hell">90HELL</td><td>30.5万</td><td>5,000万</td><td>100~26%: 14 / 25%~: 13</td><td>5</td><td>6.1万/個</td><td></td></tr>
+                    <tr><td class="c-hell">95HELL</td><td>91万</td><td>1億3125万</td><td>100~26%: 15 / 25%~: 14</td><td>10</td><td>9.1万/個</td><td></td></tr>
+                    <tr><td class="c-hell">100HELL</td><td>268万</td><td>2億8875万</td><td>100~26%: 15 / 25%~: 14</td><td>20</td><td>13.4万/個</td><td></td></tr>
+                    <tr><td class="c-hell">150HELL</td><td>410万</td><td>2億8875万</td><td>25（固定）</td><td>20</td><td>20.5万/個</td><td></td></tr>
+                    <tr><td class="c-hell">200HELL</td><td>2,000万</td><td>8億7780万</td><td>25（固定）</td><td>20</td><td>100万/個</td><td></td></tr>
+                    <tr><td class="c-h250">250HELL</td><td>7,500万</td><td>23億2620万</td><td>25（固定）</td><td>20</td><td>375万/個</td><td>専用素材 自発必須</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="note" style="margin-top:10px;">※250自発素材1個 → 通常肉2個に変換可能（500回まで）</p>
+    </details>
+</div><!-- /container -->
+</div><!-- /main-pane -->
+<div id="split-divider"></div>
+<div id="ext-pane">
+    <div id="ext-pane-bar">
+        <button class="epane-tab" data-site="gamewith">GameWith</button>
+        <button class="epane-tab" data-site="kamigame">神ゲー</button>
+        <button class="epane-tab" data-site="youtube">YouTube</button>
+        <button id="ext-pane-close">✕ 閉じる</button>
+    </div>
+    <div id="yt-search-ui">
+        <p class="note">YouTube全体はiframe非対応のため、動画URLを直接入力して再生します。</p>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+            <input type="text" id="yt-url-input" placeholder="https://youtu.be/XXXX  または  watch?v=XXXX">
+            <button id="yt-load-btn" class="base-btn" style="padding:5px 12px;white-space:nowrap;">再生</button>
+        </div>
+        <div id="yt-url-hint" class="note" style="margin-top:6px;min-height:1em;"></div>
+    </div>
+    <iframe id="ext-iframe" src="about:blank"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowfullscreen></iframe>
+</div>
+</div><!-- /split-root -->
+
+<script>
+const DIFFS = [
+    { id:'vh',   name:'VH',      contrib:21400,    isMeat:false, is250:false, chunks:0  },
+    { id:'ex',   name:'EX',      contrib:64000,    isMeat:false, is250:false, chunks:0  },
+    { id:'exp',  name:'EX+',     contrib:126000,   isMeat:false, is250:false, chunks:0  },
+    { id:'h90',  name:'90HELL',  contrib:305000,   isMeat:true,  is250:false, chunks:5  },
+    { id:'h95',  name:'95HELL',  contrib:910000,   isMeat:true,  is250:false, chunks:10 },
+    { id:'h100', name:'100HELL', contrib:2680000,  isMeat:true,  is250:false, chunks:20 },
+    { id:'h150', name:'150HELL', contrib:4100000,  isMeat:true,  is250:false, chunks:20 },
+    { id:'h200', name:'200HELL', contrib:20000000, isMeat:true,  is250:false, chunks:20 },
+    { id:'h250', name:'250HELL', contrib:75000000, isMeat:false, is250:true,  chunks:20 },
+];
+
+// ── 状態 ──
+let killTimes = {};
+try { killTimes = JSON.parse(localStorage.getItem('gbf_kj_times') || '{}'); } catch(e){}
+let killTimes2 = {};
+let reloadEnabled = new Set();
+let saboEnabled = new Set();
+try {
+    const r = JSON.parse(localStorage.getItem('gbf_kj_reload') || '{}');
+    killTimes2 = r.times || {};
+    reloadEnabled = new Set(r.enabled || []);
+    saboEnabled = new Set(r.sabo || []);
+} catch(e){}
+let baseDiffId = null;
+let fineMode = false;
+
+function saveReloadState() {
+    localStorage.setItem('gbf_kj_reload', JSON.stringify({ times: killTimes2, enabled: [...reloadEnabled], sabo: [...saboEnabled] }));
+}
+
+// ── ユーティリティ ──
+
+function buildMinOpts(savedMin) {
+    let html = '<option value="">─</option>';
+    for (let m = 0; m <= 30; m++) {
+        const sel = (savedMin === null ? m === 0 : savedMin === m) ? 'selected' : '';
+        html += `<option value="${m}" ${sel}>${m}分</option>`;
+    }
+    return html;
+}
+
+function buildSecOpts(savedSec) {
+    return [0,5,10,15,20,25,30,35,40,45,50,55].map(s =>
+        `<option value="${s}" ${savedSec === s ? 'selected' : ''}>${String(s).padStart(2,'0')}秒</option>`
+    ).join('');
+}
+
+function buildSecInput(savedSec, cls, id) {
+    if (fineMode) {
+        return `<input type="number" class="time-sel ${cls}" data-id="${id}" min="0" max="59" value="${savedSec ?? 0}" style="width:52px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 4px;font-size:0.85em;">`;
+    }
+    return `<select class="time-sel ${cls}" data-id="${id}">${buildSecOpts(savedSec)}</select>`;
+}
+
+function fmtTime(s) {
+    if (!s) return '─';
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.round(s % 60);
+    if (h > 0) {
+        if (!m && !sec) return `${h}時間`;
+        if (!sec) return `${h}時間${m}分`;
+        return `${h}時間${m}分${String(sec).padStart(2,'0')}秒`;
+    }
+    if (!m) return `${sec}秒`;
+    if (!sec) return `${m}分`;
+    return `${m}分${String(sec).padStart(2,'0')}秒`;
+}
+
+function fmtC(n) {
+    if (n == null || isNaN(n)) return '─';
+    if (n >= 100000000) {
+        const v = n / 100000000;
+        return (v % 1 === 0 ? v.toLocaleString() : v.toFixed(2)) + '億';
+    }
+    if (n >= 10000) {
+        const v = n / 10000;
+        return (v % 1 === 0 ? v.toLocaleString() : v.toFixed(1)) + '万';
+    }
+    return n.toLocaleString();
+}
+
+function parseC(s) {
+    if (!s) return null;
+    s = s.replace(/,/g,'').trim();
+    if (s.endsWith('億')) return parseFloat(s) * 100000000;
+    if (s.endsWith('万')) return parseFloat(s) * 10000;
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+}
+
+function diffClass(d) {
+    if (d.is250) return 'c-h250';
+    if (d.isMeat) return 'c-hell';
+    if (d.id === 'exp') return 'c-exp';
+    if (d.id === 'ex') return 'c-ex';
+    return 'c-vh';
+}
+
+function barClass(rank, total) {
+    const classes = ['bar-1','bar-2','bar-3','bar-4','bar-5','bar-6','bar-7'];
+    const i = Math.min(Math.floor(rank / total * classes.length), classes.length - 1);
+    return classes[i];
+}
+
+function meatLabel(d) {
+    if (d.isMeat) return `${fmtC(d.contrib)}/肉`;
+    if (d.is250)  return `${fmtC(d.contrib)}/素材`;
+    return '─（AP消費）';
+}
+
+// ── Tab 1: 効率比較 ──
+function buildEffTable() {
+    const tbody = document.getElementById('eff-tbody');
+    tbody.innerHTML = '';
+    DIFFS.forEach(d => {
+        const tr = document.createElement('tr');
+        const saved = killTimes[d.id];
+        const savedMin = saved != null ? Math.floor(saved / 60) : null;
+        const savedSec = saved != null ? Math.round((saved % 60) / 5) * 5 % 60 : 0;
+        const perHour = saved ? Math.round(d.contrib / saved * 3600) : null;
+        const meatPerH = (saved && (d.isMeat || d.is250)) ? Math.floor(3600 / saved) * d.chunks : null;
+        const meatPerHStr = meatPerH != null
+            ? `<span style="color:var(--accent);font-weight:700">${meatPerH.toLocaleString()}</span><span style="color:var(--text-3);font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>`
+            : '<span style="color:var(--text-3)">─</span>';
+        const isRelo = reloadEnabled.has(d.id);
+        const isSabo = saboEnabled.has(d.id);
+        const saved2 = killTimes2[d.id] ?? null;
+        const savedMin2 = saved2 != null ? Math.floor(saved2 / 60) : null;
+        const savedSec2 = saved2 != null ? Math.round((saved2 % 60) / 5) * 5 % 60 : 0;
+        tr.innerHTML = `
+            <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
+            <td>${fmtC(d.contrib)}</td>
+            <td style="white-space:nowrap">
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <span style="font-size:0.75em;color:var(--text-3);min-width:28px;">${isRelo ? '1回目' : ''}</span>
+                    <select class="time-sel time-sel-min" data-id="${d.id}">${buildMinOpts(savedMin)}</select>
+                    ${buildSecInput(savedSec, 'time-sel-sec', d.id)}
+                </div>
+                <div id="relo-row-${d.id}" style="display:${isRelo ? 'flex' : 'none'};align-items:center;gap:4px;margin-top:4px;">
+                    <span style="font-size:0.75em;color:var(--accent-hi);min-width:28px;">リロ有</span>
+                    <select class="time-sel time-sel-min2" data-id="${d.id}">${buildMinOpts(savedMin2)}</select>
+                    ${buildSecInput(savedSec2, 'time-sel-sec2', d.id)}
+                </div>
+            </td>
+            <td id="eph-${d.id}" style="color:${perHour ? 'var(--accent)' : 'var(--text-3)'};font-weight:700">${perHour ? fmtC(perHour) + '/h' : '─'}</td>
+            <td id="mph-${d.id}">${meatPerHStr}</td>
+            <td style="color:var(--text-3);font-size:0.84em">${meatLabel(d)}</td>
+            <td style="text-align:center"><input type="checkbox" class="relo-chk" data-id="${d.id}" ${isRelo ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);"></td>
+            <td style="text-align:center"><input type="checkbox" class="sabo-chk" data-id="${d.id}" ${isSabo ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:#ff9800;" title="バッファあり（理想より+10%かかった場合の効率をランキングに追加）"></td>
+            <td><button class="base-btn" data-id="${d.id}">基準</button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    function readTime(id) {
+        const minEl = tbody.querySelector(`.time-sel-min[data-id="${id}"]`);
+        const secEl = tbody.querySelector(`.time-sel-sec[data-id="${id}"]`);
+        const minVal = minEl?.value;
+        if (minVal === '' || minVal == null) return null;
+        return parseInt(minVal) * 60 + parseInt(secEl?.value || 0);
+    }
+
+    function readTime2(id) {
+        const minEl = tbody.querySelector(`.time-sel-min2[data-id="${id}"]`);
+        const secEl = tbody.querySelector(`.time-sel-sec2[data-id="${id}"]`);
+        const minVal = minEl?.value;
+        if (minVal === '' || minVal == null) return null;
+        return parseInt(minVal) * 60 + parseInt(secEl?.value || 0);
+    }
+
+    function addTimeListener(el, handler) {
+        el.addEventListener('change', handler);
+        if (el.tagName === 'INPUT') el.addEventListener('input', handler);
+    }
+
+    tbody.querySelectorAll('.time-sel-min, .time-sel-sec').forEach(sel => {
+        addTimeListener(sel, e => {
+            const id = e.target.dataset.id;
+            const t = readTime(id);
+            if (t != null && t > 0) killTimes[id] = t; else delete killTimes[id];
+            localStorage.setItem('gbf_kj_times', JSON.stringify(killTimes));
+            updateEffView();
+            updateTargetView();
+            updateMeatView();
+        });
+    });
+
+    tbody.querySelectorAll('.time-sel-min2, .time-sel-sec2').forEach(sel => {
+        addTimeListener(sel, e => {
+            const id = e.target.dataset.id;
+            const t = readTime2(id);
+            if (t != null && t > 0) killTimes2[id] = t; else delete killTimes2[id];
+            saveReloadState();
+            updateEffView();
+        });
+    });
+
+    tbody.querySelectorAll('.relo-chk').forEach(chk => {
+        chk.addEventListener('change', e => {
+            const id = e.target.dataset.id;
+            if (e.target.checked) reloadEnabled.add(id); else reloadEnabled.delete(id);
+            saveReloadState();
+            const row = document.getElementById(`relo-row-${id}`);
+            if (row) row.style.display = e.target.checked ? 'flex' : 'none';
+            // label 1回目 / 非表示 切り替え
+            const label = tbody.querySelector(`.time-sel-min[data-id="${id}"]`)?.closest('td')?.querySelector('span');
+            if (label) label.textContent = e.target.checked ? '1回目' : '';
+            updateEffView();
+        });
+    });
+
+    tbody.querySelectorAll('.sabo-chk').forEach(chk => {
+        chk.addEventListener('change', e => {
+            const id = e.target.dataset.id;
+            if (e.target.checked) saboEnabled.add(id); else saboEnabled.delete(id);
+            saveReloadState();
+            updateEffView();
+        });
+    });
+
+    tbody.querySelectorAll('.base-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            const id = e.target.dataset.id;
+            baseDiffId = (baseDiffId === id) ? null : id;
+            updateEffView();
+        });
+    });
+}
+
+function updateEffView() {
+    DIFFS.forEach(d => {
+        const ephEl = document.getElementById(`eph-${d.id}`);
+        const mphEl = document.getElementById(`mph-${d.id}`);
+        const t  = killTimes[d.id];
+        const t2 = reloadEnabled.has(d.id) ? (killTimes2[d.id] || null) : null;
+        if (ephEl) {
+            if (t) {
+                const eph1 = Math.round(d.contrib / t * 3600);
+                if (t2) {
+                    const eph2 = Math.round(d.contrib / t2 * 3600);
+                    ephEl.innerHTML = `<span style="color:var(--text-2);font-size:0.85em">${fmtC(eph1)}</span><br><span style="color:var(--accent);font-weight:700">${fmtC(eph2)}/h</span><span style="color:var(--text-3);font-size:0.75em"> リロ有</span>`;
+                } else {
+                    ephEl.textContent = fmtC(eph1) + '/h';
+                    ephEl.style.color = 'var(--accent)';
+                }
+            } else {
+                ephEl.textContent = '─';
+                ephEl.style.color = '#444';
+            }
+        }
+        if (mphEl) {
+            const tEff = t2 || t;
+            if (tEff && (d.isMeat || d.is250)) {
+                const mph = Math.floor(3600 / tEff) * d.chunks;
+                const label = t2 ? '<span style="color:var(--text-3);font-size:0.75em"> リロ有</span>' : '';
+                mphEl.innerHTML = `<span style="color:var(--accent);font-weight:700">${mph.toLocaleString()}</span><span style="color:var(--text-3);font-size:0.82em"> ${d.is250 ? '素材' : '個'}/h</span>${label}`;
+            } else {
+                mphEl.innerHTML = '<span style="color:var(--text-3)">─</span>';
+            }
+        }
+    });
+
+    // sync base-btn active state
+    document.querySelectorAll('.base-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.id === baseDiffId);
+    });
+
+    const ranked = DIFFS
+        .filter(d => killTimes[d.id])
+        .flatMap(d => {
+            const entries = [{ d, perH: Math.round(d.contrib / killTimes[d.id] * 3600), isRelo: false, isSabo: false }];
+            if (reloadEnabled.has(d.id) && killTimes2[d.id]) {
+                entries.push({ d, perH: Math.round(d.contrib / killTimes2[d.id] * 3600), isRelo: true, isSabo: false });
+            }
+            if (saboEnabled.has(d.id)) {
+                // 理想タイム（リロ後があればリロ後）の +10% で追加エントリ
+                const baseT = (reloadEnabled.has(d.id) && killTimes2[d.id]) ? killTimes2[d.id] : killTimes[d.id];
+                entries.push({ d, perH: Math.round(d.contrib / (baseT * 1.1) * 3600), isRelo: false, isSabo: true });
+            }
+            return entries;
+        })
+        .sort((a, b) => b.perH - a.perH);
+
+    const rankEl = document.getElementById('eff-ranking');
+    if (!ranked.length) { rankEl.innerHTML = '<div class="no-data">討伐時間を入力してください</div>'; }
+    else {
+        const maxH = ranked[0].perH;
+        rankEl.innerHTML = '<div class="rank-list">' + ranked.map((r, i) => {
+            const pct = Math.round(r.perH / maxH * 100);
+            const rc = i < 3 ? ` r${i+1}` : '';
+            return `<div class="rank-item">
+                <span class="rank-num${rc}">${i+1}</span>
+                <span class="rank-name ${diffClass(r.d)}">${r.d.name}${r.isRelo ? '<span style="color:var(--accent-hi);font-size:0.72em;margin-left:4px;">リロ</span>' : r.isSabo ? '<span style="color:#ff9800;font-size:0.72em;margin-left:4px;">+10%</span>' : ''}</span>
+                <span class="rank-val">${fmtC(r.perH)}/h</span>
+                <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill ${barClass(i, ranked.length)}" style="width:${pct}%"></div></div></div>
+                <span class="rank-pct">${pct}%</span>
+            </div>`;
+        }).join('') + '</div>';
+    }
+
+    // base compare card
+    const card = document.getElementById('base-compare-card');
+    const body = document.getElementById('base-compare-body');
+    const title = document.getElementById('base-compare-title');
+
+    if (!baseDiffId || !killTimes[baseDiffId]) {
+        card.style.display = 'none';
+        return;
+    }
+
+    const baseDiff = DIFFS.find(d => d.id === baseDiffId);
+    const baseTime = killTimes[baseDiffId];
+    const basePerH = baseDiff.contrib / baseTime * 3600;
+
+    card.style.display = 'block';
+    title.textContent = `基準: ${baseDiff.name}（${fmtC(Math.round(basePerH))}/h）との比較`;
+
+    const others = DIFFS.filter(d => d.id !== baseDiffId);
+    let html = `<div style="overflow-x:auto"><table class="data-table"><thead><tr>
+        <th>難易度</th>
+        <th>同効率に必要な討伐時間</th>
+        <th>実際の討伐時間</th>
+        <th>判定</th>
+    </tr></thead><tbody>`;
+
+    others.forEach(d => {
+        const needed = d.contrib * baseTime / baseDiff.contrib;
+        const actual = killTimes[d.id] || null;
+        let verdict = '';
+        if (actual == null) {
+            verdict = '<span style="color:var(--text-3)">─ 未入力</span>';
+        } else if (actual <= needed) {
+            verdict = `<span class="ach-ok">✓ 基準以上</span>`;
+        } else {
+            const slower = fmtTime(Math.round(actual - needed));
+            verdict = `<span class="ach-ng">✗ ${slower}遅い</span>`;
+        }
+        html += `<tr>
+            <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
+            <td style="color:var(--text-2)">${fmtTime(Math.round(needed))}</td>
+            <td style="color:${actual ? 'var(--text)' : 'var(--text-3)'}">${actual ? fmtTime(actual) : '─'}</td>
+            <td>${verdict}</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    body.innerHTML = html;
+}
+
+// ── Tab 2: 目標計算 ──
+function buildContribOpts(includeZero) {
+    let html = '';
+    if (includeZero) html += '<option value="0">0（なし）</option>';
+    for (let v = 5; v <= 200; v += 5) {
+        html += `<option value="${v * 100000000}">${v}億</option>`;
+    }
+    return html;
+}
+
+function setupTargetInputs() {
+    document.getElementById('t-goal').innerHTML = buildContribOpts(false);
+    document.getElementById('t-cur').innerHTML  = buildContribOpts(true);
+
+    // 残り日数: 0〜4日
+    let daysHtml = '';
+    for (let d = 0; d <= 4; d++) daysHtml += `<option value="${d}">${d}日</option>`;
+    document.getElementById('t-days').innerHTML = daysHtml;
+
+    // 残り時間: 1〜24時間
+    let hoursHtml = '';
+    for (let h = 1; h <= 24; h++) hoursHtml += `<option value="${h}">${h}時間</option>`;
+    document.getElementById('t-hours').innerHTML = hoursHtml;
+
+    ['t-goal','t-cur','t-days','t-hours'].forEach(id =>
+        document.getElementById(id).addEventListener('change', updateTargetView)
+    );
+}
+
+function updateTargetView() {
+    const goal = parseInt(document.getElementById('t-goal').value) || 0;
+    const cur  = parseInt(document.getElementById('t-cur').value)  || 0;
+    const remBox = document.getElementById('t-remain-box');
+    const wrap   = document.getElementById('t-table-wrap');
+
+    if (!goal) { remBox.style.display = 'none'; wrap.innerHTML = '<div class="no-data">目標貢献度を選択してください</div>'; return; }
+
+    const needed = Math.max(0, goal - cur);
+    remBox.style.display = 'block';
+    document.getElementById('t-remain-val').textContent = fmtC(needed) + ' pt';
+
+    if (needed === 0) { wrap.innerHTML = '<div style="color:#4caf50;font-weight:700;padding:16px;text-align:center">🎉 目標達成済み！</div>'; return; }
+
+    const remDays  = parseInt(document.getElementById('t-days').value)  || 0;
+    const remHours = parseInt(document.getElementById('t-hours').value) || 0;
+    const remSec   = (remDays * 24 + remHours) * 3600;
+
+    const hasTime = remSec > 0;
+    let html = `<div style="overflow-x:auto"><table class="data-table"><thead><tr>
+        <th>難易度</th><th>必要回数</th><th>所要時間</th>
+        ${hasTime ? '<th>残り時間内</th>' : ''}<th>必要肉/素材</th>
+    </tr></thead><tbody>`;
+
+    DIFFS.forEach(d => {
+        const runs = Math.ceil(needed / d.contrib);
+        const t = killTimes[d.id];
+        const totSec = t ? runs * t : null;
+        const totalItems = runs * d.chunks;
+        const meatStr = d.isMeat ? `${totalItems.toLocaleString()}個` : d.is250 ? `${totalItems.toLocaleString()}個(素材)` : '─';
+
+        let achCell = '';
+        if (hasTime) {
+            if (!t) {
+                achCell = '<td style="color:var(--text-3)">─</td>';
+            } else {
+                const possible = Math.floor(remSec / t);
+                if (possible >= runs) {
+                    achCell = `<td class="ach-ok">✓ 達成可</td>`;
+                } else {
+                    const gained = d.contrib * possible;
+                    achCell = `<td class="ach-ng">${possible.toLocaleString()}回可<br>+${fmtC(gained)}</td>`;
+                }
+            }
+        }
+
+        html += `<tr>
+            <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
+            <td>${runs.toLocaleString()}回</td>
+            <td style="color:${totSec ? '#ccc' : '#444'}">${fmtTime(totSec)}</td>
+            ${achCell}
+            <td style="color:var(--text-3);font-size:0.84em">${meatStr}</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    wrap.innerHTML = html;
+}
+
+// ── Tab 3: 肉計算 ──
+let meatFineMode = false;
+
+function buildMeatInputs() {
+    const normalWrap = document.getElementById('m-normal-wrap');
+    const matWrap    = document.getElementById('m-mat-wrap');
+    const prevNormal = parseInt(document.getElementById('m-normal')?.value) || 0;
+    const prevMat    = parseInt(document.getElementById('m-mat')?.value)    || 0;
+
+    if (meatFineMode) {
+        normalWrap.innerHTML = `<input type="number" id="m-normal" min="0" max="99999" value="${prevNormal}" style="width:110px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:0.88em;">`;
+        matWrap.innerHTML    = `<input type="number" id="m-mat"    min="0" max="99999" value="${prevMat}"    style="width:110px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:0.88em;">`;
+        document.getElementById('m-normal').addEventListener('input', updateMeatView);
+        document.getElementById('m-mat').addEventListener('input', updateMeatView);
+    } else {
+        let normalHtml = '';
+        for (let v = 0; v <= 50000; v += 100) normalHtml += `<option value="${v}" ${v === prevNormal ? 'selected' : ''}>${v.toLocaleString()}</option>`;
+        normalWrap.innerHTML = `<select id="m-normal" class="time-sel" style="width:110px;">${normalHtml}</select>`;
+
+        let matHtml = '';
+        for (let v = 0; v <= 10000; v += 50) matHtml += `<option value="${v}" ${v === prevMat ? 'selected' : ''}>${v.toLocaleString()}</option>`;
+        matWrap.innerHTML = `<select id="m-mat" class="time-sel" style="width:110px;">${matHtml}</select>`;
+
+        document.getElementById('m-normal').addEventListener('change', updateMeatView);
+        document.getElementById('m-mat').addEventListener('change', updateMeatView);
+    }
+}
+
+function setupMeatInputs() {
+    buildMeatInputs();
+    document.getElementById('m-250runs').addEventListener('input', updateMeatView);
+    document.getElementById('meat-fine-chk').addEventListener('change', e => {
+        meatFineMode = e.target.checked;
+        buildMeatInputs();
+        updateMeatView();
+    });
+}
+
+function updateMeatView() {
+    const normalMeat = parseInt(document.getElementById('m-normal').value) || 0;
+    const mat250     = parseInt(document.getElementById('m-mat').value) || 0;
+    const runs250req = parseInt(document.getElementById('m-250runs').value) || 0;
+
+    const actualRuns250  = Math.min(runs250req, mat250);
+    const remaining250   = mat250 - actualRuns250;
+    const convertible    = Math.min(remaining250, 500);
+    const convertedMeat  = convertible * 2;
+    const totalMeat      = normalMeat + convertedMeat;
+
+    // Info
+    const info = document.getElementById('m-250info');
+    const lines = [];
+    if (runs250req > mat250) lines.push(`⚠️ 素材が${runs250req}個必要ですが${mat250}個しかありません（最大${mat250}回）`);
+    lines.push(`250HELL: ${actualRuns250}回 ← 専用素材${actualRuns250}個使用`);
+    if (remaining250 > 0) {
+        lines.push(`残り素材 ${remaining250}個 → ${convertible}個変換 → 通常肉 +${convertedMeat}個`);
+        if (remaining250 > 500) lines.push(`⚠️ 500個超えの分 (${remaining250 - 500}個) は変換不可`);
+    }
+    lines.push(`通常肉合計: ${normalMeat.toLocaleString()} + ${convertedMeat} = <strong>${totalMeat.toLocaleString()}個</strong>`);
+    info.innerHTML = lines.join('<br>');
+
+    const meatDiffs = DIFFS.filter(d => d.isMeat);
+    const resultEl  = document.getElementById('m-result');
+    const totalEl   = document.getElementById('m-total');
+
+    if (totalMeat === 0 && actualRuns250 === 0) {
+        resultEl.innerHTML = '<div class="no-data">所持リソースを入力してください</div>';
+        totalEl.innerHTML  = '<div class="no-data">所持リソースを入力してください</div>';
+        return;
+    }
+
+    // 通常肉シミュ table
+    let tbl = `<div style="overflow-x:auto"><table class="data-table"><thead><tr>
+        <th>難易度</th><th>1回の貢献度</th><th>× ${totalMeat.toLocaleString()}個 = 合計</th><th>1時間の回数</th>
+    </tr></thead><tbody>`;
+
+    meatDiffs.forEach(d => {
+        const total = d.contrib * totalMeat;
+        const t = killTimes[d.id];
+        const rpm = t ? Math.floor(3600 / t) : null;
+        tbl += `<tr>
+            <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
+            <td style="color:var(--text-2)">${fmtC(d.contrib)}</td>
+            <td style="color:var(--accent);font-weight:700">${fmtC(total)}</td>
+            <td style="color:var(--text-3)">${rpm != null ? rpm + '回/h' : '─'}</td>
+        </tr>`;
+    });
+    tbl += '</tbody></table></div>';
+    resultEl.innerHTML = tbl;
+
+    // 合計
+    const contrib250total = actualRuns250 * 75000000;
+    const sorted = meatDiffs
+        .map(d => ({ d, meatTotal: d.contrib * totalMeat, total: contrib250total + d.contrib * totalMeat }))
+        .sort((a, b) => b.total - a.total);
+
+    let totHtml = '';
+    if (actualRuns250 > 0) {
+        totHtml += `<div style="font-size:0.84em;color:var(--text-3);margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:6px;">
+            250HELL: <span style="color:#9575cd;font-weight:700">${actualRuns250}回 × 7,500万 = ${fmtC(contrib250total)}</span>
+        </div>`;
+    }
+    sorted.forEach((item, i) => {
+        const best = i === 0;
+        const formulaStr = totalMeat > 0
+            ? `<span style="font-size:0.78em;color:var(--text-3);margin-right:6px">${fmtC(item.d.contrib)} × ${totalMeat}${actualRuns250 > 0 ? ` + ${fmtC(contrib250total)}` : ''} =</span>`
+            : '';
+        totHtml += `<div class="meat-row ${best ? 'best' : ''}">
+            <span style="min-width:18px;color:${best ? 'var(--accent)' : 'transparent'};font-weight:700">${best ? '★' : ''}</span>
+            <span class="meat-row-name ${diffClass(item.d)}">${item.d.name}</span>
+            ${formulaStr}<span class="meat-row-val" style="color:${best ? 'var(--accent)' : 'var(--text)'};font-size:${best ? '1.05em' : '0.95em'}">${fmtC(item.total)}</span>
+        </div>`;
+    });
+    totalEl.innerHTML = totHtml;
+}
+
+// ── タブ切り替え ──
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+});
+
+// ── 使い方ドロワー ──
+function openHelp() {
+    document.getElementById('help-drawer').style.transform = 'translateX(0)';
+}
+function closeHelp() {
+    document.getElementById('help-drawer').style.transform = 'translateX(100%)';
+}
+document.querySelectorAll('#help-drawer details').forEach(det => {
+    det.addEventListener('toggle', () => {
+        const arrow = det.querySelector('.det-arrow');
+        if (arrow) arrow.style.transform = det.open ? 'rotate(90deg)' : '';
+    });
+});
+document.getElementById('help-open-btn').addEventListener('click', openHelp);
+
+// ── 初期化 ──
+buildEffTable();
+setupTargetInputs();
+setupMeatInputs();
+updateEffView();
+
+document.getElementById('fine-mode-chk').addEventListener('change', e => {
+    fineMode = e.target.checked;
+    buildEffTable();
+    updateEffView();
+    updateTargetView();
+    updateMeatView();
+});
+</script>
+
+<script>
+// ===== 攻略情報パネル =====
+const SPLIT_EXT_ID = 'opopjkaffljjchnlebamdafafbclljcn';
+
+const SITES = [
+    { id: 'gamewith', label: 'GameWith', url: 'https://granbluefantasy.gamewith.jp/' },
+    { id: 'kamigame', label: '神ゲー',   url: 'https://kamigame.jp/%E3%82%B0%E3%83%A9%E3%83%96%E3%83%AB/%E6%B1%BA%E6%88%A6%EF%BC%81%E6%98%9F%E3%81%AE%E5%8F%A4%E6%88%A6%E5%A0%B4/index.html' },
+    { id: 'youtube',  label: 'YouTube',  url: 'https://www.youtube.com/results?search_query=%E5%8F%A4%E6%88%A6%E5%A0%B4+%E7%B7%A8%E6%88%90' }
+];
+
+let currentMode = localStorage.getItem('gbf_open_mode') || 'internal';
+let extInstalled = false;
+let currentSiteId = SITES[0].id;
+
+function applyMode(mode) {
+    currentMode = mode;
+    localStorage.setItem('gbf_open_mode', mode);
+    document.querySelectorAll('.mode-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === mode)
+    );
+    const hint = document.getElementById('ext-no-ext-hint');
+    if (hint) hint.style.display = (mode === 'split' && !extInstalled) ? 'inline' : 'none';
+}
+
+function openSite(url, siteId) {
+    if (currentMode === 'internal') {
+        openInternal(url, siteId);
+    } else if (currentMode === 'split') {
+        if (extInstalled) {
+            chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'openSplit', url }, r => {
+                if (chrome.runtime.lastError || !r?.success) {
+                    console.log('[GBF Tool] Split View失敗 → 内部ブラウザにフォールバック');
+                    openInternal(url, siteId);
+                }
+            });
+        } else {
+            openInternal(url, siteId);
+        }
+    } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
+}
+
+function openInternal(url, siteId) {
+    document.body.classList.add('split-active');
+    if (siteId) {
+        currentSiteId = siteId;
+        document.querySelectorAll('.epane-tab').forEach(t =>
+            t.classList.toggle('active', t.dataset.site === siteId)
+        );
+    }
+
+    const ytUi = document.getElementById('yt-search-ui');
+    const iframe = document.getElementById('ext-iframe');
+
+    if (siteId === 'youtube') {
+        // YouTubeはiframe非対応 → 動画URL入力UIを表示
+        ytUi.style.display = 'block';
+        iframe.src = 'about:blank';
+        console.log('[GBF Tool] YouTube: embed UI表示');
+    } else {
+        ytUi.style.display = 'none';
+        console.log('[GBF Tool] iframe読み込み:', url);
+        iframe.src = url;
+    }
+}
+
+function closeInternal() {
+    document.body.classList.remove('split-active');
+    document.getElementById('ext-iframe').src = 'about:blank';
+    document.getElementById('yt-search-ui').style.display = 'none';
+}
+
+// YouTube URL → VIDEO_ID
+function extractYouTubeId(input) {
+    input = (input || '').trim();
+    const patterns = [
+        /youtu\.be\/([A-Za-z0-9_\-]{11})/,
+        /[?&]v=([A-Za-z0-9_\-]{11})/,
+        /youtube\.com\/embed\/([A-Za-z0-9_\-]{11})/,
+        /^([A-Za-z0-9_\-]{11})$/
+    ];
+    for (const p of patterns) {
+        const m = input.match(p);
+        if (m) return m[1];
+    }
+    return null;
+}
+
+document.getElementById('yt-load-btn').addEventListener('click', () => {
+    const input = document.getElementById('yt-url-input').value;
+    const videoId = extractYouTubeId(input);
+    const hint = document.getElementById('yt-url-hint');
+    if (!videoId) {
+        hint.textContent = 'URLからビデオIDを取得できませんでした';
+        hint.style.color = 'var(--danger)';
+        return;
+    }
+    hint.textContent = 'VIDEO_ID: ' + videoId;
+    hint.style.color = 'var(--text-3)';
+    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+    document.getElementById('yt-search-ui').style.display = 'none';
+    const iframe = document.getElementById('ext-iframe');
+    iframe.src = embedUrl;
+    console.log('[GBF Tool] YouTube embed:', embedUrl);
+});
+
+document.getElementById('yt-url-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('yt-load-btn').click();
+});
+
+// iframe load event (デバッグ用)
+document.getElementById('ext-iframe').addEventListener('load', () => {
+    const src = document.getElementById('ext-iframe').src;
+    if (src && src !== 'about:blank') {
+        console.log('[GBF Tool] iframe load完了:', src);
+    }
+});
+
+// ドラッグリサイズ
+(function () {
+    const divider = document.getElementById('split-divider');
+    const extPane = document.getElementById('ext-pane');
+    let dragging = false, startX = 0, startW = 0;
+
+    divider.addEventListener('mousedown', e => {
+        dragging = true;
+        startX = e.clientX;
+        startW = extPane.offsetWidth;
+        divider.classList.add('dragging');
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const newW = Math.max(280, Math.min(window.innerWidth * 0.7, startW + (startX - e.clientX)));
+        extPane.style.width = newW + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+        dragging = false;
+        divider.classList.remove('dragging');
+    });
+})();
+
+// モードボタン
+document.querySelectorAll('.mode-btn').forEach(btn =>
+    btn.addEventListener('click', () => applyMode(btn.dataset.mode))
+);
+
+// サイトボタン
+document.querySelectorAll('.site-btn').forEach(btn =>
+    btn.addEventListener('click', () => openSite(btn.dataset.url, btn.dataset.site))
+);
+
+// ペイン内タブ
+document.querySelectorAll('.epane-tab').forEach(tab =>
+    tab.addEventListener('click', () => {
+        const site = SITES.find(s => s.id === tab.dataset.site);
+        if (site) openInternal(site.url, site.id);
+    })
+);
+
+document.getElementById('ext-pane-close').addEventListener('click', closeInternal);
+
+// 拡張機能チェック → 初期モード適用
+if (window.chrome?.runtime && SPLIT_EXT_ID) {
+    chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'ping' }, resp => {
+        if (!chrome.runtime.lastError && resp?.installed) {
+            extInstalled = true;
+            console.log('[GBF Tool] 拡張機能検出 v' + resp.version);
+        } else {
+            console.log('[GBF Tool] 拡張機能なし (Split View → 内部ブラウザへフォールバック)');
+        }
+        applyMode(currentMode);
+    });
+} else {
+    applyMode(currentMode);
+}
+</script>
+
+<script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
+<script>
+  kofiWidgetOverlay.draw('alt4l', { type:'floating-chat', 'floating-chat.donateButton.text':'Support me', 'floating-chat.donateButton.background-color':'#794bc4', 'floating-chat.donateButton.text-color':'#fff' });
+</script>
+</body>
+</html>
