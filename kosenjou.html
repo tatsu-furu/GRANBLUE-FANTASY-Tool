@@ -718,6 +718,8 @@
         <button class="epane-tab" data-site="gamewith">GameWith</button>
         <button class="epane-tab" data-site="kamigame">神ゲー</button>
         <button class="epane-tab" data-site="youtube">YouTube</button>
+        <button id="dnr-debug-btn" title="DNRルールのヒット状況をコンソールに出力"
+            style="font-size:0.7em;padding:2px 7px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--text-3);cursor:pointer;font-family:inherit;margin-left:4px;">DNR確認</button>
         <button id="ext-pane-close">✕ 閉じる</button>
     </div>
     <div id="yt-search-ui">
@@ -1492,6 +1494,30 @@ document.querySelectorAll('.epane-tab').forEach(tab =>
 );
 
 document.getElementById('ext-pane-close').addEventListener('click', closeInternal);
+
+// DNRデバッグボタン: 拡張機能経由で直近30秒のルールヒットをコンソールに出力
+document.getElementById('dnr-debug-btn').addEventListener('click', () => {
+    if (!extInstalled || !window.chrome?.runtime || !SPLIT_EXT_ID) {
+        console.warn('[GBF Tool] 拡張機能が検出されていません');
+        return;
+    }
+    console.log('[GBF Tool] DNRルール照会中...');
+    chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'getMatchedRules' }, resp => {
+        if (chrome.runtime.lastError) {
+            console.error('[GBF Tool] getMatchedRules error:', chrome.runtime.lastError.message);
+            return;
+        }
+        const matches = resp?.matches || [];
+        if (!matches.length) {
+            console.log('[GBF Tool] DNR: 直近30秒でGameWithのsub_frameにヒットしたルールはありません');
+            console.log('[GBF Tool] → DNRルールがGameWithのiframeリクエストに届いていない可能性があります');
+        } else {
+            const subFrames = matches.filter(m => m.type === 'sub_frame');
+            console.log('[GBF Tool] DNR: 直近30秒でヒットしたルール合計', matches.length, '件 / sub_frame', subFrames.length, '件');
+            subFrames.forEach(m => console.log('[GBF Tool]  sub_frame →', m.url, '| initiator:', m.initiator));
+        }
+    });
+});
 
 // 拡張機能チェック → 初期モード適用
 if (window.chrome?.runtime && SPLIT_EXT_ID) {

@@ -20,9 +20,47 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
                 console.error(TAG, 'openSplit error:', e.message);
                 sendResponse({ success: false, error: e.message });
             });
-        return true; // async response
+        return true;
+    }
+    // DNRデバッグ: ページから getMatchedRules を呼べるようにする
+    if (message.action === 'getMatchedRules') {
+        const tabId = sender.tab?.id;
+        chrome.declarativeNetRequest.getMatchedRules(
+            { tabId, minTimeStamp: Date.now() - 30000 },
+            result => {
+                const matches = (result?.rulesMatchedInfo || []).map(m => ({
+                    ruleId:    m.rule.ruleId,
+                    url:       m.request.url,
+                    type:      m.request.type,
+                    initiator: m.request.initiator
+                }));
+                console.log(TAG, 'getMatchedRules: tab', tabId, '→', matches.length, '件 (直近30秒)');
+                matches.forEach(m =>
+                    console.log(TAG, `  rule#${m.ruleId} | ${m.type} | ${m.url} | from: ${m.initiator}`)
+                );
+                sendResponse({ matches });
+            }
+        );
+        return true;
     }
 });
+
+// ===== DNRデバッグ: ルールがヒットするたびにService Workerコンソールへ出力 =====
+// declarativeNetRequestFeedback パーミッションが必要（開発用拡張のみ動作）
+if (chrome.declarativeNetRequest.onRuleMatchedDebug) {
+    chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(info => {
+        const r = info.request;
+        // sub_frame（iframeリクエスト）のみ目立たせる
+        const mark = r.type === 'sub_frame' ? '★' : ' ';
+        console.log(TAG, `${mark}DNR hit rule#${info.rule.ruleId}`,
+            `| ${r.type} | ${r.url}`,
+            `| from: ${r.initiator || '(none)'}`
+        );
+    });
+    console.log(TAG, 'onRuleMatchedDebug リスナー登録完了');
+} else {
+    console.warn(TAG, 'onRuleMatchedDebug 未対応 — declarativeNetRequestFeedback パーミッションを確認');
+}
 
 async function handleOpenSplit(url, senderTab) {
     const useSplitApi = hasSplitTabsApi();
