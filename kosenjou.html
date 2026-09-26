@@ -826,6 +826,7 @@ function buildEffTable() {
             if (t != null && t > 0) killTimes2[id] = t; else delete killTimes2[id];
             saveReloadState();
             updateEffView();
+            updateTargetView();
         });
     });
 
@@ -840,6 +841,7 @@ function buildEffTable() {
             const label = tbody.querySelector(`.time-sel-min[data-id="${id}"]`)?.closest('td')?.querySelector('span');
             if (label) label.textContent = e.target.checked ? '1回目' : '';
             updateEffView();
+            updateTargetView();
         });
     });
 
@@ -1034,9 +1036,15 @@ function updateTargetView() {
         ${hasTime ? '<th>残り時間内</th>' : ''}<th>必要肉/素材</th>
     </tr></thead><tbody>`;
 
-    DIFFS.forEach(d => {
+    // リロ有の時間が入っている難易度は、リロ有の行も並べる
+    const rows = DIFFS.flatMap(d => {
+        const list = [{ d, t: killTimes[d.id], relo: false }];
+        if (reloadEnabled.has(d.id) && killTimes2[d.id]) list.push({ d, t: killTimes2[d.id], relo: true });
+        return list;
+    });
+
+    rows.forEach(({ d, t, relo }) => {
         const runs = Math.ceil(needed / d.contrib);
-        const t = killTimes[d.id];
         const totSec = t ? runs * t : null;
         const totalItems = runs * d.chunks;
         const meatStr = d.isMeat ? `${totalItems.toLocaleString()}個` : d.is250 ? `${totalItems.toLocaleString()}個(素材)` : '─';
@@ -1057,7 +1065,7 @@ function updateTargetView() {
         }
 
         html += `<tr>
-            <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
+            <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span>${relo ? '<span style="color:var(--accent-hi);font-size:0.72em;margin-left:4px;">リロ有</span>' : ''}</td>
             <td>${runs.toLocaleString()}回</td>
             <td style="color:${totSec ? '#ccc' : '#444'}">${fmtTime(totSec)}</td>
             ${achCell}
