@@ -5,72 +5,213 @@
     "normal": {
       "name": "通常攻撃",
       "attackType": "normal",
-      "thresholds": [300000, 400000, 500000, 600000],
-      "reductions": [0, 20, 40, 95, 99],
+      "thresholds": [
+        300000,
+        400000,
+        500000,
+        600000
+      ],
+      "reductions": [
+        0,
+        20,
+        40,
+        95,
+        99
+      ],
       "source": "https://gbf.wiki/Damage_Cap"
     },
     "normal_assassin": {
       "name": "通常攻撃（アサシン系バフ中）",
       "attackType": "normal",
-      "thresholds": [1000000, 1200000, 1300000, 1500000],
-      "reductions": [0, 40, 70, 95, 99],
+      "thresholds": [
+        1000000,
+        1200000,
+        1300000,
+        1500000
+      ],
+      "reductions": [
+        0,
+        40,
+        70,
+        95,
+        99
+      ],
       "source": "https://gbf.wiki/Damage_Cap"
     },
     "ca": {
       "name": "奥義（標準）",
       "attackType": "ca",
-      "thresholds": [1500000, 1700000, 1800000, 2500000],
-      "reductions": [0, 40, 70, 95, 99],
+      "thresholds": [
+        1500000,
+        1700000,
+        1800000,
+        2500000
+      ],
+      "reductions": [
+        0,
+        40,
+        70,
+        95,
+        99
+      ],
       "source": "https://gbf.wiki/Damage_Cap"
     },
     "ca_high": {
       "name": "奥義（5凸十天衆など）",
       "attackType": "ca",
-      "thresholds": [1800000, 2000000, 2200000, 3000000],
-      "reductions": [0, 40, 70, 95, 99],
+      "thresholds": [
+        1800000,
+        2000000,
+        2200000,
+        3000000
+      ],
+      "reductions": [
+        0,
+        40,
+        70,
+        95,
+        99
+      ],
       "source": "https://gbf.wiki/Damage_Cap"
     }
   },
   "skillPresets": {
-    "_doc": "アビリティの減衰は技ごとに異なる。gbf.wiki の例をプリセットにする予定だが、開発環境から gbf.wiki を参照できず閾値・減衰率が未転記（thresholds/reductions が null の間は選択しても減衰表は空のまま）。倍率と上限の目安は gbf.wiki の検索結果から転記。",
+    "_doc": "アビリティの減衰は技ごとに異なる。gbf.wiki Damage Cap の Skill Damage Cap の例を転記。",
     "olivia_darker_than_dusk": {
       "name": "Olivia「Darker than Dusk」",
       "multiplier": 500,
       "approxCap": 820000,
-      "thresholds": null,
-      "reductions": null,
-      "verified": false,
-      "testCase": { "input": 1000000, "expected": 820000 },
+      "thresholds": [
+        700000,
+        800000,
+        900000,
+        1000000
+      ],
+      "reductions": [
+        0,
+        30,
+        60,
+        90,
+        99
+      ],
+      "verified": true,
+      "testCase": {
+        "input": 1000000,
+        "expected": 820000
+      },
       "source": "https://gbf.wiki/Damage_Cap"
     },
     "wilnas_hadron_smash": {
       "name": "Wilnas「Hadron Smash」",
       "multiplier": 1200,
       "approxCap": 1300000,
-      "thresholds": null,
-      "reductions": null,
-      "verified": false,
-      "testCase": { "input": 1800000, "expected": 1305000 },
+      "thresholds": [
+        1100000,
+        1300000,
+        1700000,
+        1800000
+      ],
+      "reductions": [
+        0,
+        60,
+        70,
+        95,
+        99
+      ],
+      "verified": true,
+      "testCase": {
+        "input": 1800000,
+        "expected": 1305000
+      },
       "source": "https://gbf.wiki/Damage_Cap"
     }
   },
   "capUpLimits": {
-    "_doc": "武器スキル（スクショ由来）の上限UP合計の上限(%)。汎用 D上限 と種別上限UP を足した値に掛かる。バフ由来の上限UPには掛けない。",
-    "weapon": { "normal": 20, "ca": 100, "skill": 100 }
+    "_doc": "武器スキル（スクショ由来）の上限UPの上限(%)。generic は汎用の D上限 + D上限(特殊) の合計（超えた分は上限突破になる）。typed は種別の上限UP（通常D上限など）で、汎用とは別に加算。バフ由来の上限UPには掛けない。出典: gbf.wiki Damage Cap",
+    "generic": 20,
+    "typed": {
+      "normal": 20,
+      "ca": 100,
+      "skill": 100
+    }
   },
   "skillExtraCap": {
-    "_doc": "倍率が maxMultiplier(%) 以下のアビは、減衰後にさらに追加減衰。倍率帯ごとに閾値1・2 を持ち、閾値1〜2 を cutBetween%、閾値2 以上を cutAbove% カット。倍率帯はアビダメUPを含まない素の倍率で決まる（gbf.wiki 検索結果より）。bands は未転記のため空で、その間は追加減衰を計算しない。",
+    "_doc": "倍率が maxMultiplier(%) 以下のアビは、減衰後のダメージが閾値1を超えると閾値1〜2 を cutBetween%、閾値2 以上を cutAbove% カット。倍率帯はアビダメUPを含まない素の倍率で決まる。上限UPで閾値が上がるかは未確定（scaleWithCapUp: false）。出典: gbf.wiki Damage Cap",
     "maxMultiplier": 600,
     "cutBetween": 80,
     "cutAbove": 99.9,
-    "scaleWithCapUp": true,
-    "verified": false,
-    "bands": []
+    "scaleWithCapUp": false,
+    "verified": true,
+    "bands": [
+      {
+        "maxMultiplier": 100,
+        "t1": 3000000,
+        "t2": 4500000
+      },
+      {
+        "maxMultiplier": 200,
+        "t1": 5000000,
+        "t2": 7500000
+      },
+      {
+        "maxMultiplier": 300,
+        "t1": 6000000,
+        "t2": 9000000
+      },
+      {
+        "maxMultiplier": 400,
+        "t1": 7000000,
+        "t2": 10500000
+      },
+      {
+        "maxMultiplier": 500,
+        "t1": 8000000,
+        "t2": 12000000
+      },
+      {
+        "maxMultiplier": 600,
+        "t1": 12000000,
+        "t2": 15000000
+      }
+    ]
   },
   "specialCaps": {
-    "_doc": "減衰後にかかるバトルごとの特殊上限。",
-    "none": { "name": "なし", "value": null },
-    "6.6M": { "name": "660万", "value": 6600000 },
-    "13.1M": { "name": "1310万", "value": 13100000 }
+    "_doc": "減衰後にかかるバトルごとの特殊上限（段階的な減衰。上限UP・上限突破の影響を受けない）。出典: gbf.wiki Damage Cap",
+    "none": {
+      "name": "なし",
+      "value": null,
+      "thresholds": null,
+      "reductions": null
+    },
+    "6.6M": {
+      "name": "660万",
+      "value": 6600000,
+      "thresholds": [
+        6000000,
+        7000000,
+        8000000
+      ],
+      "reductions": [
+        0,
+        50,
+        90,
+        99.999
+      ]
+    },
+    "13.1M": {
+      "name": "1310万",
+      "value": 13100000,
+      "thresholds": [
+        12000000,
+        14000000,
+        15000000
+      ],
+      "reductions": [
+        0,
+        50,
+        90,
+        99.999
+      ]
+    }
   }
 }

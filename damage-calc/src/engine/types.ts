@@ -178,7 +178,7 @@ export interface SoftcapData {
   version: number;
   tables: Record<string, SoftcapTableDef>;
   skillPresets: Record<string, SkillPresetDef>;
-  capUpLimits: { weapon: Record<AttackType, number> };
+  capUpLimits: { generic: number; typed: Record<AttackType, number> };
   skillExtraCap: {
     maxMultiplier: number;
     cutBetween: number;
@@ -187,7 +187,7 @@ export interface SoftcapData {
     verified: boolean;
     bands: SkillExtraCapBand[];
   };
-  specialCaps: Record<SpecialCapKey, { name: string; value: number | null }>;
+  specialCaps: Record<SpecialCapKey, { name: string; value: number | null; thresholds: number[] | null; reductions: number[] | null }>;
 }
 
 export interface FrameDef {

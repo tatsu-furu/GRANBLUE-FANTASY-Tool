@@ -1,36 +1,43 @@
 // キャリブレーションのレポート（npm run report:calibration）。合否判定はせず、仮説探索の上位と誤差を出力する。
-// fixtures/panel-001.json の baseAtk が埋まっていれば順算の誤差も出す。
+// fixtures/panel-*.json の baseAtk（または表示攻撃力 displayAtk）があれば、その値での順算も全仮説で並べる。
 import { it } from 'vitest';
-import expected from '../fixtures/panel-001.json';
-import { SEARCH_FLAGS, forwardCheck, searchHypotheses } from '../src/engine/calibrate';
+import p1 from '../fixtures/panel-001.json';
+import p2 from '../fixtures/panel-002.json';
+import { SEARCH_FLAGS, forwardCheck, hypothesisSpace, searchHypotheses } from '../src/engine/calibrate';
 import { defaultData } from '../src/engine/data';
 import { defaultInput } from '../src/engine/defaults';
-import { panelFromExpected } from '../src/engine/sample';
+import { panelFromExpected, type ExpectedPanel } from '../src/engine/sample';
 import type { Element } from '../src/engine/types';
 
 const pct = (x: number | null) => (x === null ? '—' : `${(x * 100).toFixed(3)}%`);
+const fixtures: [string, ExpectedPanel & { displayAtk?: number }][] = [
+  ['panel-001', p1 as ExpectedPanel],
+  ['panel-002', p2 as ExpectedPanel & { displayAtk?: number }],
+];
 
-it('panel-001 の仮説探索レポート', () => {
-  const panel = panelFromExpected(expected, defaultData.labels);
-  const base = defaultInput();
-  const baseAtk = typeof expected.baseAtk === 'number' ? expected.baseAtk : 0;
-  const input = { ...base, panel, character: { ...base.character, baseAtk } };
-  const vs = expected.estimate.vsElement;
-  const target = { plain: expected.estimate.plain, vsElement: { element: vs.element as Element, value: vs.value } };
-
-  const lines: string[] = ['', `== panel-001: 無印 ${target.plain} / 対${vs.element} ${vs.value} ==`];
-  if (baseAtk > 0) {
-    const f = forwardCheck(input, target);
-    lines.push(`順算（基礎攻撃力 ${baseAtk}、既定の仮定）: 無印 ${f.plainPredicted} (${pct(f.plainError)}) / 対属性 ${f.vsPredicted} (${pct(f.vsError)})`);
-  } else {
-    lines.push('基礎攻撃力が未記入のため順算は省略（fixtures/panel-001.json の baseAtk を埋めると出ます）');
-  }
-  lines.push(`仮説探索（未知数: 基礎攻撃力、${SEARCH_FLAGS.join(' / ')} + 丸め）上位10件:`);
-  for (const [i, r] of searchHypotheses(input, target, 'baseAtk').slice(0, 10).entries()) {
-    const flags = SEARCH_FLAGS.map((k) => (r.assumptions[k] ? '1' : '0')).join('');
-    lines.push(
-      `${String(i + 1).padStart(2)}. ${flags} ${r.assumptions.roundingMode.padEnd(5)} 基礎攻撃力=${r.solvedValue?.toFixed(1) ?? '—'} 対属性=${r.vsPredicted ?? '—'} 誤差=${pct(r.vsError)}`,
-    );
+it('仮説探索レポート', () => {
+  const lines: string[] = [];
+  for (const [name, fx] of fixtures) {
+    const panel = panelFromExpected(fx, defaultData.labels);
+    const base = defaultInput();
+    const est = fx.estimate!;
+    const vs = est.vsElement!;
+    const target = { plain: est.plain, vsElement: { element: vs.element as Element, value: vs.value } };
+    const input = { ...base, panel };
+    lines.push('', `== ${name}: 無印 ${target.plain} / 対${vs.element} ${vs.value} ==`);
+    const flags = (a: typeof base.assumptions) => `${SEARCH_FLAGS.map((k) => (a[k] ? '1' : '0')).join('')} ${a.roundingMode.padEnd(5)}`;
+    lines.push(`逆算（未知数: 基礎攻撃力）上位5件 [${SEARCH_FLAGS.join(' / ')}]:`);
+    for (const r of searchHypotheses(input, target, 'baseAtk').slice(0, 5)) {
+      lines.push(`  ${flags(r.assumptions)} 基礎攻撃力=${r.solvedValue?.toFixed(1)} 対属性誤差=${pct(r.vsError)}`);
+    }
+    for (const atk of [fx.baseAtk, fx.displayAtk].filter((x): x is number => typeof x === 'number')) {
+      const withAtk = { ...input, character: { ...input.character, baseAtk: atk } };
+      const rs = hypothesisSpace(withAtk.assumptions)
+        .map((a) => forwardCheck({ ...withAtk, assumptions: a }, target))
+        .sort((x, y) => Math.hypot(x.plainError!, x.vsError!) - Math.hypot(y.plainError!, y.vsError!));
+      lines.push(`順算（攻撃力 ${atk}）誤差の小さい順 上位3件:`);
+      for (const r of rs.slice(0, 3)) lines.push(`  ${flags(r.assumptions)} 無印 ${pct(r.plainError)} / 対属性 ${pct(r.vsError)}`);
+    }
   }
   console.log(lines.join('\n'));
 });

@@ -1,4 +1,11 @@
-import type { Assumptions, Modifier, PostCapRule } from './types';
+import { softCap } from './softcap';
+import type { Assumptions, CapTable, Modifier, PostCapRule } from './types';
+
+/** 特殊上限（段階的な減衰。上限UP・上限突破は効かない） */
+export interface SpecialCap {
+  value: number;
+  table: CapTable;
+}
 
 export interface AmpTotals {
   seraphic: number; // 天司系の最大値（小数）
@@ -27,6 +34,7 @@ export interface PostCapStages {
 
 /**
  * 減衰後の補正。rule（data/formula.json の postCap）で種別ごとの違いを切り替える。
+ * 特殊上限も段階的な減衰（gbf.wiki Damage Cap）。
  * 通常攻撃: 減衰後 × (1 + Amp) → 特殊上限 → + 与ダメ上昇
  * 奥義・アビ: (減衰後 + 与ダメ上昇) × (1 + Amp) → 特殊上限
  */
@@ -34,7 +42,7 @@ export function applyPostCap(
   afterCap: number,
   amp: AmpTotals,
   supp: number,
-  specialCap: number | null,
+  specialCap: SpecialCap | null,
   rule: PostCapRule,
   round: (x: number) => number,
 ): PostCapStages {
@@ -43,12 +51,13 @@ export function applyPostCap(
     1 +
     (rule.suppAmplifiedBy.includes('seraphic') ? amp.seraphic : 0) +
     (rule.suppAmplifiedBy.includes('other') ? amp.other : 0);
-  const cap = specialCap ?? Infinity;
+  const limit = (x: number) => (specialCap ? softCap(x, specialCap.table, 0, 0) : x);
+  const over = (x: number) => specialCap !== null && x > (specialCap.table.thresholds[0] ?? Infinity);
   const afterAmp = round(afterCap * ampMult);
   const suppPart = supp * suppMult;
   if (rule.suppBeforeSpecialCap) {
     const pre = afterAmp + suppPart;
-    return { afterAmp, final: Math.min(pre, cap), hitSpecialCap: pre > cap };
+    return { afterAmp, final: limit(pre), hitSpecialCap: over(pre) };
   }
-  return { afterAmp, final: Math.min(afterAmp, cap) + suppPart, hitSpecialCap: afterAmp > cap };
+  return { afterAmp, final: limit(afterAmp) + suppPart, hitSpecialCap: over(afterAmp) };
 }

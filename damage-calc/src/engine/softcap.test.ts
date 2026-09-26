@@ -23,6 +23,14 @@ describe('softCap: 通常攻撃（gbf.wiki Damage Cap の数値例）', () => {
   it('上限UP 20% + 上限突破 5%: 減衰前 720,000 → 542,700', () => {
     expect(softCap(720_000, normal, 0.2, 0.05)).toBeCloseTo(542_700, 6);
   });
+  it('上限UP 20% + 上限突破 5%: 減衰前 1,000,000 → 約 545,640', () => {
+    expect(softCap(1_000_000, normal, 0.2, 0.05)).toBeCloseTo(545_640, 6);
+  });
+  it('特殊上限 660万: 8,000,000 → 6,600,000 / 1310万: 15,000,000 → 13,100,000', () => {
+    const sc = defaultData.softcaps.specialCaps;
+    expect(softCap(8_000_000, { thresholds: sc['6.6M'].thresholds!, reductions: sc['6.6M'].reductions! })).toBeCloseTo(6_600_000, 6);
+    expect(softCap(15_000_000, { thresholds: sc['13.1M'].thresholds!, reductions: sc['13.1M'].reductions! })).toBeCloseTo(13_100_000, 6);
+  });
 });
 
 describe('softCap: 奥義', () => {
@@ -71,6 +79,16 @@ describe('softCap: 性質', () => {
   it('上限UPは閾値すべてに掛かる', () => {
     expect(softCap(360_000, normal, 0.2, 0)).toBeCloseTo(360_000, 6);
     expect(softCap(480_000, normal, 0.2, 0)).toBeCloseTo(360_000 + 120_000 * 0.8, 6);
+  });
+});
+
+describe('アビの追加減衰（data の倍率帯: gbf.wiki）', () => {
+  const cfg = defaultData.softcaps.skillExtraCap;
+  it('倍率100%以下: 実質上限 3,300,000', () => {
+    expect(applySkillExtraCap(4_500_000, 100, 0, cfg).value).toBeCloseTo(3_300_000, 6);
+  });
+  it('倍率501〜600%: 実質上限 12,600,000', () => {
+    expect(applySkillExtraCap(15_000_000, 600, 0, cfg).value).toBeCloseTo(12_600_000, 6);
   });
 });
 

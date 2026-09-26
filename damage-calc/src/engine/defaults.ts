@@ -9,7 +9,7 @@ export function defaultAssumptions(): Assumptions {
     advAmpOnlyVsAdvantage: true,
     estimateIncludesSupp: true,
     plainEstimateIsNeutral: true,
-    capPenetrationActive: false,
+    capPenetrationActive: true,
     roundingMode: 'final',
     advAmpIsSeraphic: false,
     echoBase: 'afterCap',

@@ -190,38 +190,49 @@ describe('減衰後の補正（与ダメUP・与ダメ上昇・特殊上限）',
       makeInput({ baseAtk: 100_000_000, attacks: [noCap], enemy: { specialCap: '6.6M' }, buffs: [mod({ kind: 'supp', value: 50_000, appliesTo: ['normal'] })] }),
       'normal',
     );
-    expect(r.perHit.breakdown.final).toBe(6_650_000);
+    // 特殊上限も段階的: 6,000,000 + 1,000,000×0.5 + 1,000,000×0.1 + 2,000,000×0.00001
+    expect(r.perHit.breakdown.final).toBeCloseTo(6_600_020 + 50_000, 6);
   });
   it('特殊上限: 奥義は与ダメ上昇込みで上限にかかる', () => {
     const r = only(
       makeInput({ baseAtk: 100_000_000, attacks: [caAttack({ capTableKey: 'custom' })], enemy: { specialCap: '6.6M' }, buffs: [mod({ kind: 'supp', value: 50_000, appliesTo: ['ca'] })] }),
       'ca',
     );
-    expect(r.perHit.breakdown.final).toBe(6_600_000);
+    expect(r.perHit.breakdown.final).toBeCloseTo(6_600_000 + (45_050_000 - 8_000_000) * 0.00001, 6);
   });
 });
 
-describe('上限UP・上限突破', () => {
+describe('上限UP・上限突破（gbf.wiki Damage Cap）', () => {
   const panelCap = (value: number, appliesTo: CalcInput['attacks'][number]['type'][]) =>
     mod({ kind: 'capUp', value, appliesTo, source: 'panel' });
-  it('武器（パネル）の上限UPは通常攻撃で合計20%まで', () => {
-    const r = only(makeInput({ attacks: [normalAttack()], buffs: [panelCap(20, ['normal', 'ca', 'skill']), panelCap(10, ['normal'])] }), 'normal');
-    expect(r.perHit.breakdown.capUp).toBeCloseTo(0.2, 12);
+  const generic: CalcInput['attacks'][number]['type'][] = ['normal', 'ca', 'skill'];
+  it('汎用の D上限 は合計20%まで、種別の上限UP（通常D上限）は別に加算', () => {
+    const r = only(makeInput({ attacks: [normalAttack()], buffs: [panelCap(20, generic), panelCap(10, ['normal'])] }), 'normal');
+    expect(r.perHit.breakdown.capUp).toBeCloseTo(0.3, 12);
     expect(r.perHit.breakdown.penetration).toBe(0);
   });
-  it('capPenetrationActive なら上限を超えた分を上限突破として扱う', () => {
+  it('汎用（D上限 + D上限(特殊)）が20%を超えた分は上限突破', () => {
+    const r = only(makeInput({ attacks: [normalAttack()], buffs: [panelCap(20, generic), panelCap(14, generic)] }), 'normal');
+    expect(r.perHit.breakdown.capUp).toBeCloseTo(0.2, 12);
+    expect(r.perHit.breakdown.penetration).toBeCloseTo(0.14, 12);
+  });
+  it('capPenetrationActive を OFF にすると超えた分は捨てる', () => {
     const r = only(
-      makeInput({ attacks: [normalAttack()], buffs: [panelCap(20, ['normal', 'ca', 'skill']), panelCap(10, ['normal'])], assumptions: { capPenetrationActive: true } }),
+      makeInput({ attacks: [normalAttack()], buffs: [panelCap(34, generic)], assumptions: { capPenetrationActive: false } }),
       'normal',
     );
-    expect(r.perHit.breakdown.penetration).toBeCloseTo(0.1, 12);
+    expect(r.perHit.breakdown.penetration).toBe(0);
+  });
+  it('通常攻撃の種別上限UPは20%まで', () => {
+    const r = only(makeInput({ attacks: [normalAttack()], buffs: [panelCap(30, ['normal'])] }), 'normal');
+    expect(r.perHit.breakdown.capUp).toBeCloseTo(0.2, 12);
   });
   it('バフの上限UPは武器の上限と別に加算', () => {
     const r = only(makeInput({ attacks: [normalAttack()], buffs: [panelCap(30, ['normal']), mod({ kind: 'capUp', value: 10, source: 'buff' })] }), 'normal');
     expect(r.perHit.breakdown.capUp).toBeCloseTo(0.3, 12);
   });
-  it('奥義は武器の上限UPが100%まで', () => {
-    const r = only(makeInput({ attacks: [caAttack()], buffs: [panelCap(20, ['normal', 'ca', 'skill']), panelCap(5, ['ca'])] }), 'ca');
+  it('奥義は種別上限UPが100%まで', () => {
+    const r = only(makeInput({ attacks: [caAttack()], buffs: [panelCap(20, generic), panelCap(5, ['ca'])] }), 'ca');
     expect(r.perHit.breakdown.capUp).toBeCloseTo(0.25, 12);
   });
 });

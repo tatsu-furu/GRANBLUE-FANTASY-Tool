@@ -19,8 +19,9 @@ describe('data/softcaps.json', () => {
       if (p.thresholds && p.reductions) expect(p.reductions).toHaveLength(p.thresholds.length + 1);
     }
   });
-  it('武器の上限UPの上限が3種別ぶんある', () => {
-    for (const t of ATTACK_TYPES) expect(typeof softcaps.capUpLimits.weapon[t]).toBe('number');
+  it('武器の上限UPの上限（汎用と3種別）がある', () => {
+    expect(typeof softcaps.capUpLimits.generic).toBe('number');
+    for (const t of ATTACK_TYPES) expect(typeof softcaps.capUpLimits.typed[t]).toBe('number');
   });
   it('"_doc" は読み込み時に取り除かれる', () => {
     expect(Object.keys(softcaps.skillPresets)).not.toContain('_doc');

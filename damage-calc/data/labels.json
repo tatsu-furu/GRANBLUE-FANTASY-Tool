@@ -2,152 +2,716 @@
   "version": 1,
   "_doc": "「発動中の武器スキル」パネルの項目辞書。照合は NFKC 正規化・空白除去のあと正規化編集距離で行い、類似度が matchThreshold 未満は未分類。aliases に誤認識しやすい表記を追加していく。status: confirmed = スクショで確認 / assumed = 想定（スクショ待ち）",
   "matchThreshold": 0.6,
-  "confidenceLevels": { "high": 0.85, "mid": 0.6 },
+  "confidenceLevels": {
+    "high": 0.85,
+    "mid": 0.6
+  },
   "header": {
-    "estimatePlain": ["予測ダメージ"],
-    "estimateVs": ["属性予測ダメージ"],
-    "maxHp": ["最大HP"],
-    "enhance": ["スキルエンハンス"],
-    "gridHeading": ["発動中の武器スキル"],
-    "elements": { "fire": "火", "water": "水", "earth": "土", "wind": "風", "light": "光", "dark": "闇" }
+    "estimatePlain": [
+      "予測ダメージ"
+    ],
+    "estimateVs": [
+      "属性予測ダメージ"
+    ],
+    "maxHp": [
+      "最大HP"
+    ],
+    "enhance": [
+      "スキルエンハンス"
+    ],
+    "gridHeading": [
+      "発動中の武器スキル"
+    ],
+    "elements": {
+      "fire": "火",
+      "water": "水",
+      "earth": "土",
+      "wind": "風",
+      "light": "光",
+      "dark": "闇"
+    }
   },
   "labels": [
     {
-      "id": "normal_might", "name": "攻刃", "aliases": ["攻刃", "通常攻刃"],
-      "slot": { "kind": "atk", "frame": "normal" }, "aura": "normal",
-      "unit": "%", "range": [0, 1000], "status": "confirmed"
+      "id": "normal_might",
+      "name": "攻刃",
+      "aliases": [
+        "攻刃",
+        "通常攻刃"
+      ],
+      "slot": {
+        "kind": "atk",
+        "frame": "normal"
+      },
+      "aura": "normal",
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "magna_might", "name": "M攻刃", "aliases": ["M攻刃", "マグナ攻刃"],
-      "slot": { "kind": "atk", "frame": "magna" }, "aura": "magna",
-      "unit": "%", "range": [0, 2000], "status": "confirmed"
+      "id": "magna_might",
+      "name": "M攻刃",
+      "aliases": [
+        "M攻刃",
+        "マグナ攻刃"
+      ],
+      "slot": {
+        "kind": "atk",
+        "frame": "magna"
+      },
+      "aura": "magna",
+      "unit": "%",
+      "range": [
+        0,
+        2000
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "ex_might", "name": "EX攻刃", "aliases": ["EX攻刃"],
-      "slot": { "kind": "atk", "frame": "ex" },
-      "unit": "%", "range": [0, 1000], "status": "confirmed"
+      "id": "ex_might",
+      "name": "EX攻刃",
+      "aliases": [
+        "EX攻刃"
+      ],
+      "slot": {
+        "kind": "atk",
+        "frame": "ex"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "ex_might_special", "name": "EX攻刃(特殊)", "aliases": ["EX攻刃(特殊)"],
-      "slot": { "kind": "atk", "frame": "ex" },
-      "unit": "%", "range": [0, 1000], "status": "confirmed",
+      "id": "ex_might_special",
+      "name": "EX攻刃(特殊)",
+      "aliases": [
+        "EX攻刃(特殊)"
+      ],
+      "slot": {
+        "kind": "atk",
+        "frame": "ex"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "confirmed",
       "note": "EX攻刃と同じ枠で加算かは未確定"
     },
     {
-      "id": "magna_stamina", "name": "M渾身", "aliases": ["M渾身", "マグナ渾身"],
-      "slot": { "kind": "atk", "frame": "magna_stamina" }, "aura": "magna",
-      "unit": "%", "range": [0, 1000], "status": "confirmed",
+      "id": "magna_stamina",
+      "name": "M渾身",
+      "aliases": [
+        "M渾身",
+        "マグナ渾身"
+      ],
+      "slot": {
+        "kind": "atk",
+        "frame": "magna_stamina"
+      },
+      "aura": "magna",
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "confirmed",
       "note": "パネル表示時のHPでの値"
     },
     {
-      "id": "da_rate", "name": "DA確率", "aliases": ["DA確率", "DA率"],
-      "slot": { "kind": "da" },
-      "unit": "%", "range": [0, 100], "status": "confirmed",
+      "id": "da_rate",
+      "name": "DA確率",
+      "aliases": [
+        "DA確率",
+        "DA率"
+      ],
+      "slot": {
+        "kind": "da"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed",
       "note": "通常・マグナどちらの加護対象か不明なため加護倍率は掛けない"
     },
     {
-      "id": "ta_rate", "name": "TA確率", "aliases": ["TA確率", "TA率"],
-      "slot": { "kind": "ta" },
-      "unit": "%", "range": [0, 100], "status": "confirmed",
+      "id": "ta_rate",
+      "name": "TA確率",
+      "aliases": [
+        "TA確率",
+        "TA率"
+      ],
+      "slot": {
+        "kind": "ta"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed",
       "note": "通常・マグナどちらの加護対象か不明なため加護倍率は掛けない"
     },
     {
-      "id": "cap_up", "name": "D上限", "aliases": ["D上限", "ダメージ上限"],
-      "slot": { "kind": "capUp", "appliesTo": ["normal", "ca", "skill"] },
-      "unit": "%", "range": [0, 100], "status": "confirmed"
+      "id": "cap_up",
+      "name": "D上限",
+      "aliases": [
+        "D上限",
+        "ダメージ上限"
+      ],
+      "slot": {
+        "kind": "capUp",
+        "appliesTo": [
+          "normal",
+          "ca",
+          "skill"
+        ]
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed",
+      "note": "汎用の上限UP。D上限(特殊) と合算して20%まで、超えた分は上限突破"
     },
     {
-      "id": "cap_up_normal", "name": "通常D上限", "aliases": ["通常D上限"],
-      "slot": { "kind": "capUp", "appliesTo": ["normal"] },
-      "unit": "%", "range": [0, 100], "status": "confirmed"
+      "id": "cap_up_normal",
+      "name": "通常D上限",
+      "aliases": [
+        "通常D上限"
+      ],
+      "slot": {
+        "kind": "capUp",
+        "appliesTo": [
+          "normal"
+        ]
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "cap_up_skill", "name": "アビD上限", "aliases": ["アビD上限", "アビリティD上限"],
-      "slot": { "kind": "capUp", "appliesTo": ["skill"] },
-      "unit": "%", "range": [0, 200], "status": "confirmed"
+      "id": "cap_up_skill",
+      "name": "アビD上限",
+      "aliases": [
+        "アビD上限",
+        "アビリティD上限"
+      ],
+      "slot": {
+        "kind": "capUp",
+        "appliesTo": [
+          "skill"
+        ]
+      },
+      "unit": "%",
+      "range": [
+        0,
+        200
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "cap_up_ca", "name": "奥義D上限", "aliases": ["奥義D上限"],
-      "slot": { "kind": "capUp", "appliesTo": ["ca"] },
-      "unit": "%", "range": [0, 200], "status": "confirmed"
+      "id": "cap_up_ca",
+      "name": "奥義D上限",
+      "aliases": [
+        "奥義D上限"
+      ],
+      "slot": {
+        "kind": "capUp",
+        "appliesTo": [
+          "ca"
+        ]
+      },
+      "unit": "%",
+      "range": [
+        0,
+        200
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "magna_amp", "name": "M与ダメ", "aliases": ["M与ダメ"],
-      "slot": { "kind": "amp", "appliesTo": ["normal", "ca", "skill"], "seraphic": false, "condition": "always" },
-      "unit": "%", "range": [0, 100], "status": "confirmed"
+      "id": "magna_amp",
+      "name": "M与ダメ",
+      "aliases": [
+        "M与ダメ"
+      ],
+      "slot": {
+        "kind": "amp",
+        "appliesTo": [
+          "normal",
+          "ca",
+          "skill"
+        ],
+        "seraphic": false,
+        "condition": "always"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "adv_amp", "name": "対有利与ダメ", "aliases": ["対有利与ダメ"],
-      "slot": { "kind": "amp", "appliesTo": ["normal", "ca", "skill"], "seraphic": false, "condition": "vsAdvantage" },
-      "unit": "%", "range": [0, 100], "status": "confirmed",
+      "id": "adv_amp",
+      "name": "対有利与ダメ",
+      "aliases": [
+        "対有利与ダメ"
+      ],
+      "slot": {
+        "kind": "amp",
+        "appliesTo": [
+          "normal",
+          "ca",
+          "skill"
+        ],
+        "seraphic": false,
+        "condition": "vsAdvantage"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed",
       "note": "天司系扱い（最大値1つだけ有効）かは未確定。仮定フラグ advAmpIsSeraphic で切り替え"
     },
     {
-      "id": "ca_dmg", "name": "奥義D", "aliases": ["奥義D", "奥義ダメージ"],
-      "slot": { "kind": "caDmg" },
-      "unit": "%", "range": [0, 200], "status": "confirmed"
+      "id": "ca_dmg",
+      "name": "奥義D",
+      "aliases": [
+        "奥義D",
+        "奥義ダメージ"
+      ],
+      "slot": {
+        "kind": "caDmg"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        200
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "supp", "name": "与ダメージ", "aliases": ["与ダメージ"],
-      "slot": { "kind": "supp", "appliesTo": ["normal", "ca"] },
-      "unit": "flat", "range": [0, 1000000], "status": "confirmed"
+      "id": "supp",
+      "name": "与ダメージ",
+      "aliases": [
+        "与ダメージ"
+      ],
+      "slot": {
+        "kind": "supp",
+        "appliesTo": [
+          "normal",
+          "ca"
+        ]
+      },
+      "unit": "flat",
+      "range": [
+        0,
+        1000000
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "skill_supp", "name": "アビ与ダメ", "aliases": ["アビ与ダメ", "アビリティ与ダメ"],
-      "slot": { "kind": "supp", "appliesTo": ["skill"] },
-      "unit": "flat", "range": [0, 2000000], "status": "confirmed"
+      "id": "skill_supp",
+      "name": "アビ与ダメ",
+      "aliases": [
+        "アビ与ダメ",
+        "アビリティ与ダメ"
+      ],
+      "slot": {
+        "kind": "supp",
+        "appliesTo": [
+          "skill"
+        ]
+      },
+      "unit": "flat",
+      "range": [
+        0,
+        2000000
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "hp", "name": "HP", "aliases": ["HP"],
-      "slot": { "kind": "display" },
-      "unit": "%", "range": [-100, 1000], "status": "confirmed"
+      "id": "hp",
+      "name": "HP",
+      "aliases": [
+        "HP"
+      ],
+      "slot": {
+        "kind": "display"
+      },
+      "unit": "%",
+      "range": [
+        -100,
+        1000
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "def", "name": "防御", "aliases": ["防御"],
-      "slot": { "kind": "display" },
-      "unit": "%", "range": [-100, 1000], "status": "confirmed"
+      "id": "def",
+      "name": "防御",
+      "aliases": [
+        "防御"
+      ],
+      "slot": {
+        "kind": "display"
+      },
+      "unit": "%",
+      "range": [
+        -100,
+        1000
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "ca_gauge", "name": "奥義ゲージ上昇量", "aliases": ["奥義ゲージ上昇量", "奥義ゲージ上昇"],
-      "slot": { "kind": "display" },
-      "unit": "%", "range": [-100, 1000], "status": "confirmed"
+      "id": "ca_gauge",
+      "name": "奥義ゲージ上昇量",
+      "aliases": [
+        "奥義ゲージ上昇量",
+        "奥義ゲージ上昇"
+      ],
+      "slot": {
+        "kind": "display"
+      },
+      "unit": "%",
+      "range": [
+        -100,
+        1000
+      ],
+      "status": "confirmed"
     },
     {
-      "id": "storm_dragon", "name": "嵐竜方陣", "aliases": ["嵐竜方陣"],
-      "slot": { "kind": "unclassified" },
-      "unit": "%", "range": [0, 1000], "status": "confirmed",
+      "id": "storm_dragon",
+      "name": "嵐竜方陣",
+      "aliases": [
+        "嵐竜方陣"
+      ],
+      "slot": {
+        "kind": "unclassified"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "confirmed",
       "note": "効果と入るべき枠が未確定。確認フォームで枠を割り当てるまで計算に入れない"
     },
     {
-      "id": "normal_enmity", "name": "背水", "aliases": ["背水", "通常背水"],
-      "slot": { "kind": "atk", "frame": "normal_enmity" }, "aura": "normal",
-      "unit": "%", "range": [0, 1000], "status": "assumed"
+      "id": "normal_enmity",
+      "name": "背水",
+      "aliases": [
+        "背水",
+        "通常背水"
+      ],
+      "slot": {
+        "kind": "atk",
+        "frame": "normal_enmity"
+      },
+      "aura": "normal",
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "assumed"
     },
     {
-      "id": "magna_enmity", "name": "M背水", "aliases": ["M背水", "マグナ背水"],
-      "slot": { "kind": "atk", "frame": "magna_enmity" }, "aura": "magna",
-      "unit": "%", "range": [0, 1000], "status": "assumed"
+      "id": "magna_enmity",
+      "name": "M背水",
+      "aliases": [
+        "M背水",
+        "マグナ背水"
+      ],
+      "slot": {
+        "kind": "atk",
+        "frame": "magna_enmity"
+      },
+      "aura": "magna",
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "assumed"
     },
     {
-      "id": "normal_stamina", "name": "渾身", "aliases": ["渾身", "通常渾身"],
-      "slot": { "kind": "atk", "frame": "normal_stamina" }, "aura": "normal",
-      "unit": "%", "range": [0, 1000], "status": "assumed"
+      "id": "normal_stamina",
+      "name": "渾身",
+      "aliases": [
+        "渾身",
+        "通常渾身"
+      ],
+      "slot": {
+        "kind": "atk",
+        "frame": "normal_stamina"
+      },
+      "aura": "normal",
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "assumed"
     },
     {
-      "id": "ex_enmity", "name": "EX背水", "aliases": ["EX背水"],
-      "slot": { "kind": "atk", "frame": "ex_enmity" },
-      "unit": "%", "range": [0, 1000], "status": "assumed"
+      "id": "ex_enmity",
+      "name": "EX背水",
+      "aliases": [
+        "EX背水"
+      ],
+      "slot": {
+        "kind": "atk",
+        "frame": "ex_enmity"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "assumed"
     },
     {
-      "id": "ex_stamina", "name": "EX渾身", "aliases": ["EX渾身"],
-      "slot": { "kind": "atk", "frame": "ex_stamina" },
-      "unit": "%", "range": [0, 1000], "status": "assumed"
+      "id": "ex_stamina",
+      "name": "EX渾身",
+      "aliases": [
+        "EX渾身"
+      ],
+      "slot": {
+        "kind": "atk",
+        "frame": "ex_stamina"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "assumed"
     },
     {
-      "id": "critical", "name": "クリティカル", "aliases": ["クリティカル", "クリティカル確率"],
-      "slot": { "kind": "unclassified" },
-      "unit": "%", "range": [0, 100], "status": "assumed",
+      "id": "critical",
+      "name": "クリティカル",
+      "aliases": [
+        "クリティカル",
+        "クリティカル確率"
+      ],
+      "slot": {
+        "kind": "unclassified"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "assumed",
       "note": "発生率と倍率の両方が必要で表示形式が不明なため未分類。追加入力のクリティカル行に転記する"
+    },
+    {
+      "id": "dmg_amp",
+      "name": "与ダメージ(%)",
+      "aliases": [
+        "与ダメージ(%)",
+        "与ダメージ"
+      ],
+      "slot": {
+        "kind": "amp",
+        "appliesTo": [
+          "normal",
+          "ca",
+          "skill"
+        ],
+        "seraphic": false,
+        "condition": "always"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed",
+      "note": "「与ダメージ」は固定値（与ダメ上昇）と%（与ダメUP）の2通りの表示がある。単位で見分ける"
+    },
+    {
+      "id": "element_atk",
+      "name": "属性攻撃",
+      "aliases": [
+        "属性攻撃"
+      ],
+      "slot": {
+        "kind": "atk",
+        "frame": "element"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        500
+      ],
+      "status": "confirmed",
+      "note": "属性枠に入ると仮定（2枚目のスクショの無印/対属性の比 1.453 が (1.5+0.1)/(1+0.1)=1.4545 とほぼ一致）"
+    },
+    {
+      "id": "triple_frame",
+      "name": "光/雷電/天光",
+      "aliases": [
+        "光/雷電/天光",
+        "光雷電天光"
+      ],
+      "slot": {
+        "kind": "unclassified"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "confirmed",
+      "note": "効果と枠が未確定"
+    },
+    {
+      "id": "elem_echo",
+      "name": "属性追撃",
+      "aliases": [
+        "破壊属性追撃",
+        "属性追撃"
+      ],
+      "slot": {
+        "kind": "unclassified"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        200
+      ],
+      "status": "confirmed",
+      "note": "通常攻撃の追撃と思われるが未確定（予測ダメージには入らない想定）"
+    },
+    {
+      "id": "ca_echo",
+      "name": "奥義追撃",
+      "aliases": [
+        "光奥義追撃",
+        "破壊奥義追撃",
+        "奥義追撃"
+      ],
+      "slot": {
+        "kind": "unclassified"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        200
+      ],
+      "status": "confirmed",
+      "note": "奥義の追撃と思われるが未確定（系統違いが別行で出る）"
+    },
+    {
+      "id": "saete",
+      "name": "属性冴手",
+      "aliases": [
+        "光属性冴手",
+        "属性冴手"
+      ],
+      "slot": {
+        "kind": "unclassified"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        200
+      ],
+      "status": "confirmed",
+      "note": "効果が未確定"
+    },
+    {
+      "id": "hp_flat",
+      "name": "HP(固定)",
+      "aliases": [
+        "HP(固定)"
+      ],
+      "slot": {
+        "kind": "display"
+      },
+      "unit": "flat",
+      "range": [
+        0,
+        1000000
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "elem_cut",
+      "name": "属性軽減",
+      "aliases": [
+        "火軽減",
+        "水軽減",
+        "土軽減",
+        "風軽減",
+        "光軽減",
+        "闇軽減",
+        "属性軽減"
+      ],
+      "slot": {
+        "kind": "display"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "debuff_res",
+      "name": "弱体耐性",
+      "aliases": [
+        "弱体耐性"
+      ],
+      "slot": {
+        "kind": "display"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "cap_up_special",
+      "name": "D上限(特殊)",
+      "aliases": [
+        "D上限(特殊)"
+      ],
+      "slot": {
+        "kind": "capUp",
+        "appliesTo": [
+          "normal",
+          "ca",
+          "skill"
+        ]
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed",
+      "note": "汎用の D上限 と合算して20%まで。超えた分は上限突破（gbf.wiki Damage Cap）。特殊上限そのものは上げない"
     }
   ]
 }

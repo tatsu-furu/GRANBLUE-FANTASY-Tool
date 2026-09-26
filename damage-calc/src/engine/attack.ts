@@ -2,8 +2,9 @@ import { defaultData, randomValues } from './data';
 import { effectiveDefense } from './defense';
 import { collectModifiers, slotOf } from './modifiers';
 import { multiattackRates } from './multiattack';
-import { ampTotals, applyPostCap, type AmpTotals } from './postcap';
+import { ampTotals, applyPostCap, type AmpTotals, type SpecialCap } from './postcap';
 import { applySkillExtraCap, resolveCapTable, softCap, type ResolvedCapTable } from './softcap';
+import { ATTACK_TYPES } from './types';
 import type {
   Assumptions,
   AttackResult,
@@ -94,6 +95,10 @@ function critOutcomes(critMods: Modifier[], valueOf: ValueOf): CritOutcome[] {
   return outcomes.filter((o) => o.p > 0);
 }
 
+function specialCapTable(c: { value: number | null; thresholds: number[] | null; reductions: number[] | null } | undefined): SpecialCap | null {
+  return c && c.value !== null && c.thresholds && c.reductions ? { value: c.value, table: { thresholds: c.thresholds, reductions: c.reductions } } : null;
+}
+
 export interface PrepareOptions {
   relation: ElementRelation;
   includeBattleBuffs: boolean;
@@ -101,7 +106,7 @@ export interface PrepareOptions {
   includeAmp: boolean;
   includeSupp: boolean;
   defOverride?: number; // 予測ダメージ用（防御10固定）
-  specialCapOverride?: number | null;
+  specialCapOverride?: SpecialCap | null;
   noCrit?: boolean;
   extraMods?: Modifier[]; // 伸び率・逆算で足す仮の補正
 }
@@ -120,7 +125,7 @@ export interface PreparedAttack {
   penetration: number;
   amp: AmpTotals;
   supp: number;
-  specialCap: number | null;
+  specialCap: SpecialCap | null;
   rule: PostCapRule;
   crits: CritOutcome[];
   critChance: number; // 1回以上クリティカルが出る確率
@@ -160,12 +165,18 @@ export function prepareAttack(input: CalcInput, attack: AttackSpec, data: Engine
       data,
     ).value;
 
-  // 武器（パネル）由来の上限UPは種別ごとの上限まで。超えた分は仮定フラグが ON なら上限突破として扱う
+  // 武器（パネル）由来の上限UP: 汎用（D上限 + D上限(特殊)）は合計20%まで、超えた分は上限突破（仮定フラグが ON のとき）。
+  // 種別の上限UP（通常D上限など）は汎用とは別に種別ごとの上限まで。3種別すべてに掛かる項目を汎用とみなす
   const cap = resolveCapTable(attack, data);
-  const panelCapUp = sum('capUp', (m) => m.source === 'panel') / 100;
-  const limit = data.softcaps.capUpLimits.weapon[type] / 100;
-  const capUp = Math.min(panelCapUp, limit) + sum('capUp', (m) => m.source !== 'panel') / 100;
-  const excess = Math.max(0, panelCapUp - limit);
+  const limits = data.softcaps.capUpLimits;
+  const isGeneric = (m: Modifier) => ATTACK_TYPES.every((t) => m.appliesTo.includes(t));
+  const panelGeneric = sum('capUp', (m) => m.source === 'panel' && isGeneric(m)) / 100;
+  const panelTyped = sum('capUp', (m) => m.source === 'panel' && !isGeneric(m)) / 100;
+  const capUp =
+    Math.min(panelGeneric, limits.generic / 100) +
+    Math.min(panelTyped, limits.typed[type] / 100) +
+    sum('capUp', (m) => m.source !== 'panel') / 100;
+  const excess = Math.max(0, panelGeneric - limits.generic / 100);
   const penetration = sum('capPen') / 100 + (assumptions.capPenetrationActive ? excess : 0);
 
   const canCrit = attack.canCrit ?? data.formula.critical.defaultCanCrit[type];
@@ -202,8 +213,7 @@ export function prepareAttack(input: CalcInput, attack: AttackSpec, data: Engine
     penetration,
     amp: ampTotals(mods, valueOf, assumptions),
     supp: sum('supp'),
-    specialCap:
-      opts.specialCapOverride !== undefined ? opts.specialCapOverride : data.softcaps.specialCaps[input.enemy.specialCap]?.value ?? null,
+    specialCap: opts.specialCapOverride !== undefined ? opts.specialCapOverride : specialCapTable(data.softcaps.specialCaps[input.enemy.specialCap]),
     rule: data.formula.postCap[type],
     crits,
     critChance,
@@ -316,7 +326,7 @@ export function calculateAttack(input: CalcInput, attack: AttackSpec, data: Engi
     ampSeraphic: prep.amp.seraphic,
     ampOther: prep.amp.other,
     supp: prep.supp,
-    specialCap: prep.specialCap,
+    specialCap: prep.specialCap?.value ?? null,
   };
 
   const warnings = [...prep.warnings];
