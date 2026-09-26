@@ -3,7 +3,8 @@
  *
  * ボーダーの集計サイト（gbfdata.com / live.gbfranking.com）で見た値を入れる（またはコピーしたテキストを貼る）と、
  * 自分の貢献度から「どのボーダーに届くか」「届かせるには毎時いくつ必要で、どの難易度なら間に合うか」を表示する。
- * 集計サイトのデータは別ドメインで読み取り方法も公開されていないため、自動取得はしない（リンクで開く）。
+ * 「最新を取得」で gbfdata.com の API（CORS 許可あり）から各順位の現在値・直近1時間の伸び・前回の推移を読み、
+ * 前回の同じ時刻→最終の伸び率から最終予想を出す。取得はボタンを押したときだけ（自動で繰り返さない）。
  *
  * 組み込み方（kosenjou.html の本体のスクリプトより後に置く）:
  *   <div id="border-panel"></div>
@@ -26,9 +27,8 @@
         { name: 'グラブルランキング速報', url: 'https://live.gbfranking.com/' },
     ];
     const DEFAULT_ROWS = [
-        { label: '', current: null, final: null },
-        { label: '', current: null, final: null },
-        { label: '', current: null, final: null },
+        { label: '2000位', current: null, final: null },
+        { label: '10万位', current: null, final: null },
     ];
 
     function parsePoint(text) {
@@ -77,6 +77,76 @@
         return rows;
     }
 
+    const GBFDATA_API = 'https://gbfdata.com/api/users/borders';
+    const BATTLE_OPEN_HOUR = 7; // 毎日 0〜7時は集計が止まる
+
+    /** 「2000位」「12万位」「100000」→ 順位の数値 */
+    function rankOf(label) {
+        const m = String(label).normalize('NFKC').replace(/[,\s]/g, '').match(/^(\d+(?:\.\d+)?)(万)?位?$/);
+        return m ? Math.round(parseFloat(m[1]) * (m[2] ? 1e4 : 1)) : null;
+    }
+
+    function rankLabel(rank) {
+        return rank % 10000 === 0 ? `${rank / 10000}万位` : `${rank.toLocaleString()}位`;
+    }
+
+    /**
+     * gbfdata の /api/users/borders の応答を順位ごとにまとめる。
+     * 最終予想 = 現在値 × (前回の最終値 ÷ 前回の同じ日・同じ時刻の値)
+     */
+    function parseGbfdata(json) {
+        const meta = json && json.meta;
+        const series = (json && Array.isArray(json.data) ? json.data : []).filter((d) => d && d.type === 'rank');
+        const prev = json && Array.isArray(json.additional) ? json.additional : [];
+        const rows = series.map((sr) => {
+            const sum = sr.summary || {};
+            const points = Array.isArray(sr.points) ? sr.points : [];
+            const last = points[points.length - 1] || {};
+            const before = prev.find((p) => p && p.target_rank === sr.target_rank);
+            let final = null;
+            let ratio = null;
+            if (before && Array.isArray(before.points) && last.day_of != null) {
+                const same = before.points.find((p) => p.day_of === last.day_of && p.time === last.time);
+                const prevFinal = before.summary && before.summary.current_point;
+                if (same && same.point > 0 && prevFinal > 0 && Number.isFinite(sum.current_point)) {
+                    ratio = prevFinal / same.point;
+                    final = Math.round(sum.current_point * ratio);
+                }
+            }
+            return {
+                rank: sr.target_rank,
+                current: Number.isFinite(sum.current_point) ? sum.current_point : null,
+                at: last.day_of != null ? `${last.day_of}日目 ${last.time}` : '',
+                lastHour: Number.isFinite(sum.last_hour_point) ? sum.last_hour_point : null,
+                final,
+                ratio,
+                prevRaid: before ? before.raid_number : null,
+            };
+        });
+        const days = meta && Array.isArray(meta.schedules) ? meta.schedules.map((x) => x.day).filter(Boolean).sort() : [];
+        return { raid: meta ? meta.raid_number : null, generatedAt: meta ? meta.generated_at : null, lastDay: days[days.length - 1] || null, rows };
+    }
+
+    /** 今から最終日の24時までのうち、毎日7〜24時（集計が動いている時間）の合計時間（日本時間で計算） */
+    function remainingActiveHours(lastDay, now = new Date()) {
+        if (!lastDay) return null;
+        const jst = (y, mo, d, h) => Date.UTC(y, mo, d, h - 9);
+        const [y, mo, d] = lastDay.split('-').map(Number);
+        const end = jst(y, mo - 1, d, 24);
+        let t = now.getTime();
+        if (t >= end) return 0;
+        let hours = 0;
+        const nowJst = new Date(t + 9 * 3600e3);
+        for (let day = Date.UTC(nowJst.getUTCFullYear(), nowJst.getUTCMonth(), nowJst.getUTCDate()); ; day += 86400e3) {
+            const dt = new Date(day);
+            const open = jst(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), BATTLE_OPEN_HOUR);
+            const close = jst(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), 24);
+            if (open >= end) break;
+            hours += Math.max(0, Math.min(close, end) - Math.max(open, t)) / 3600e3;
+        }
+        return hours;
+    }
+
     class BorderPanel {
         constructor(root, opts) {
             this.root = root;
@@ -88,7 +158,7 @@
         }
 
         load() {
-            const fallback = { rows: DEFAULT_ROWS.map((r) => ({ ...r })), mine: null, days: 0, hours: 0, target: 0 };
+            const fallback = { rows: DEFAULT_ROWS.map((r) => ({ ...r })), mine: null, days: 0, hours: 0, target: 0, fetchNote: '' };
             try {
                 const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
                 if (!s || !Array.isArray(s.rows)) return fallback;
@@ -97,11 +167,13 @@
                         label: typeof r.label === 'string' ? r.label.slice(0, 20) : '',
                         current: Number.isFinite(r.current) ? r.current : null,
                         final: Number.isFinite(r.final) ? r.final : null,
+                        lastHour: Number.isFinite(r.lastHour) ? r.lastHour : null,
                     })),
                     mine: Number.isFinite(s.mine) ? s.mine : null,
                     days: Number.isFinite(s.days) ? s.days : 0,
                     hours: Number.isFinite(s.hours) ? s.hours : 0,
                     target: Number.isInteger(s.target) ? s.target : 0,
+                    fetchNote: typeof s.fetchNote === 'string' ? s.fetchNote.slice(0, 200) : '',
                 };
             } catch (e) {
                 return fallback;
@@ -123,9 +195,12 @@
 .bd-grid th, .bd-grid td { padding:4px 6px; border-bottom:1px solid var(--border); text-align:left; }
 .bd-grid input[type=text] { width:100%; min-width:70px; background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:4px 6px; font:inherit; }
 .bd-grid td.num input { text-align:right; }
+.bd-sub { font-size:0.72em; color:var(--text-3); text-align:right; margin-top:2px; }
 .bd-row-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
 .bd-btn { background:transparent; border:1px solid var(--border); color:var(--text-2); border-radius:4px; padding:3px 10px; cursor:pointer; font:inherit; font-size:0.85em; }
 .bd-btn:hover { border-color:var(--accent); color:var(--accent); }
+.bd-btn.bd-primary { border-color:var(--accent); color:var(--accent); font-weight:700; }
+.bd-btn:disabled { opacity:0.5; cursor:wait; }
 .bd-paste { width:100%; min-height:70px; margin-top:6px; background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:6px; font:inherit; font-size:0.85em; }
 .bd-me { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0; font-size:0.9em; }
 .bd-me input, .bd-me select { background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:4px 6px; font:inherit; }
@@ -166,9 +241,9 @@
             const hourOpts = Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${s.hours === h ? 'selected' : ''}>${h}時間</option>`).join('');
             this.root.innerHTML = `
 <div class="card">
-  <div class="card-title">ボーダー（集計サイトの値を入力）</div>
+  <div class="card-title">ボーダー（gbfdata から取得、または入力）</div>
   <div class="bd-links">${SOURCES.map((x) => `<a href="${x.url}" target="_blank" rel="noopener noreferrer">${esc(x.name)} ↗</a>`).join('')}</div>
-  <p class="note" style="margin-bottom:8px;">サイトで見た「現在のボーダー」と、あれば「最終予想」を入れてください（億・万も可）。目標にする行を左の丸で選びます。</p>
+  <p class="note" style="margin-bottom:8px;">「最新を取得」で gbfdata の値を読み込みます（手で入力・修正も可。億・万も使えます）。目標にする行を左の丸で選びます。</p>
   <table class="bd-grid">
     <thead><tr><th>目標</th><th>順位</th><th>現在のボーダー</th><th>最終予想</th><th></th></tr></thead>
     <tbody>${s.rows.map((r, i) => `
@@ -176,15 +251,17 @@
         <td><input type="radio" name="bd-target" data-i="${i}" ${s.target === i ? 'checked' : ''} aria-label="この行を目標にする"></td>
         <td><input type="text" data-f="label" data-i="${i}" value="${esc(r.label)}" placeholder="例: 2000位"></td>
         <td class="num"><input type="text" inputmode="decimal" data-f="current" data-i="${i}" value="${r.current == null ? '' : fmtPoint(r.current)}" placeholder="例: 12.5億"></td>
-        <td class="num"><input type="text" inputmode="decimal" data-f="final" data-i="${i}" value="${r.final == null ? '' : fmtPoint(r.final)}" placeholder="任意"></td>
+        <td class="num"><input type="text" inputmode="decimal" data-f="final" data-i="${i}" value="${r.final == null ? '' : fmtPoint(r.final)}" placeholder="任意">${r.lastHour != null ? `<div class="bd-sub">直近1時間 +${fmtPoint(r.lastHour)}</div>` : ''}</td>
         <td><button type="button" class="bd-btn" data-del="${i}" aria-label="この行を削除">✕</button></td>
       </tr>`).join('')}
     </tbody>
   </table>
   <div class="bd-row-actions">
+    <button type="button" class="bd-btn bd-primary" data-act="fetch">gbfdata から最新を取得</button>
     <button type="button" class="bd-btn" data-act="add">＋ 行を追加</button>
     <button type="button" class="bd-btn" data-act="toggle-paste">テキストを貼って読み込む</button>
   </div>
+  <p class="note" data-fetch-status style="margin-top:6px;">${esc(s.fetchNote || '順位の欄（例: 2000位、10万位）を入れてから取得すると、その順位のボーダーを読み込みます。')}</p>
   <div data-paste hidden>
     <textarea class="bd-paste" placeholder="集計サイトの表をコピーして貼り付け（例: 2000位 1,250,000,000）"></textarea>
     <button type="button" class="bd-btn" data-act="paste">読み込む</button>
@@ -243,9 +320,55 @@
                 this.save();
                 this.render();
             });
+            root.querySelector('[data-act=fetch]').addEventListener('click', (e) => this.fetchLatest(e.currentTarget));
             root.querySelector('[data-me]').addEventListener('input', (e) => { this.state.mine = parsePoint(e.target.value); this.save(); this.update(); });
             root.querySelector('[data-days]').addEventListener('change', (e) => { this.state.days = +e.target.value; this.save(); this.update(); });
             root.querySelector('[data-hours]').addEventListener('change', (e) => { this.state.hours = +e.target.value; this.save(); this.update(); });
+        }
+
+        /** gbfdata から、入力されている順位のボーダーと前回の推移を取得する */
+        async fetchLatest(button) {
+            const status = this.root.querySelector('[data-fetch-status]');
+            const ranks = [...new Set(this.state.rows.map((r) => rankOf(r.label)).filter((r) => r && r > 0))].slice(0, 8);
+            if (ranks.length === 0) { status.textContent = '順位の欄に「2000位」「10万位」のように入れてください'; return; }
+            button.disabled = true;
+            status.textContent = '取得しています…';
+            try {
+                const first = await this.request(ranks, null);
+                const prevRaid = first.meta && first.meta.raid_number ? first.meta.raid_number - 1 : null;
+                const json = prevRaid ? await this.request(ranks, prevRaid) : first;
+                const parsed = parseGbfdata(json);
+                for (const r of parsed.rows) {
+                    let row = this.state.rows.find((x) => rankOf(x.label) === r.rank);
+                    if (!row) continue;
+                    row.current = r.current;
+                    row.final = r.final;
+                    row.lastHour = r.lastHour;
+                }
+                const hours = remainingActiveHours(parsed.lastDay);
+                if (hours != null) {
+                    const h = Math.floor(hours);
+                    this.state.days = Math.min(4, Math.floor(h / 24));
+                    this.state.hours = Math.min(23, h - this.state.days * 24);
+                }
+                const at = parsed.rows[0] ? parsed.rows[0].at : '';
+                const prevNo = parsed.rows.find((r) => r.prevRaid) ? parsed.rows.find((r) => r.prevRaid).prevRaid : null;
+                this.state.fetchNote = `第${parsed.raid}回 ${at} 時点（gbfdata）。最終予想は${prevNo ? `前回（第${prevNo}回）の同じ時刻からの伸び率で計算` : '前回のデータが無いため空欄'}。残り時間は集計の止まる 0〜7時を除いて自動設定`;
+                this.save();
+                this.render();
+            } catch (err) {
+                status.textContent = `取得できませんでした（${err && err.message ? err.message : err}）。サイトを開いて値を入力してください`;
+                button.disabled = false;
+            }
+        }
+
+        async request(ranks, prevRaid) {
+            const q = new URLSearchParams();
+            for (const r of ranks) q.append('ranks[]', String(r));
+            if (prevRaid) for (const r of ranks) q.append('additional_targets[]', `rank:${prevRaid}:${r}`);
+            const res = await fetch(`${GBFDATA_API}?${q}`, { headers: { Accept: 'application/json' } });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
         }
 
         /** 討伐時間の変更などを反映する */
@@ -332,5 +455,8 @@ ${best ? (ok ? `最速の ${esc(best.name)}（毎時 ${fmtPoint(best.perH)}）�
 
     BorderPanel.parseBorderText = parseBorderText;
     BorderPanel.parsePoint = parsePoint;
+    BorderPanel.parseGbfdata = parseGbfdata;
+    BorderPanel.remainingActiveHours = remainingActiveHours;
+    BorderPanel.rankOf = rankOf;
     global.BorderPanel = BorderPanel;
 })(window);
