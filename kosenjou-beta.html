@@ -392,6 +392,68 @@
             background: var(--surface);
         }
 
+        /* ===== Diagnostic Panel ===== */
+        #diag-panel {
+            display: none;
+            flex-direction: column;
+            background: var(--bg-1);
+            border-top: 1px solid var(--border);
+            padding: 10px 12px 12px;
+            font-size: 0.72em;
+            overflow-y: auto;
+            flex-shrink: 0;
+            max-height: 280px;
+        }
+        #diag-panel.open { display: flex; }
+        .diag-title {
+            font-size: 0.82em;
+            font-weight: 700;
+            color: var(--text-3);
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            margin-bottom: 7px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .diag-mode-btns { display: flex; gap: 4px; margin-left: auto; }
+        .diag-mode-btn {
+            font-size: 0.85em;
+            padding: 2px 8px;
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            background: var(--surface);
+            color: var(--text-muted);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.1s;
+        }
+        .diag-mode-btn:hover { border-color: var(--accent-lo); color: var(--text); }
+        .diag-mode-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+        .diag-mode-btn.danger { border-color: var(--danger); color: #d08080; }
+        .diag-table { width: 100%; border-collapse: collapse; }
+        .diag-table tr { border-bottom: 1px solid rgba(44,44,56,0.5); }
+        .diag-table td { padding: 3px 4px; vertical-align: top; }
+        .diag-table td:first-child { color: var(--text-3); min-width: 110px; white-space: nowrap; }
+        .diag-table td:last-child { color: var(--text-2); word-break: break-all; }
+        .diag-ok   { color: #70c070 !important; }
+        .diag-warn { color: var(--accent) !important; }
+        .diag-err  { color: #e07070 !important; }
+        .diag-na   { color: var(--text-3) !important; }
+        #diag-refresh-btn {
+            margin-top: 8px;
+            align-self: flex-start;
+            font-size: 0.8em;
+            padding: 2px 8px;
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            background: transparent;
+            color: var(--text-3);
+            cursor: pointer;
+            font-family: inherit;
+        }
+        #diag-refresh-btn:hover { border-color: var(--accent-lo); color: var(--text); }
+
         @media (max-width: 600px) {
             .data-table { font-size: 0.74em; }
             .data-table th, .data-table td { padding: 4px 3px; }
@@ -540,10 +602,11 @@
     <div id="attack-info-section">
         <div id="open-mode-bar">
             <span id="open-mode-label">攻略情報:</span>
-            <button class="mode-btn" data-mode="internal">内部ブラウザ</button>
-            <button class="mode-btn" data-mode="split">Split View</button>
-            <button class="mode-btn" data-mode="tab">新しいタブ</button>
-            <span id="ext-no-ext-hint">— 拡張機能が必要</span>
+            <button class="mode-btn" data-mode="internal" title="ページ内に横並び表示（神ゲーはiframe対応）">内部ブラウザ</button>
+            <button class="mode-btn" data-mode="split" title="Chrome Native Split View (拡張機能 + Chrome 155+) / 2ウィンドウ (Chrome 155未満) / 新しいタブ (拡張機能なし)">Split View</button>
+            <button class="mode-btn" data-mode="sidepanel" title="Chrome Side Panel (拡張機能 + Chrome 114+)">Side Panel</button>
+            <button class="mode-btn" data-mode="tab" title="新しいタブで開く">新しいタブ</button>
+            <span id="ext-no-ext-hint">— 拡張機能でより快適に</span>
         </div>
         <div class="ext-links">
             <button class="ext-btn site-btn" data-site="gamewith"
@@ -559,6 +622,7 @@
         <button class="tab-btn active" data-tab="efficiency">討伐効率</button>
         <button class="tab-btn" data-tab="target">目標計算</button>
         <button class="tab-btn" data-tab="meat">肉計算</button>
+        <button class="tab-btn" data-tab="border">ボーダー</button>
     </nav>
 
     <!-- ===== TAB 1: 討伐効率 ===== -->
@@ -633,6 +697,9 @@
             <div id="t-table-wrap"><div class="no-data">目標貢献度を入力してください</div></div>
         </div>
     </div>
+
+    <!-- ===== TAB 4: ボーダー（kosenjou-border.js） ===== -->
+    <div id="tab-border" class="tab-content"><div id="border-panel"></div></div>
 
     <!-- ===== TAB 3: 肉計算 ===== -->
     <div id="tab-meat" class="tab-content">
@@ -715,10 +782,46 @@
 <div id="split-divider"></div>
 <div id="ext-pane">
     <div id="ext-pane-bar">
-        <button class="epane-tab" data-site="gamewith">GameWith</button>
         <button class="epane-tab" data-site="kamigame">神ゲー</button>
-        <button class="epane-tab" data-site="youtube">YouTube</button>
+        <button class="epane-tab" data-site="youtube">YouTube 動画</button>
+        <button id="diag-toggle-btn" title="GameWith iframe診断パネルを表示/非表示"
+            style="display:none;font-size:0.7em;padding:2px 7px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--text-3);cursor:pointer;font-family:inherit;margin-left:4px;">iframe診断</button>
         <button id="ext-pane-close">✕ 閉じる</button>
+    </div>
+    <!-- ===== Diagnostic Panel ===== -->
+    <div id="diag-panel">
+        <div class="diag-title">
+            GameWith iframe 診断
+            <div class="diag-mode-btns">
+                <button class="diag-mode-btn active" id="diag-mode-a-btn" title="DNR + 通常 (デフォルト)">MODE A</button>
+                <button class="diag-mode-btn" id="diag-mode-b-btn" title="chrome.debugger で Page.setBypassCSP(true)">MODE B</button>
+            </div>
+        </div>
+        <table class="diag-table" id="diag-table">
+            <tr><td style="color:var(--accent);font-weight:700;" colspan="2">Response Headers (HEAD)</td></tr>
+            <tr><td>Status</td>           <td id="d-resp-status" class="diag-na">—</td></tr>
+            <tr><td>X-Frame-Options</td>  <td id="d-resp-xfo" class="diag-na">—</td></tr>
+            <tr><td>CSP (response)</td>   <td id="d-resp-csp" class="diag-na">—</td></tr>
+            <tr><td>Redirect</td>         <td id="d-resp-redirect" class="diag-na">—</td></tr>
+            <tr><td style="color:var(--accent);font-weight:700;" colspan="2">DNR / Content Script</td></tr>
+            <tr><td>DNR XFO (rule#1)</td>        <td id="d-dnr-xfo" class="diag-na">—</td></tr>
+            <tr><td>DNR CSP (rule#2)</td>        <td id="d-dnr-csp" class="diag-na">—</td></tr>
+            <tr><td>Meta CSP</td>                <td id="d-meta-csp" class="diag-na">—</td></tr>
+            <tr><td>Service Worker</td>           <td id="d-sw" class="diag-na">—</td></tr>
+            <tr><td>Frame-busting JS</td>         <td id="d-fb" class="diag-na">—</td></tr>
+            <tr><td>iframe 状態</td>              <td id="d-iframe" class="diag-na">—</td></tr>
+            <tr style="border-top:1px solid var(--border-hi)">
+                <td style="color:var(--accent);font-weight:700;" colspan="2">MODE B — chrome.debugger</td>
+            </tr>
+            <tr><td>Parent tab attached</td><td id="d-dbg-parent" class="diag-na">—</td></tr>
+            <tr><td>Attach error</td>       <td id="d-dbg-err" class="diag-na">—</td></tr>
+            <tr>
+                <td colspan="2" style="padding-top:5px;">
+                    <div id="d-dbg-targets" style="font-size:0.92em;"></div>
+                </td>
+            </tr>
+        </table>
+        <button id="diag-refresh-btn">再チェック</button>
     </div>
     <div id="yt-search-ui">
         <p class="note">YouTube全体はiframe非対応のため、動画URLを直接入力して再生します。</p>
@@ -768,9 +871,10 @@ function saveReloadState() {
 
 // ── ユーティリティ ──
 
-function buildMinOpts(savedMin) {
+// 250HELL は長期戦になるので90分まで選べるようにする
+function buildMinOpts(savedMin, maxMin = 30) {
     let html = '<option value="">─</option>';
-    for (let m = 0; m <= 30; m++) {
+    for (let m = 0; m <= maxMin; m++) {
         const sel = (savedMin === null ? m === 0 : savedMin === m) ? 'selected' : '';
         html += `<option value="${m}" ${sel}>${m}分</option>`;
     }
@@ -872,12 +976,12 @@ function buildEffTable() {
             <td style="white-space:nowrap">
                 <div style="display:flex;align-items:center;gap:4px;">
                     <span style="font-size:0.75em;color:var(--text-3);min-width:28px;">${isRelo ? '1回目' : ''}</span>
-                    <select class="time-sel time-sel-min" data-id="${d.id}">${buildMinOpts(savedMin)}</select>
+                    <select class="time-sel time-sel-min" data-id="${d.id}">${buildMinOpts(savedMin, d.is250 ? 90 : 30)}</select>
                     ${buildSecInput(savedSec, 'time-sel-sec', d.id)}
                 </div>
                 <div id="relo-row-${d.id}" style="display:${isRelo ? 'flex' : 'none'};align-items:center;gap:4px;margin-top:4px;">
                     <span style="font-size:0.75em;color:var(--accent-hi);min-width:28px;">リロ有</span>
-                    <select class="time-sel time-sel-min2" data-id="${d.id}">${buildMinOpts(savedMin2)}</select>
+                    <select class="time-sel time-sel-min2" data-id="${d.id}">${buildMinOpts(savedMin2, d.is250 ? 90 : 30)}</select>
                     ${buildSecInput(savedSec2, 'time-sel-sec2', d.id)}
                 </div>
             </td>
@@ -1351,26 +1455,70 @@ function applyMode(mode) {
         b.classList.toggle('active', b.dataset.mode === mode)
     );
     const hint = document.getElementById('ext-no-ext-hint');
-    if (hint) hint.style.display = (mode === 'split' && !extInstalled) ? 'inline' : 'none';
+    const needsExt = (mode === 'split' || mode === 'sidepanel') && !extInstalled;
+    if (hint) hint.style.display = needsExt ? 'inline' : 'none';
 }
 
+function detectCapabilities() {
+    const ua = navigator.userAgent.match(/Chrome\/(\d+)/);
+    const ver = ua ? parseInt(ua[1]) : 0;
+    const hasSplit     = extInstalled && ver >= 155;
+    const hasSidePanel = extInstalled && ver >= 114;
+    console.log('[GBF Tool] Chrome', ver, '| ext:', extInstalled,
+        '| split:', hasSplit, '| sidepanel:', hasSidePanel);
+    // Dim unavailable mode buttons
+    document.querySelector('.mode-btn[data-mode="split"]')
+        ?.style.setProperty('opacity', hasSplit ? '1' : '0.45');
+    document.querySelector('.mode-btn[data-mode="sidepanel"]')
+        ?.style.setProperty('opacity', hasSidePanel ? '1' : '0.45');
+}
+
+// GameWith iframe is blocked by CSP (frame-ancestors 'self') + Cloudflare Turnstile
+const IFRAME_BLOCKED_SITES = ['gamewith'];
+
 function openSite(url, siteId) {
-    if (currentMode === 'internal') {
+    if (siteId === 'youtube') {
         openInternal(url, siteId);
-    } else if (currentMode === 'split') {
-        if (extInstalled) {
-            chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'openSplit', url }, r => {
-                if (chrome.runtime.lastError || !r?.success) {
-                    console.log('[GBF Tool] Split View失敗 → 内部ブラウザにフォールバック');
-                    openInternal(url, siteId);
-                }
-            });
-        } else {
+        return;
+    }
+    const blocked = IFRAME_BLOCKED_SITES.includes(siteId);
+    if (currentMode === 'sidepanel' && extInstalled && window.chrome?.runtime) {
+        openSidePanel(url);
+    } else if (currentMode === 'split' || blocked) {
+        // GameWith always uses split/tab regardless of mode selection
+        openSplitOrTab(url);
+    } else {
+        // internal or tab mode for iframe-capable sites (神ゲー etc.)
+        if (currentMode === 'internal') {
             openInternal(url, siteId);
+        } else {
+            window.open(url, '_blank', 'noopener,noreferrer');
         }
+    }
+}
+
+function openSplitOrTab(url) {
+    if (extInstalled && window.chrome?.runtime) {
+        chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'openSplit', url }, r => {
+            if (chrome.runtime.lastError || !r?.success) {
+                console.log('[GBF Tool] Split View失敗 → 新しいタブにフォールバック');
+                window.open(url, '_blank', 'noopener,noreferrer');
+            }
+        });
     } else {
         window.open(url, '_blank', 'noopener,noreferrer');
     }
+}
+
+function openSidePanel(url) {
+    chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'openSidePanel', url }, r => {
+        if (chrome.runtime.lastError || !r?.success) {
+            console.log('[GBF Tool] Side Panel失敗 (', (r?.error || chrome.runtime.lastError?.message), ') → 新しいタブへフォールバック');
+            window.open(url, '_blank', 'noopener,noreferrer');
+        } else {
+            console.log('[GBF Tool] Side Panel opened:', url);
+        }
+    });
 }
 
 function openInternal(url, siteId) {
@@ -1483,7 +1631,7 @@ document.querySelectorAll('.site-btn').forEach(btn =>
     btn.addEventListener('click', () => openSite(btn.dataset.url, btn.dataset.site))
 );
 
-// ペイン内タブ
+// ペイン内タブ (YouTube embed のみ)
 document.querySelectorAll('.epane-tab').forEach(tab =>
     tab.addEventListener('click', () => {
         const site = SITES.find(s => s.id === tab.dataset.site);
@@ -1491,20 +1639,275 @@ document.querySelectorAll('.epane-tab').forEach(tab =>
     })
 );
 
+
 document.getElementById('ext-pane-close').addEventListener('click', closeInternal);
 
-// 拡張機能チェック → 初期モード適用
+// ===== iframe診断パネル =====
+let diagPanelOpen = false;
+let debuggerBypassActive = false;
+
+document.getElementById('diag-toggle-btn').addEventListener('click', () => {
+    diagPanelOpen = !diagPanelOpen;
+    const panel = document.getElementById('diag-panel');
+    panel.classList.toggle('open', diagPanelOpen);
+    if (diagPanelOpen) refreshDiag();
+});
+
+document.getElementById('diag-refresh-btn').addEventListener('click', refreshDiag);
+
+document.getElementById('diag-mode-a-btn').addEventListener('click', async () => {
+    if (debuggerBypassActive) await setDebuggerBypass(false);
+    document.getElementById('diag-mode-a-btn').classList.add('active');
+    document.getElementById('diag-mode-b-btn').classList.remove('active');
+    // Reload iframe to test without debugger bypass
+    const iframe = document.getElementById('ext-iframe');
+    if (iframe.src && iframe.src !== 'about:blank') { iframe.src = iframe.src; }
+    setTimeout(refreshDiag, 1500);
+});
+
+document.getElementById('diag-mode-b-btn').addEventListener('click', async () => {
+    if (!extInstalled) { alert('拡張機能が検出されていません'); return; }
+    await setDebuggerBypass(true);
+    document.getElementById('diag-mode-a-btn').classList.remove('active');
+    document.getElementById('diag-mode-b-btn').classList.add('active');
+    // Reload iframe to test with debugger bypass
+    const iframe = document.getElementById('ext-iframe');
+    if (iframe.src && iframe.src !== 'about:blank') { iframe.src = iframe.src; }
+    setTimeout(refreshDiag, 1500);
+});
+
+async function setDebuggerBypass(enable) {
+    if (!extInstalled || !window.chrome?.runtime || !SPLIT_EXT_ID) return;
+    const action = enable ? 'enableDebuggerBypass' : 'disableDebuggerBypass';
+    return new Promise(resolve => {
+        chrome.runtime.sendMessage(SPLIT_EXT_ID, { action }, resp => {
+            if (chrome.runtime.lastError) {
+                console.error('[GBF Tool] debugger bypass error:', chrome.runtime.lastError.message);
+                setDiagRow('d-dbg-err', chrome.runtime.lastError.message, 'diag-err');
+                resolve(false);
+                return;
+            }
+            debuggerBypassActive = enable;
+            if (!enable) clearDebuggerDiagRows();
+            console.log('[GBF Tool] debugger bypass:', enable, resp);
+            if (!resp?.success && resp?.error) {
+                setDiagRow('d-dbg-parent', 'アタッチ失敗', 'diag-err');
+                setDiagRow('d-dbg-err', resp.error, 'diag-err');
+            }
+            resolve(resp?.success || false);
+        });
+    });
+}
+
+function clearDebuggerDiagRows() {
+    setDiagRow('d-dbg-parent', '—', 'diag-na');
+    setDiagRow('d-dbg-err', '—', 'diag-na');
+    const container = document.getElementById('d-dbg-targets');
+    if (container) container.innerHTML = '';
+}
+
+function renderDebugTargets(sessions) {
+    const container = document.getElementById('d-dbg-targets');
+    if (!container) return;
+    if (!sessions.length) {
+        container.innerHTML = '<div style="color:var(--text-3);padding:3px 0;">検出されたiframe target なし</div>';
+        return;
+    }
+
+    // Sort: GameWith first, then others
+    const sorted = [...sessions].sort((a, b) => (b.isGameWith ? 1 : 0) - (a.isGameWith ? 1 : 0));
+
+    container.innerHTML = sorted.map(s => {
+        const gwBorder = s.isGameWith ? 'var(--accent)' : 'var(--border)';
+        const gwBg     = s.isGameWith ? 'var(--accent-bg)' : 'transparent';
+        const gwLabel  = s.isGameWith ? '★ GameWith' : s.type;
+
+        let cspHtml = '';
+        if (s.isGameWith) {
+            if (s.cspApplied) {
+                cspHtml = `<div style="color:#70c070;">CSP bypass: SUCCESS</div>`;
+            } else if (s.cspError) {
+                cspHtml = `<div style="color:#e07070;">CSP bypass ERROR: ${escHtml(s.cspError)}</div>`;
+            } else {
+                cspHtml = `<div style="color:var(--text-3);">CSP bypass: 処理中…</div>`;
+            }
+        }
+
+        const urlText = s.url.length > 70 ? s.url.slice(0, 70) + '…' : s.url;
+
+        return `<div style="margin-bottom:5px;padding:5px 7px;border:1px solid ${gwBorder};border-radius:2px;background:${gwBg};">
+  <div style="display:flex;gap:8px;font-weight:${s.isGameWith ? 700 : 400};color:${s.isGameWith ? 'var(--accent)' : 'var(--text-2)'};">
+    <span>${escHtml(gwLabel)}</span>
+    <span style="color:var(--text-3);font-weight:400;font-size:0.9em;">sid: ${escHtml(s.sessionId)}</span>
+  </div>
+  <div style="color:var(--text-3);word-break:break-all;font-size:0.9em;">${escHtml(urlText)}</div>
+  ${s.title ? `<div style="color:var(--text-3);font-size:0.88em;">title: ${escHtml(s.title)}</div>` : ''}
+  <div style="color:var(--text-3);font-size:0.88em;">targetId: ${escHtml(s.targetId || '—')} | parent: ${escHtml(s.parentSession || '—')}</div>
+  ${cspHtml}
+</div>`;
+    }).join('');
+}
+
+function escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function refreshDiag() {
+    if (!extInstalled || !window.chrome?.runtime || !SPLIT_EXT_ID) {
+        ['d-resp-status','d-resp-xfo','d-resp-csp','d-resp-redirect',
+         'd-dnr-xfo','d-dnr-csp','d-meta-csp','d-sw','d-fb'].forEach(id =>
+            setDiagRow(id, '—', 'diag-na')
+        );
+        updateIframeDiagRow();
+        return;
+    }
+    // Response Headers via background HEAD fetch
+    const diagTargetUrl = (() => {
+        const iframe = document.getElementById('ext-iframe');
+        if (iframe.src && iframe.src !== 'about:blank') return iframe.src;
+        return SITES.find(s => s.id === 'gamewith')?.url || null;
+    })();
+    if (diagTargetUrl) {
+        setDiagRow('d-resp-status', '取得中…', 'diag-na');
+        chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'checkSiteHeaders', url: diagTargetUrl }, h => {
+            if (chrome.runtime.lastError || !h) {
+                setDiagRow('d-resp-status', 'エラー: ' + (chrome.runtime.lastError?.message || '?'), 'diag-err');
+                return;
+            }
+            if (h.error) {
+                setDiagRow('d-resp-status', 'fetch失敗: ' + h.error, 'diag-err');
+                ['d-resp-xfo','d-resp-csp','d-resp-redirect'].forEach(id => setDiagRow(id, '—', 'diag-na'));
+                return;
+            }
+            setDiagRow('d-resp-status', String(h.status || '?'), h.status === 200 ? 'diag-ok' : 'diag-warn');
+            setDiagRow('d-resp-xfo', h.xFrameOptions || 'なし', h.xFrameOptions ? 'diag-err' : 'diag-ok');
+            const cspShort = h.csp ? (h.csp.length > 65 ? h.csp.slice(0, 65) + '…' : h.csp) : 'なし';
+            setDiagRow('d-resp-csp', cspShort, h.csp ? 'diag-err' : 'diag-ok');
+            if (h.redirected && h.finalUrl !== diagTargetUrl) {
+                setDiagRow('d-resp-redirect', '→ ' + h.finalUrl.slice(0, 65), 'diag-warn');
+            } else {
+                setDiagRow('d-resp-redirect', 'なし', 'diag-ok');
+            }
+            console.log('[GBF Tool] checkSiteHeaders:', h);
+        });
+    }
+    chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'getDiagResults' }, resp => {
+        if (chrome.runtime.lastError) {
+            console.error('[GBF Tool] getDiagResults error:', chrome.runtime.lastError.message);
+            return;
+        }
+        const dnrMatches = resp?.dnrMatches || [];
+        const report = resp?.report;
+
+        // DNR XFO (rule#1)
+        const xfoHits = dnrMatches.filter(m => m.ruleId === 1 && m.type === 'sub_frame');
+        if (xfoHits.length) {
+            setDiagRow('d-dnr-xfo', `ヒット ${xfoHits.length}件`, 'diag-ok');
+        } else {
+            setDiagRow('d-dnr-xfo', 'ヒットなし（DNR未適用 or XFOなし）', 'diag-warn');
+        }
+
+        // DNR CSP (rule#2)
+        const cspHits = dnrMatches.filter(m => m.ruleId === 2 && m.type === 'sub_frame');
+        if (cspHits.length) {
+            setDiagRow('d-dnr-csp', `ヒット ${cspHits.length}件`, 'diag-ok');
+        } else {
+            setDiagRow('d-dnr-csp', 'ヒットなし（DNR未適用 or CSPなし）', 'diag-warn');
+        }
+
+        // Content script report
+        if (report) {
+            // Meta CSP
+            if (report.metaCsp != null) {
+                const preview = report.metaCsp.length > 60 ? report.metaCsp.slice(0, 60) + '…' : report.metaCsp;
+                setDiagRow('d-meta-csp', `あり: ${preview}`, 'diag-err');
+            } else {
+                setDiagRow('d-meta-csp', 'なし', 'diag-ok');
+            }
+
+            // Service Worker
+            const swList = report.swRegistrations || [];
+            if (swList.length === 0) {
+                setDiagRow('d-sw', 'なし', 'diag-ok');
+            } else {
+                const swText = swList.map(s => `${s.scope}(${s.state})`).join(', ');
+                setDiagRow('d-sw', `${swList.length}件: ${swText}`, 'diag-warn');
+            }
+
+            // Frame-busting
+            if (report.frameBust) {
+                setDiagRow('d-fb', 'あり（window.top アクセス検出）', 'diag-warn');
+            } else {
+                setDiagRow('d-fb', 'なし', 'diag-ok');
+            }
+        } else {
+            setDiagRow('d-meta-csp', 'データなし（iframeが表示されていないか、コンテントスクリプト未実行）', 'diag-na');
+            setDiagRow('d-sw', '—', 'diag-na');
+            setDiagRow('d-fb', '—', 'diag-na');
+        }
+
+        // Debugger state (from MODE B)
+        const dbg = resp?.debugInfo;
+        if (dbg) {
+            setDiagRow('d-dbg-parent',
+                dbg.parentAttached ? 'YES' : 'NO',
+                dbg.parentAttached ? 'diag-ok' : 'diag-warn');
+            setDiagRow('d-dbg-err',
+                dbg.error || '—',
+                dbg.error ? 'diag-err' : 'diag-na');
+            renderDebugTargets(dbg.sessions || []);
+        } else if (!debuggerBypassActive) {
+            clearDebuggerDiagRows();
+        }
+
+        updateIframeDiagRow();
+    });
+}
+
+function updateIframeDiagRow() {
+    const iframe = document.getElementById('ext-iframe');
+    const src = iframe.src;
+    if (!src || src === 'about:blank') {
+        setDiagRow('d-iframe', 'iframeを開いていません', 'diag-na');
+        return;
+    }
+    // Try to detect if iframe loaded or errored
+    try {
+        const doc = iframe.contentDocument;
+        if (!doc) throw new Error('cross-origin');
+        const body = doc.body;
+        setDiagRow('d-iframe', '表示中（同一オリジン）', 'diag-ok');
+    } catch (_) {
+        // Cross-origin: we can't see inside, but if iframe loaded something other than about:blank
+        // it at least got a response (even if blocked by CSP, the element is there)
+        setDiagRow('d-iframe', `クロスオリジン読み込み中: ${src.slice(0, 60)}`, 'diag-ok');
+    }
+}
+
+function setDiagRow(id, text, cls) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className = cls;
+}
+
+// 拡張機能チェック → 初期モード適用 → 能力検出
 if (window.chrome?.runtime && SPLIT_EXT_ID) {
     chrome.runtime.sendMessage(SPLIT_EXT_ID, { action: 'ping' }, resp => {
         if (!chrome.runtime.lastError && resp?.installed) {
             extInstalled = true;
             console.log('[GBF Tool] 拡張機能検出 v' + resp.version);
         } else {
-            console.log('[GBF Tool] 拡張機能なし (Split View → 内部ブラウザへフォールバック)');
+            console.log('[GBF Tool] 拡張機能なし → 内部ブラウザモードで起動');
+            if (currentMode === 'split' || currentMode === 'sidepanel') {
+                currentMode = 'internal'; // 拡張機能なしでそれらのモードは使えない
+            }
         }
+        detectCapabilities();
         applyMode(currentMode);
     });
 } else {
+    detectCapabilities();
     applyMode(currentMode);
 }
 </script>
@@ -1512,6 +1915,15 @@ if (window.chrome?.runtime && SPLIT_EXT_ID) {
 <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
 <script>
   kofiWidgetOverlay.draw('alt4l', { type:'floating-chat', 'floating-chat.donateButton.text':'Support me', 'floating-chat.donateButton.background-color':'#794bc4', 'floating-chat.donateButton.text-color':'#fff' });
+</script>
+<!-- ボーダー確認パネル（本番へはタブのボタン・tab-border の div・この2つの script をコピー） -->
+<script src="kosenjou-border.js"></script>
+<script>
+const borderPanel = new BorderPanel(document.getElementById('border-panel'), {
+    getDiffs: () => DIFFS,
+    getKillTimes: () => killTimes,
+});
+document.querySelector('.tab-btn[data-tab="border"]').addEventListener('click', () => borderPanel.refresh());
 </script>
 </body>
 </html>
