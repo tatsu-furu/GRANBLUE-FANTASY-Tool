@@ -602,6 +602,7 @@
     <div id="attack-info-section">
         <div id="open-mode-bar">
             <span id="open-mode-label">攻略情報:</span>
+            <button class="mode-btn" data-mode="internal" title="ページ内に横並び表示（神ゲーはiframe対応）">内部ブラウザ</button>
             <button class="mode-btn" data-mode="split" title="Chrome Native Split View (拡張機能 + Chrome 155+) / 2ウィンドウ (Chrome 155未満) / 新しいタブ (拡張機能なし)">Split View</button>
             <button class="mode-btn" data-mode="sidepanel" title="Chrome Side Panel (拡張機能 + Chrome 114+)">Side Panel</button>
             <button class="mode-btn" data-mode="tab" title="新しいタブで開く">新しいタブ</button>
@@ -777,7 +778,8 @@
 <div id="split-divider"></div>
 <div id="ext-pane">
     <div id="ext-pane-bar">
-        <button class="epane-tab active" data-site="youtube">YouTube 動画</button>
+        <button class="epane-tab" data-site="kamigame">神ゲー</button>
+        <button class="epane-tab" data-site="youtube">YouTube 動画</button>
         <button id="diag-toggle-btn" title="GameWith iframe診断パネルを表示/非表示"
             style="display:none;font-size:0.7em;padding:2px 7px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--text-3);cursor:pointer;font-family:inherit;margin-left:4px;">iframe診断</button>
         <button id="ext-pane-close">✕ 閉じる</button>
@@ -1437,8 +1439,7 @@ const SITES = [
     { id: 'youtube',  label: 'YouTube',  url: 'https://www.youtube.com/results?search_query=%E5%8F%A4%E6%88%A6%E5%A0%B4+%E7%B7%A8%E6%88%90' }
 ];
 
-let currentMode = localStorage.getItem('gbf_open_mode') || 'split';
-if (currentMode === 'internal') currentMode = 'split'; // migrate legacy setting
+let currentMode = localStorage.getItem('gbf_open_mode') || 'internal';
 let extInstalled = false;
 let currentSiteId = SITES[0].id;
 
@@ -1467,19 +1468,27 @@ function detectCapabilities() {
         ?.style.setProperty('opacity', hasSidePanel ? '1' : '0.45');
 }
 
+// GameWith iframe is blocked by CSP (frame-ancestors 'self') + Cloudflare Turnstile
+const IFRAME_BLOCKED_SITES = ['gamewith'];
+
 function openSite(url, siteId) {
     if (siteId === 'youtube') {
-        // YouTube always uses the internal embed pane
         openInternal(url, siteId);
         return;
     }
-    // GameWith / 神ゲー: split → 2-window → new tab (no iframe)
+    const blocked = IFRAME_BLOCKED_SITES.includes(siteId);
     if (currentMode === 'sidepanel' && extInstalled && window.chrome?.runtime) {
         openSidePanel(url);
-    } else if (currentMode === 'split') {
+    } else if (currentMode === 'split' || blocked) {
+        // GameWith always uses split/tab regardless of mode selection
         openSplitOrTab(url);
     } else {
-        window.open(url, '_blank', 'noopener,noreferrer');
+        // internal or tab mode for iframe-capable sites (神ゲー etc.)
+        if (currentMode === 'internal') {
+            openInternal(url, siteId);
+        } else {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
     }
 }
 
