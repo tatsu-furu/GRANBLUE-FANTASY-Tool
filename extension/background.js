@@ -2,6 +2,27 @@
 
 const TAG = '[GBF-ext]';
 
+// Store diagnostic reports per tab: tabId → latest report
+const diagReports = new Map();
+
+// ===== Content script → background: iframeDiagReport =====
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'iframeDiagReport') {
+        const tabId = sender.tab?.id;
+        if (tabId != null) {
+            diagReports.set(tabId, { ...message, tabId });
+            console.log(TAG, 'iframeDiagReport from tab', tabId, '|', message.hostname,
+                '| metaCsp:', message.metaCsp != null,
+                '| sw:', message.swRegistrations?.length,
+                '| frameBust:', message.frameBust
+            );
+        }
+        sendResponse({ ok: true });
+        return;
+    }
+});
+
+// ===== Website → background (externally_connectable) =====
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
     if (message.action === 'ping') {
         const v = chrome.runtime.getManifest().version;
@@ -9,6 +30,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
         sendResponse({ installed: true, version: v });
         return;
     }
+
     if (message.action === 'openSplit' && message.url) {
         console.log(TAG, 'openSplit request:', message.url, 'from tab', sender.tab?.id);
         handleOpenSplit(message.url, sender.tab)
@@ -22,6 +44,29 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
             });
         return true;
     }
+
+    // Return latest diagnostic report for the requesting tab
+    if (message.action === 'getDiagResults') {
+        const tabId = sender.tab?.id;
+        const report = tabId != null ? diagReports.get(tabId) : null;
+
+        // Also query getMatchedRules for this tab
+        chrome.declarativeNetRequest.getMatchedRules(
+            { tabId, minTimeStamp: Date.now() - 60000 },
+            result => {
+                const matches = (result?.rulesMatchedInfo || []).map(m => ({
+                    ruleId:    m.rule.ruleId,
+                    url:       m.request.url,
+                    type:      m.request.type,
+                    initiator: m.request.initiator
+                }));
+                console.log(TAG, 'getDiagResults: tab', tabId, '→', matches.length, 'DNR hits (60s)');
+                sendResponse({ report: report || null, dnrMatches: matches });
+            }
+        );
+        return true;
+    }
+
     // DNRデバッグ: ページから getMatchedRules を呼べるようにする
     if (message.action === 'getMatchedRules') {
         const tabId = sender.tab?.id;
@@ -43,6 +88,25 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
         );
         return true;
     }
+
+    // MODE B: chrome.debugger で Page.setBypassCSP(true) を実行
+    if (message.action === 'enableDebuggerBypass') {
+        const tabId = sender.tab?.id;
+        if (tabId == null) { sendResponse({ success: false, error: 'no tabId' }); return; }
+        enableDebuggerBypass(tabId)
+            .then(() => sendResponse({ success: true }))
+            .catch(e => sendResponse({ success: false, error: e.message }));
+        return true;
+    }
+
+    if (message.action === 'disableDebuggerBypass') {
+        const tabId = sender.tab?.id;
+        if (tabId == null) { sendResponse({ success: false, error: 'no tabId' }); return; }
+        disableDebuggerBypass(tabId)
+            .then(() => sendResponse({ success: true }))
+            .catch(e => sendResponse({ success: false, error: e.message }));
+        return true;
+    }
 });
 
 // ===== DNRデバッグ: ルールがヒットするたびにService Workerコンソールへ出力 =====
@@ -50,9 +114,9 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
 if (chrome.declarativeNetRequest.onRuleMatchedDebug) {
     chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(info => {
         const r = info.request;
-        // sub_frame（iframeリクエスト）のみ目立たせる
         const mark = r.type === 'sub_frame' ? '★' : ' ';
-        console.log(TAG, `${mark}DNR hit rule#${info.rule.ruleId}`,
+        const ruleName = info.rule.ruleId === 1 ? 'XFO' : info.rule.ruleId === 2 ? 'CSP' : `#${info.rule.ruleId}`;
+        console.log(TAG, `${mark}DNR hit rule#${info.rule.ruleId}(${ruleName})`,
             `| ${r.type} | ${r.url}`,
             `| from: ${r.initiator || '(none)'}`
         );
@@ -62,6 +126,40 @@ if (chrome.declarativeNetRequest.onRuleMatchedDebug) {
     console.warn(TAG, 'onRuleMatchedDebug 未対応 — declarativeNetRequestFeedback パーミッションを確認');
 }
 
+// ===== MODE B: chrome.debugger CSP bypass =====
+const debuggerAttached = new Set(); // tabIds currently attached
+
+async function enableDebuggerBypass(tabId) {
+    if (!debuggerAttached.has(tabId)) {
+        await chrome.debugger.attach({ tabId }, '1.3');
+        debuggerAttached.add(tabId);
+        console.log(TAG, 'debugger attached to tab', tabId);
+    }
+    await chrome.debugger.sendCommand({ tabId }, 'Page.setBypassCSP', { enabled: true });
+    console.log(TAG, 'Page.setBypassCSP(true) sent to tab', tabId);
+}
+
+async function disableDebuggerBypass(tabId) {
+    if (debuggerAttached.has(tabId)) {
+        try {
+            await chrome.debugger.sendCommand({ tabId }, 'Page.setBypassCSP', { enabled: false });
+        } catch (_) {}
+        await chrome.debugger.detach({ tabId });
+        debuggerAttached.delete(tabId);
+        console.log(TAG, 'debugger detached from tab', tabId);
+    }
+}
+
+// Clean up debugger attachment if tab is closed
+chrome.tabs.onRemoved.addListener(tabId => {
+    if (debuggerAttached.has(tabId)) {
+        chrome.debugger.detach({ tabId }).catch(() => {});
+        debuggerAttached.delete(tabId);
+        diagReports.delete(tabId);
+    }
+});
+
+// ===== Split view helpers =====
 async function handleOpenSplit(url, senderTab) {
     const useSplitApi = hasSplitTabsApi();
     console.log(TAG, 'Chrome Split Tab API available:', useSplitApi);
@@ -77,21 +175,16 @@ async function handleOpenSplit(url, senderTab) {
 }
 
 function hasSplitTabsApi() {
-    // splitWithTabId が chrome.tabs.create に存在するかで Chrome 155+ を判定
-    // ※ APIのfeature detectionはランタイムで確認できないため、
-    //   実際に呼び出してエラーをキャッチするか、バージョン文字列で判定する
     const match = self.navigator?.userAgent?.match(/Chrome\/(\d+)/);
     const version = match ? parseInt(match[1], 10) : 0;
     return version >= 155;
 }
 
 async function openSplitWindows(url, senderTab) {
-    // Chrome 154 以前: 2ウィンドウを画面左右に並べる
     const displays = await getDisplayBounds();
     const halfW = Math.floor(displays.width / 2);
     const h = displays.height;
 
-    // 現在のウィンドウを左半分に
     await chrome.windows.update(senderTab.windowId, {
         state: 'normal',
         left: displays.left,
@@ -100,7 +193,6 @@ async function openSplitWindows(url, senderTab) {
         height: h
     });
 
-    // 新しいウィンドウを右半分に
     await chrome.windows.create({
         url: url,
         left: displays.left + halfW,
@@ -112,16 +204,12 @@ async function openSplitWindows(url, senderTab) {
 }
 
 async function getDisplayBounds() {
-    // 現在のウィンドウの画面情報から推定
-    // chrome.system.display は別パーミッションが必要なためウィンドウベースで推定
     try {
         const wins = await chrome.windows.getAll();
-        // 最大化されたウィンドウがあればその幅を流用
         const maximized = wins.find(w => w.state === 'maximized' || w.state === 'fullscreen');
         if (maximized) {
             return { left: 0, top: 0, width: maximized.width, height: maximized.height };
         }
     } catch (_) { /* ignore */ }
-    // フォールバック: 一般的な解像度を仮定
     return { left: 0, top: 0, width: 1920, height: 1080 };
 }
