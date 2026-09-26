@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "x-frame-options", "operation": "remove" },
+        { "header": "content-security-policy", "operation": "remove" }
+      ]
+    },
+    "condition": {
+      "resourceTypes": ["sub_frame"],
+      "requestDomains": [
+        "gamewith.jp",
+        "xn--bck3aza1a2if6kra4ee0hf.gamewith.jp",
+        "kamigame.jp",
+        "youtube.com",
+        "www.youtube.com"
+      ]
+    }
+  }
+]
