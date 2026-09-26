@@ -113,8 +113,13 @@
                     final = Math.round(sum.current_point * ratio);
                 }
             }
+            const toXY = (arr) => (Array.isArray(arr) ? arr : [])
+                .filter((p) => Number.isFinite(p.point) && p.day_of != null && p.time)
+                .map((p) => ({ x: (p.day_of - 1) * 24 + parseInt(p.time, 10), p: p.point }));
             return {
                 rank: sr.target_rank,
+                cur: toXY(points),
+                prev: before ? toXY(before.points) : [],
                 current: Number.isFinite(sum.current_point) ? sum.current_point : null,
                 at: last.day_of != null ? `${last.day_of}日目 ${last.time}` : '',
                 lastHour: Number.isFinite(sum.last_hour_point) ? sum.last_hour_point : null,
@@ -147,6 +152,13 @@
         return hours;
     }
 
+    /** 1・2・2.5・5 × 10^n の切りのいい目盛り幅 */
+    function niceStep(raw) {
+        if (!(raw > 0)) return 1;
+        const pow = 10 ** Math.floor(Math.log10(raw));
+        return [1, 2, 2.5, 5, 10].map((m) => m * pow).find((v) => v >= raw);
+    }
+
     class BorderPanel {
         constructor(root, opts) {
             this.root = root;
@@ -162,12 +174,16 @@
             try {
                 const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
                 if (!s || !Array.isArray(s.rows)) return fallback;
+                const xy = (a) => (Array.isArray(a) ? a.filter((q) => q && Number.isFinite(q.x) && Number.isFinite(q.p)).slice(0, 400) : []);
                 return {
                     rows: s.rows.slice(0, 8).map((r) => ({
                         label: typeof r.label === 'string' ? r.label.slice(0, 20) : '',
                         current: Number.isFinite(r.current) ? r.current : null,
                         final: Number.isFinite(r.final) ? r.final : null,
                         lastHour: Number.isFinite(r.lastHour) ? r.lastHour : null,
+                        cur: xy(r.cur),
+                        prev: xy(r.prev),
+                        at: typeof r.at === 'string' ? r.at.slice(0, 20) : '',
                     })),
                     mine: Number.isFinite(s.mine) ? s.mine : null,
                     days: Number.isFinite(s.days) ? s.days : 0,
@@ -189,39 +205,63 @@
             const style = document.createElement('style');
             style.id = 'bd-style';
             style.textContent = `
-.bd-links { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
-.bd-links a { color:var(--accent); font-size:0.85em; }
-.bd-grid { width:100%; border-collapse:collapse; font-size:0.85em; }
-.bd-grid th, .bd-grid td { padding:4px 6px; border-bottom:1px solid var(--border); text-align:left; }
-.bd-grid input[type=text] { width:100%; min-width:70px; background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:4px 6px; font:inherit; }
-.bd-grid td.num input { text-align:right; }
-.bd-sub { font-size:0.72em; color:var(--text-3); text-align:right; margin-top:2px; }
-.bd-row-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
-.bd-btn { background:transparent; border:1px solid var(--border); color:var(--text-2); border-radius:4px; padding:3px 10px; cursor:pointer; font:inherit; font-size:0.85em; }
+.bd-step { display:flex; align-items:center; gap:8px; }
+.bd-step b { display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--accent); color:var(--on-accent, #0c0800); font-size:0.8em; }
+.bd-fetch { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:6px 0 4px; }
+.bd-btn { background:transparent; border:1px solid var(--border); color:var(--text-2); border-radius:4px; padding:4px 12px; cursor:pointer; font:inherit; font-size:0.85em; }
 .bd-btn:hover { border-color:var(--accent); color:var(--accent); }
-.bd-btn.bd-primary { border-color:var(--accent); color:var(--accent); font-weight:700; }
+.bd-btn.bd-primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent, #0c0800); font-weight:700; padding:6px 16px; font-size:0.95em; }
+.bd-btn.bd-primary:hover { color:var(--on-accent, #0c0800); filter:brightness(1.1); }
 .bd-btn:disabled { opacity:0.5; cursor:wait; }
-.bd-paste { width:100%; min-height:70px; margin-top:6px; background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:6px; font:inherit; font-size:0.85em; }
-.bd-me { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0; font-size:0.9em; }
-.bd-me input, .bd-me select { background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:4px 6px; font:inherit; }
-.bd-meter { position:relative; height:34px; margin:28px 0 34px; background:var(--bg-2, var(--surface-2)); border:1px solid var(--border); border-radius:4px; }
-.bd-fill { position:absolute; left:0; top:0; bottom:0; background:var(--accent); border-radius:3px 0 0 3px; }
-.bd-proj { position:absolute; top:0; bottom:0; background:var(--accent); opacity:0.3; }
-.bd-mark { position:absolute; top:-6px; bottom:-6px; width:2px; background:var(--text); }
-.bd-mark span { position:absolute; top:-20px; transform:translateX(-50%); white-space:nowrap; font-size:0.72em; color:var(--text-2); }
-.bd-mark.bd-target { background:#e0c060; }
-.bd-mark.bd-target span { color:var(--text); font-weight:700; }
-.bd-scale { position:absolute; bottom:-22px; font-size:0.72em; color:var(--text-3); }
-.bd-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:0.78em; color:var(--text-2); }
-.bd-legend i { display:inline-block; width:14px; height:10px; margin-right:4px; vertical-align:-1px; background:var(--accent); }
-.bd-legend i.proj { opacity:0.3; }
-.bd-verdict { padding:10px 12px; border-left:3px solid var(--accent); background:var(--accent-bg, rgba(192,144,48,0.08)); margin:10px 0; line-height:1.7; }
-.bd-verdict.ng { border-left-color:#d06868; }
+.bd-status { font-size:0.78em; color:var(--text-3); }
+.bd-ranks { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:8px; margin-top:8px; }
+.bd-rank { display:block; border:1px solid var(--border); border-radius:6px; padding:8px 10px; cursor:pointer; background:var(--bg); }
+.bd-rank.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+.bd-rank input { margin-right:6px; accent-color:var(--accent); }
+.bd-rank .bd-rname { font-weight:700; }
+.bd-rank .bd-rline { display:flex; justify-content:space-between; font-size:0.82em; color:var(--text-2); margin-top:2px; }
+.bd-rank .bd-rline strong { color:var(--text); font-variant-numeric:tabular-nums; }
+.bd-details { margin-top:10px; font-size:0.85em; }
+.bd-details summary { cursor:pointer; color:var(--text-2); }
+.bd-grid { width:100%; border-collapse:collapse; font-size:0.85em; margin-top:6px; }
+.bd-grid th, .bd-grid td { padding:4px 6px; border-bottom:1px solid var(--border); text-align:left; }
+.bd-grid input[type=text] { width:100%; min-width:64px; background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:4px 6px; font:inherit; }
+.bd-grid td.num input { text-align:right; }
+.bd-row-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+.bd-paste { width:100%; min-height:64px; margin-top:6px; background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:6px; font:inherit; font-size:0.85em; }
+.bd-me { display:flex; gap:14px; flex-wrap:wrap; align-items:center; font-size:0.9em; }
+.bd-me label { display:flex; align-items:center; gap:6px; }
+.bd-me input, .bd-me select { background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:5px 8px; font:inherit; }
+.bd-verdict { padding:12px 14px; border-left:4px solid var(--accent); background:var(--accent-bg, rgba(192,144,48,0.08)); line-height:1.7; border-radius:0 6px 6px 0; }
 .bd-verdict.ok { border-left-color:#58b858; }
-.bd-verdict strong { color:var(--text); }
+.bd-verdict.ng { border-left-color:#d06868; }
+.bd-verdict .bd-big { font-size:1.35em; font-weight:700; color:var(--text); }
+.bd-verdict .bd-subline { color:var(--text-2); font-size:0.9em; }
+.bd-chart { position:relative; margin-top:14px; }
+.bd-chart svg { display:block; width:100%; height:auto; }
+.bd-chart .g { stroke:var(--border); stroke-width:1; }
+.bd-chart .t { fill:var(--text-3); font-size:11px; font-variant-numeric:tabular-nums; }
+.bd-chart .l-cur { fill:none; stroke:var(--accent); stroke-width:2; stroke-linejoin:round; }
+.bd-chart .l-prev { fill:none; stroke:var(--text-3); stroke-width:1.5; stroke-linejoin:round; opacity:0.8; }
+.bd-chart .l-pred { fill:none; stroke:var(--accent); stroke-width:2; stroke-dasharray:5 4; opacity:0.8; }
+.bd-chart .me { fill:var(--text); stroke:var(--bg); stroke-width:2; }
+.bd-chart .fin { fill:var(--accent); stroke:var(--bg); stroke-width:2; }
+.bd-chart .cross { stroke:var(--text-3); stroke-width:1; }
+.bd-chart .lbl { fill:var(--text-2); font-size:11px; }
+.bd-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:0.78em; color:var(--text-2); margin-top:4px; }
+.bd-legend i { display:inline-block; width:16px; height:0; border-top:2px solid var(--accent); margin-right:5px; vertical-align:3px; }
+.bd-legend i.prev { border-top-color:var(--text-3); }
+.bd-legend i.pred { border-top-style:dashed; }
+.bd-legend i.me { width:9px; height:9px; border:none; border-radius:50%; background:var(--text); vertical-align:0; }
+.bd-tip { position:absolute; top:4px; pointer-events:none; background:var(--surface, #18181e); border:1px solid var(--border); border-radius:4px; padding:5px 8px; font-size:0.78em; line-height:1.5; white-space:nowrap; }
+.bd-tip strong { font-variant-numeric:tabular-nums; }
+.bd-plan { width:100%; border-collapse:collapse; font-size:0.85em; margin-top:12px; }
+.bd-plan th, .bd-plan td { padding:5px 6px; border-bottom:1px solid var(--border); text-align:left; }
+.bd-plan td.n { text-align:right; font-variant-numeric:tabular-nums; }
 .bd-plan td.ok { color:#58b858; font-weight:700; }
 .bd-plan td.ng { color:#d06868; }
 .bd-plan tr.best td { background:rgba(192,144,48,0.08); }
+.bd-empty { color:var(--text-3); font-size:0.9em; padding:10px 0; }
 `;
             document.head.appendChild(style);
         }
@@ -235,44 +275,63 @@
                 .sort((a, b) => b.perH - a.perH);
         }
 
+        remainingHours() {
+            return this.state.days * 24 + this.state.hours;
+        }
+
         render() {
             const s = this.state;
             const dayOpts = [0, 1, 2, 3, 4].map((d) => `<option value="${d}" ${s.days === d ? 'selected' : ''}>${d}日</option>`).join('');
             const hourOpts = Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${s.hours === h ? 'selected' : ''}>${h}時間</option>`).join('');
+            const cards = s.rows.map((r, i) => {
+                const v = r.final ?? r.current;
+                return `<label class="bd-rank${s.target === i ? ' on' : ''}">
+  <div><input type="radio" name="bd-target" data-i="${i}" ${s.target === i ? 'checked' : ''}><span class="bd-rname">${esc(r.label || `行${i + 1}`)}</span></div>
+  <div class="bd-rline"><span>現在</span><strong>${fmtPoint(r.current)}</strong></div>
+  <div class="bd-rline"><span>最終予想</span><strong>${fmtPoint(r.final)}</strong></div>
+  ${r.lastHour != null ? `<div class="bd-rline"><span>直近1時間</span><strong>+${fmtPoint(r.lastHour)}</strong></div>` : ''}
+  ${v == null ? '<div class="bd-rline"><span>値がありません</span></div>' : ''}
+</label>`;
+            }).join('');
             this.root.innerHTML = `
 <div class="card">
-  <div class="card-title">ボーダー（gbfdata から取得、または入力）</div>
-  <div class="bd-links">${SOURCES.map((x) => `<a href="${x.url}" target="_blank" rel="noopener noreferrer">${esc(x.name)} ↗</a>`).join('')}</div>
-  <p class="note" style="margin-bottom:8px;">「最新を取得」で gbfdata の値を読み込みます（手で入力・修正も可。億・万も使えます）。目標にする行を左の丸で選びます。</p>
-  <table class="bd-grid">
-    <thead><tr><th>目標</th><th>順位</th><th>現在のボーダー</th><th>最終予想</th><th></th></tr></thead>
-    <tbody>${s.rows.map((r, i) => `
-      <tr>
-        <td><input type="radio" name="bd-target" data-i="${i}" ${s.target === i ? 'checked' : ''} aria-label="この行を目標にする"></td>
-        <td><input type="text" data-f="label" data-i="${i}" value="${esc(r.label)}" placeholder="例: 2000位"></td>
-        <td class="num"><input type="text" inputmode="decimal" data-f="current" data-i="${i}" value="${r.current == null ? '' : fmtPoint(r.current)}" placeholder="例: 12.5億"></td>
-        <td class="num"><input type="text" inputmode="decimal" data-f="final" data-i="${i}" value="${r.final == null ? '' : fmtPoint(r.final)}" placeholder="任意">${r.lastHour != null ? `<div class="bd-sub">直近1時間 +${fmtPoint(r.lastHour)}</div>` : ''}</td>
-        <td><button type="button" class="bd-btn" data-del="${i}" aria-label="この行を削除">✕</button></td>
-      </tr>`).join('')}
-    </tbody>
-  </table>
-  <div class="bd-row-actions">
+  <div class="card-title bd-step"><b>1</b>ボーダーを取得して目標を選ぶ</div>
+  <div class="bd-fetch">
     <button type="button" class="bd-btn bd-primary" data-act="fetch">gbfdata から最新を取得</button>
-    <button type="button" class="bd-btn" data-act="add">＋ 行を追加</button>
-    <button type="button" class="bd-btn" data-act="toggle-paste">テキストを貼って読み込む</button>
+    <a href="${SOURCES[0].url}" target="_blank" rel="noopener noreferrer" style="font-size:0.82em;color:var(--accent)">gbfdata を開く ↗</a>
+    <a href="${SOURCES[1].url}" target="_blank" rel="noopener noreferrer" style="font-size:0.82em;color:var(--accent)">ランキング速報を開く ↗</a>
   </div>
-  <p class="note" data-fetch-status style="margin-top:6px;">${esc(s.fetchNote || '順位の欄（例: 2000位、10万位）を入れてから取得すると、その順位のボーダーを読み込みます。')}</p>
-  <div data-paste hidden>
+  <div class="bd-status" data-fetch-status>${esc(s.fetchNote || 'ボタンを押すと、下の順位のボーダーと最終予想・残り時間が入ります。')}</div>
+  <div class="bd-ranks">${cards}</div>
+  <details class="bd-details">
+    <summary>順位を変える・手で入力する</summary>
+    <table class="bd-grid">
+      <thead><tr><th>順位</th><th>現在のボーダー</th><th>最終予想</th><th></th></tr></thead>
+      <tbody>${s.rows.map((r, i) => `
+        <tr>
+          <td><input type="text" data-f="label" data-i="${i}" value="${esc(r.label)}" placeholder="例: 2000位"></td>
+          <td class="num"><input type="text" inputmode="decimal" data-f="current" data-i="${i}" value="${r.current == null ? '' : fmtPoint(r.current)}" placeholder="例: 12.5億"></td>
+          <td class="num"><input type="text" inputmode="decimal" data-f="final" data-i="${i}" value="${r.final == null ? '' : fmtPoint(r.final)}" placeholder="任意"></td>
+          <td><button type="button" class="bd-btn" data-del="${i}" aria-label="この行を削除">✕</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="bd-row-actions">
+      <button type="button" class="bd-btn" data-act="add">＋ 順位を追加</button>
+    </div>
     <textarea class="bd-paste" placeholder="集計サイトの表をコピーして貼り付け（例: 2000位 1,250,000,000）"></textarea>
-    <button type="button" class="bd-btn" data-act="paste">読み込む</button>
+    <button type="button" class="bd-btn" data-act="paste">貼り付けたテキストを読み込む</button>
+  </details>
+</div>
+<div class="card">
+  <div class="card-title bd-step"><b>2</b>自分の状況</div>
+  <div class="bd-me">
+    <label>自分の貢献度 <input type="text" inputmode="decimal" data-me value="${s.mine == null ? '' : fmtPoint(s.mine)}" placeholder="例: 300億" style="width:120px"></label>
+    <label>残り時間 <select data-days>${dayOpts}</select><select data-hours>${hourOpts}</select></label>
   </div>
 </div>
 <div class="card">
-  <div class="card-title">届くかどうか</div>
-  <div class="bd-me">
-    <label>自分の貢献度 <input type="text" inputmode="decimal" data-me value="${s.mine == null ? '' : fmtPoint(s.mine)}" placeholder="例: 8.3億" style="width:110px"></label>
-    <label>残り時間 <select data-days>${dayOpts}</select> <select data-hours>${hourOpts}</select></label>
-  </div>
+  <div class="card-title bd-step"><b>3</b>届くかどうか</div>
   <div data-out></div>
 </div>`;
             this.bind();
@@ -282,21 +341,20 @@
         bind() {
             const root = this.root;
             root.querySelectorAll('input[data-f]').forEach((el) => {
-                el.addEventListener('input', () => {
+                el.addEventListener('change', () => {
                     const row = this.state.rows[+el.dataset.i];
                     if (!row) return;
                     if (el.dataset.f === 'label') row.label = el.value.slice(0, 20);
                     else row[el.dataset.f] = parsePoint(el.value);
                     this.save();
-                    this.update();
+                    this.render();
                 });
             });
             root.querySelectorAll('input[name=bd-target]').forEach((el) =>
-                el.addEventListener('change', () => { this.state.target = +el.dataset.i; this.save(); this.update(); }));
+                el.addEventListener('change', () => { this.state.target = +el.dataset.i; this.save(); this.render(); }));
             root.querySelectorAll('[data-del]').forEach((el) =>
                 el.addEventListener('click', () => {
-                    const i = +el.dataset.del;
-                    this.state.rows.splice(i, 1);
+                    this.state.rows.splice(+el.dataset.del, 1);
                     if (this.state.rows.length === 0) this.state.rows.push({ label: '', current: null, final: null });
                     if (this.state.target >= this.state.rows.length) this.state.target = 0;
                     this.save();
@@ -307,10 +365,8 @@
                 this.state.rows.push({ label: '', current: null, final: null });
                 this.save();
                 this.render();
-            });
-            root.querySelector('[data-act=toggle-paste]').addEventListener('click', () => {
-                const box = root.querySelector('[data-paste]');
-                box.hidden = !box.hidden;
+                const d = this.root.querySelector('.bd-details');
+                if (d) d.open = true;
             });
             root.querySelector('[data-act=paste]').addEventListener('click', () => {
                 const rows = parseBorderText(root.querySelector('.bd-paste').value);
@@ -330,7 +386,7 @@
         async fetchLatest(button) {
             const status = this.root.querySelector('[data-fetch-status]');
             const ranks = [...new Set(this.state.rows.map((r) => rankOf(r.label)).filter((r) => r && r > 0))].slice(0, 8);
-            if (ranks.length === 0) { status.textContent = '順位の欄に「2000位」「10万位」のように入れてください'; return; }
+            if (ranks.length === 0) { status.textContent = '「順位を変える・手で入力する」で、順位を「2000位」「10万位」のように入れてください'; return; }
             button.disabled = true;
             status.textContent = '取得しています…';
             try {
@@ -339,11 +395,9 @@
                 const json = prevRaid ? await this.request(ranks, prevRaid) : first;
                 const parsed = parseGbfdata(json);
                 for (const r of parsed.rows) {
-                    let row = this.state.rows.find((x) => rankOf(x.label) === r.rank);
+                    const row = this.state.rows.find((x) => rankOf(x.label) === r.rank);
                     if (!row) continue;
-                    row.current = r.current;
-                    row.final = r.final;
-                    row.lastHour = r.lastHour;
+                    Object.assign(row, { current: r.current, final: r.final, lastHour: r.lastHour, cur: r.cur, prev: r.prev, at: r.at });
                 }
                 const hours = remainingActiveHours(parsed.lastDay);
                 if (hours != null) {
@@ -352,12 +406,12 @@
                     this.state.hours = Math.min(23, h - this.state.days * 24);
                 }
                 const at = parsed.rows[0] ? parsed.rows[0].at : '';
-                const prevNo = parsed.rows.find((r) => r.prevRaid) ? parsed.rows.find((r) => r.prevRaid).prevRaid : null;
-                this.state.fetchNote = `第${parsed.raid}回 ${at} 時点（gbfdata）。最終予想は${prevNo ? `前回（第${prevNo}回）の同じ時刻からの伸び率で計算` : '前回のデータが無いため空欄'}。残り時間は集計の止まる 0〜7時を除いて自動設定`;
+                const prevRow = parsed.rows.find((r) => r.prevRaid);
+                this.state.fetchNote = `第${parsed.raid}回 ${at} 時点（gbfdata）。最終予想は${prevRow ? `前回（第${prevRow.prevRaid}回）の同じ時刻からの伸び率` : '前回のデータが無いため未計算'}。残り時間は 0〜7時を除いて自動で入れました`;
                 this.save();
                 this.render();
             } catch (err) {
-                status.textContent = `取得できませんでした（${err && err.message ? err.message : err}）。サイトを開いて値を入力してください`;
+                status.textContent = `取得できませんでした（${err && err.message ? err.message : err}）。「順位を変える・手で入力する」から値を入れてください`;
                 button.disabled = false;
             }
         }
@@ -380,76 +434,140 @@
             const out = this.root.querySelector('[data-out]');
             if (!out) return;
             const s = this.state;
-            const borders = s.rows
-                .map((r, i) => ({ i, label: r.label || `行${i + 1}`, value: r.final ?? r.current, isFinal: r.final != null }))
-                .filter((b) => b.value != null && b.value > 0);
-            const target = borders.find((b) => b.i === s.target) ?? null;
-            const mine = s.mine ?? 0;
-            const remH = s.days * 24 + s.hours;
+            const row = s.rows[s.target];
+            const value = row ? row.final ?? row.current : null;
+            if (!row || value == null) {
+                out.innerHTML = '<div class="bd-empty">1 でボーダーを取得（または入力）して、目標の順位を選んでください</div>';
+                return;
+            }
+            const label = row.label || `行${s.target + 1}`;
+            const basis = row.final != null ? '最終予想' : '現在のボーダー';
+            const mine = s.mine;
+            const remH = this.remainingHours();
             const rates = this.rates();
             const best = rates[0];
 
-            if (borders.length === 0) {
-                out.innerHTML = '<div class="no-data">ボーダーの値を入れると、ここに届くかどうかを表示します</div>';
-                return;
-            }
-
-            // メーター: 自分の貢献度と各ボーダーの位置。目標までの残りを薄い帯で示す
-            const max = Math.max(...borders.map((b) => b.value), mine) * 1.08;
-            const pos = (v) => `${Math.min(100, (v / max) * 100).toFixed(2)}%`;
-            const gapTo = target && target.value > mine ? target.value : mine;
-            // ラベルは値の順に上下交互に置き、両端では内側に寄せる（近い値でも重ならないように）
-            const marks = [...borders]
-                .sort((a, b) => a.value - b.value)
-                .map((b, k) => {
-                    const frac = b.value / max;
-                    const align = frac > 0.8 ? 'translateX(-100%)' : frac < 0.2 ? 'translateX(0)' : 'translateX(-50%)';
-                    const place = k % 2 === 0 ? 'top:-20px' : 'top:calc(100% + 6px)';
-                    return `<div class="bd-mark${target && b.i === target.i ? ' bd-target' : ''}" style="left:${pos(b.value)}"><span style="${place};transform:${align}">${esc(b.label)} ${fmtPoint(b.value)}</span></div>`;
-                })
-                .join('');
-            const meter = `
-<div class="bd-meter" role="img" aria-label="自分の貢献度 ${fmtPoint(mine)}${target ? `、目標 ${fmtPoint(target.value)}` : ''}">
-  <div class="bd-proj" style="left:${pos(mine)};width:calc(${pos(gapTo)} - ${pos(mine)})"></div>
-  <div class="bd-fill" style="width:${pos(mine)}"></div>
-  ${marks}
-</div>
-<div class="bd-legend"><span><i></i>現在 ${fmtPoint(mine)}</span>${target && target.value > mine ? `<span><i class="proj"></i>目標までの残り ${fmtPoint(target.value - mine)}</span>` : ''}</div>`;
-
-            // 判定
-            let verdict = '';
-            if (!target) {
-                verdict = '<div class="bd-verdict">目標にする行（左の丸）を選んでください</div>';
+            let verdict;
+            if (mine == null) {
+                verdict = `<div class="bd-verdict"><div class="bd-big">${esc(label)}の${basis}は ${fmtPoint(value)}</div><div class="bd-subline">2 に自分の貢献度を入れると、あといくつ必要かを出します</div></div>`;
             } else {
-                const need = target.value - mine;
-                const basis = target.isFinal ? '最終予想' : '現在のボーダー（今後さらに上がります）';
+                const need = value - mine;
                 if (need <= 0) {
-                    verdict = `<div class="bd-verdict ok">✓ <strong>${esc(target.label)}</strong> の${basis}（${fmtPoint(target.value)}）はすでに超えています（+${fmtPoint(-need)}）</div>`;
+                    verdict = `<div class="bd-verdict ok"><div class="bd-big">✓ ${esc(label)}（${basis} ${fmtPoint(value)}）を超えています</div><div class="bd-subline">+${fmtPoint(-need)} の余裕</div></div>`;
                 } else if (remH <= 0) {
-                    verdict = `<div class="bd-verdict">あと <strong>${fmtPoint(need)}</strong> 必要です（${esc(target.label)}・${basis}）。残り時間を入れると必要なペースを出します</div>`;
+                    verdict = `<div class="bd-verdict"><div class="bd-big">あと ${fmtPoint(need)}</div><div class="bd-subline">${esc(label)}（${basis} ${fmtPoint(value)}）まで。残り時間を入れると必要なペースを出します</div></div>`;
                 } else {
                     const perH = need / remH;
-                    const ok = best && best.perH >= perH;
-                    verdict = `<div class="bd-verdict ${ok ? 'ok' : 'ng'}">${ok ? '✓' : '✗'} ${esc(target.label)}（${basis} ${fmtPoint(target.value)}）まで あと <strong>${fmtPoint(need)}</strong>。
-残り${fmtHours(remH)}なら <strong>毎時 ${fmtPoint(perH)}</strong> 必要です。
-${best ? (ok ? `最速の ${esc(best.name)}（毎時 ${fmtPoint(best.perH)}）なら <strong>${fmtHours(need / best.perH)}</strong> で届きます。` : `最速の ${esc(best.name)} でも毎時 ${fmtPoint(best.perH)} で、${fmtPoint(need - best.perH * remH)} 足りません。`) : '「討伐効率」タブで討伐時間を入れると、どの難易度なら間に合うかを出します。'}</div>`;
+                    const ok = best ? best.perH >= perH : null;
+                    const tail = best
+                        ? ok
+                            ? `最速の ${esc(best.name)}（毎時 ${fmtPoint(best.perH)}）なら <strong>${fmtHours(need / best.perH)}</strong> 走れば届きます`
+                            : `最速の ${esc(best.name)}（毎時 ${fmtPoint(best.perH)}）でも ${fmtPoint(need - best.perH * remH)} 足りません`
+                        : '「討伐効率」タブで討伐時間を入れると、どの難易度なら間に合うかを出します';
+                    verdict = `<div class="bd-verdict ${ok === null ? '' : ok ? 'ok' : 'ng'}">
+<div class="bd-big">${ok === null ? '' : ok ? '✓ ' : '✗ '}あと ${fmtPoint(need)}（毎時 ${fmtPoint(perH)}）</div>
+<div class="bd-subline">${esc(label)}の${basis} ${fmtPoint(value)} まで、残り${fmtHours(remH)}。${tail}</div></div>`;
                 }
             }
 
-            // 難易度ごとの必要回数・時間
+            const chart = this.chartHtml(row, label);
+
             let plan = '';
-            if (target && target.value > mine && rates.length > 0) {
-                const need = target.value - mine;
-                plan = `<div style="overflow-x:auto"><table class="bd-grid bd-plan"><thead><tr><th>難易度</th><th>毎時</th><th>必要回数</th><th>必要時間</th>${remH > 0 ? '<th>残り時間内</th>' : ''}</tr></thead><tbody>${rates
+            if (mine != null && value > mine && rates.length > 0) {
+                const need = value - mine;
+                plan = `<table class="bd-plan"><thead><tr><th>難易度</th><th>毎時</th><th>必要回数</th><th>必要時間</th>${remH > 0 ? '<th>残り時間内</th>' : ''}</tr></thead><tbody>${rates
                     .map((r, k) => {
-                        const runs = Math.ceil(need / r.perRun);
                         const hours = need / r.perH;
                         const fits = remH > 0 ? hours <= remH : null;
-                        return `<tr class="${k === 0 ? 'best' : ''}"><td>${esc(r.name)}</td><td>${fmtPoint(r.perH)}</td><td>${runs.toLocaleString()}回</td><td>${fmtHours(hours)}</td>${fits === null ? '' : `<td class="${fits ? 'ok' : 'ng'}">${fits ? '✓ 間に合う' : '✗ 足りない'}</td>`}</tr>`;
+                        return `<tr class="${k === 0 ? 'best' : ''}"><td>${esc(r.name)}</td><td class="n">${fmtPoint(r.perH)}</td><td class="n">${Math.ceil(need / r.perRun).toLocaleString()}回</td><td class="n">${fmtHours(hours)}</td>${fits === null ? '' : `<td class="${fits ? 'ok' : 'ng'}">${fits ? '✓ 間に合う' : '✗ 足りない'}</td>`}</tr>`;
                     })
-                    .join('')}</tbody></table></div>`;
+                    .join('')}</tbody></table>`;
             }
-            out.innerHTML = meter + verdict + plan;
+            out.innerHTML = verdict + chart + plan;
+            this.bindChart(out, row);
+        }
+
+        /** 今回と前回のボーダー推移の折れ線（横軸は開催日数、縦軸は貢献度） */
+        chartHtml(row, label) {
+            const cur = row.cur || [];
+            const prev = row.prev || [];
+            if (cur.length < 2 && prev.length < 2) {
+                return '<div class="bd-empty">「gbfdata から最新を取得」を押すと、ボーダーの推移グラフが出ます</div>';
+            }
+            // 表示幅に合わせて描く（スマホで縮小されて文字が小さくならないように）
+            const W = Math.max(320, Math.min(640, Math.round((this.root.clientWidth || 640) - 32)));
+            const H = W < 480 ? 220 : 240, L = W < 480 ? 46 : 56, R = W < 480 ? 84 : 104, T = 12, B = 28;
+            const last = cur[cur.length - 1];
+            const endX = Math.max(prev.length ? prev[prev.length - 1].x : 0, last ? last.x : 0);
+            const mine = this.state.mine;
+            const yMaxRaw = Math.max(...cur.map((q) => q.p), ...prev.map((q) => q.p), row.final || 0, mine || 0);
+            const yStep = niceStep(yMaxRaw / 4);
+            const yMax = Math.ceil((yMaxRaw * 1.05) / yStep) * yStep;
+            const sx = (x) => L + (x / endX) * (W - L - R);
+            const sy = (y) => T + (1 - y / yMax) * (H - T - B);
+            const path = (pts) => pts.map((q, i) => `${i ? 'L' : 'M'}${sx(q.x).toFixed(1)},${sy(q.p).toFixed(1)}`).join('');
+            let g = '';
+            for (let v = 0; v <= yMax + 1; v += yStep) g += `<line class="g" x1="${L}" x2="${W - R}" y1="${sy(v)}" y2="${sy(v)}"/><text class="t" x="${L - 6}" y="${sy(v) + 4}" text-anchor="end">${fmtPoint(v)}</text>`;
+            for (let d = 0; d * 24 < endX; d++) g += `<text class="t" x="${sx(d * 24 + 12)}" y="${H - 8}" text-anchor="middle">${d + 1}${W < 480 ? '日' : '日目'}</text>`;
+            let marks = '';
+            if (row.final != null && last) {
+                marks += `<path class="l-pred" d="M${sx(last.x)},${sy(last.p)}L${sx(endX)},${sy(row.final)}"/><circle class="fin" cx="${sx(endX)}" cy="${sy(row.final)}" r="4.5"/><text class="lbl" x="${sx(endX) + 7}" y="${sy(row.final) + 4}">予想 ${fmtPoint(row.final)}</text>`;
+            }
+            if (prev.length > 1) {
+                const pe = prev[prev.length - 1];
+                marks += `<text class="lbl" x="${sx(pe.x) + 7}" y="${sy(pe.p) + 14}" style="fill:var(--text-3)">前回 ${fmtPoint(pe.p)}</text>`;
+            }
+            if (mine != null && last) marks += `<circle class="me" cx="${sx(last.x)}" cy="${sy(mine)}" r="5"/><text class="lbl" x="${sx(last.x) - 8}" y="${sy(mine) + 4}" text-anchor="end">自分 ${fmtPoint(mine)}</text>`;
+            this.chartGeom = { W, H, L, R, T, B, endX, sx, sy };
+            return `<div class="bd-chart">
+<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}のボーダー推移。今回と前回">
+${g}
+${prev.length > 1 ? `<path class="l-prev" d="${path(prev)}"/>` : ''}
+${cur.length > 1 ? `<path class="l-cur" d="${path(cur)}"/>` : ''}
+${marks}
+<line class="cross" data-cross x1="0" x2="0" y1="${T}" y2="${H - B}" visibility="hidden"/>
+<rect data-hit x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/>
+</svg>
+<div class="bd-tip" data-tip hidden></div>
+</div>
+<div class="bd-legend"><span><i></i>今回（${esc(label)}）</span>${prev.length > 1 ? '<span><i class="prev"></i>前回</span>' : ''}${row.final != null ? '<span><i class="pred"></i>最終予想まで</span>' : ''}${mine != null ? '<span><i class="me"></i>自分</span>' : ''}</div>`;
+        }
+
+        bindChart(out, row) {
+            const hit = out.querySelector('[data-hit]');
+            const tip = out.querySelector('[data-tip]');
+            const cross = out.querySelector('[data-cross]');
+            const g = this.chartGeom;
+            if (!hit || !g) return;
+            const at = (pts, x) => {
+                let best = null;
+                for (const q of pts || []) if (q.x <= x && (!best || q.x > best.x)) best = q;
+                return best;
+            };
+            hit.addEventListener('pointermove', (e) => {
+                const box = hit.getBoundingClientRect();
+                const x = ((e.clientX - box.left) / box.width) * g.endX;
+                const c = at(row.cur, x);
+                const p = at(row.prev, x);
+                const ref = c || p;
+                if (!ref) return;
+                const hx = g.sx(ref.x);
+                cross.setAttribute('x1', hx);
+                cross.setAttribute('x2', hx);
+                cross.setAttribute('visibility', 'visible');
+                // 24時は翌日の0時ではなくその日の24時として表示する
+                const day = Math.ceil(ref.x / 24) || 1;
+                const hh = ref.x - (day - 1) * 24;
+                tip.innerHTML = `${day}日目 ${hh}:00<br>${c ? `今回 <strong>${fmtPoint(c.p)}</strong><br>` : ''}${p ? `前回 <strong>${fmtPoint(p.p)}</strong>` : ''}`;
+                tip.hidden = false;
+                const pct = (hx / g.W) * 100;
+                tip.style.left = pct > 60 ? '' : `calc(${pct}% + 10px)`;
+                tip.style.right = pct > 60 ? `calc(${100 - pct}% + 10px)` : '';
+            });
+            hit.addEventListener('pointerleave', () => {
+                tip.hidden = true;
+                cross.setAttribute('visibility', 'hidden');
+            });
         }
     }
 
