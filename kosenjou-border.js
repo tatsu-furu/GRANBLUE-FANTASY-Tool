@@ -13,6 +13,7 @@
  *     const borderPanel = new BorderPanel(document.getElementById('border-panel'), {
  *       getDiffs: () => DIFFS,             // [{ id, name, contrib }]
  *       getKillTimes: () => killTimes,     // { [id]: 討伐秒数 }
+ *       getReloadTimes: () => Object.fromEntries([...reloadEnabled].filter((id) => killTimes2[id]).map((id) => [id, killTimes2[id]])),  // 任意: リロ有の討伐秒数
  *     });
  *     // 討伐時間を変えたあとやタブを開いたときに borderPanel.refresh() を呼ぶ
  *   </script>
@@ -164,6 +165,7 @@
             this.root = root;
             this.getDiffs = opts.getDiffs;
             this.getKillTimes = opts.getKillTimes;
+            this.getReloadTimes = opts.getReloadTimes || (() => ({}));
             this.state = this.load();
             this.injectStyle();
             this.render();
@@ -235,6 +237,8 @@
 .bd-verdict { padding:12px 14px; border-left:4px solid var(--accent); background:var(--accent-bg, rgba(192,144,48,0.08)); line-height:1.7; border-radius:0 6px 6px 0; }
 .bd-verdict.ok { border-left-color:#58b858; }
 .bd-verdict.ng { border-left-color:#d06868; }
+.bd-verdict.warn { border-left-color:#e0a030; }
+.bd-tag { display:inline-block; font-size:0.72em; padding:0 5px; margin-left:5px; border:1px solid var(--accent); color:var(--accent); border-radius:3px; }
 .bd-verdict .bd-big { font-size:1.35em; font-weight:700; color:var(--text); }
 .bd-verdict .bd-subline { color:var(--text-2); font-size:0.9em; }
 .bd-chart { position:relative; margin-top:14px; }
@@ -267,12 +271,16 @@
         }
 
         /** 討伐時間が入っている難易度の毎時貢献度 */
+        /** 討伐時間が入っている難易度の毎時貢献度。リロ有の時間があれば別の行（relo: true）として足す */
         rates() {
             const times = this.getKillTimes() || {};
-            return this.getDiffs()
-                .filter((d) => times[d.id] > 0)
-                .map((d) => ({ id: d.id, name: d.name, perRun: d.contrib, sec: times[d.id], perH: (d.contrib / times[d.id]) * 3600 }))
-                .sort((a, b) => b.perH - a.perH);
+            const relo = this.getReloadTimes() || {};
+            const out = [];
+            for (const d of this.getDiffs()) {
+                if (times[d.id] > 0) out.push({ id: d.id, name: d.name, relo: false, perRun: d.contrib, sec: times[d.id], perH: (d.contrib / times[d.id]) * 3600 });
+                if (relo[d.id] > 0) out.push({ id: d.id, name: d.name, relo: true, perRun: d.contrib, sec: relo[d.id], perH: (d.contrib / relo[d.id]) * 3600 });
+            }
+            return out.sort((a, b) => b.perH - a.perH);
         }
 
         remainingHours() {
@@ -458,15 +466,31 @@
                     verdict = `<div class="bd-verdict"><div class="bd-big">あと ${fmtPoint(need)}</div><div class="bd-subline">${esc(label)}（${basis} ${fmtPoint(value)}）まで。残り時間を入れると必要なペースを出します</div></div>`;
                 } else {
                     const perH = need / remH;
-                    const ok = best ? best.perH >= perH : null;
-                    const tail = best
-                        ? ok
-                            ? `最速の ${esc(best.name)}（毎時 ${fmtPoint(best.perH)}）なら <strong>${fmtHours(need / best.perH)}</strong> 走れば届きます`
-                            : `最速の ${esc(best.name)}（毎時 ${fmtPoint(best.perH)}）でも ${fmtPoint(need - best.perH * remH)} 足りません`
-                        : '「討伐効率」タブで討伐時間を入れると、どの難易度なら間に合うかを出します';
-                    verdict = `<div class="bd-verdict ${ok === null ? '' : ok ? 'ok' : 'ng'}">
-<div class="bd-big">${ok === null ? '' : ok ? '✓ ' : '✗ '}あと ${fmtPoint(need)}（毎時 ${fmtPoint(perH)}）</div>
-<div class="bd-subline">${esc(label)}の${basis} ${fmtPoint(value)} まで、残り${fmtHours(remH)}。${tail}</div></div>`;
+                    const noRelo = rates.find((r) => !r.relo);
+                    const withRelo = rates.find((r) => r.relo);
+                    const name = (r) => `${esc(r.name)}${r.relo ? '（リロ有）' : ''}`;
+                    const reach = (r) => `${name(r)}（毎時 ${fmtPoint(r.perH)}）なら <strong>${fmtHours(need / r.perH)}</strong> で届く`;
+                    const short = (r) => `${name(r)}（毎時 ${fmtPoint(r.perH)}）だと ${fmtPoint(need - r.perH * remH)} 足りない`;
+                    let cls = '';
+                    let mark = '';
+                    let lines = [];
+                    if (!noRelo && !withRelo) {
+                        lines = ['「討伐効率」タブで討伐時間を入れると、どの難易度なら間に合うかを出します'];
+                    } else if (noRelo && noRelo.perH >= perH) {
+                        cls = 'ok'; mark = '✓ ';
+                        lines = [`リロ無しでも ${reach(noRelo)}`];
+                        if (withRelo && withRelo.perH > noRelo.perH) lines.push(`リロ有なら ${reach(withRelo)}`);
+                    } else if (withRelo && withRelo.perH >= perH) {
+                        cls = 'warn'; mark = '△ ';
+                        lines = [`<strong>リロ有なら届く</strong>: ${reach(withRelo)}`, noRelo ? `リロ無し: ${short(noRelo)}` : ''];
+                    } else {
+                        cls = 'ng'; mark = '✗ ';
+                        lines = [noRelo ? `リロ無し: ${short(noRelo)}` : '', withRelo ? `リロ有: ${short(withRelo)}` : ''];
+                    }
+                    verdict = `<div class="bd-verdict ${cls}">
+<div class="bd-big">${mark}あと ${fmtPoint(need)}（毎時 ${fmtPoint(perH)}）</div>
+<div class="bd-subline">${esc(label)}の${basis} ${fmtPoint(value)} まで、残り${fmtHours(remH)}。</div>
+${lines.filter(Boolean).map((l) => `<div class="bd-subline">${l}</div>`).join('')}</div>`;
                 }
             }
 
@@ -479,7 +503,7 @@
                     .map((r, k) => {
                         const hours = need / r.perH;
                         const fits = remH > 0 ? hours <= remH : null;
-                        return `<tr class="${k === 0 ? 'best' : ''}"><td>${esc(r.name)}</td><td class="n">${fmtPoint(r.perH)}</td><td class="n">${Math.ceil(need / r.perRun).toLocaleString()}回</td><td class="n">${fmtHours(hours)}</td>${fits === null ? '' : `<td class="${fits ? 'ok' : 'ng'}">${fits ? '✓ 間に合う' : '✗ 足りない'}</td>`}</tr>`;
+                        return `<tr class="${k === 0 ? 'best' : ''}"><td>${esc(r.name)}${r.relo ? '<span class="bd-tag">リロ有</span>' : ''}</td><td class="n">${fmtPoint(r.perH)}</td><td class="n">${Math.ceil(need / r.perRun).toLocaleString()}回</td><td class="n">${fmtHours(hours)}</td>${fits === null ? '' : `<td class="${fits ? 'ok' : 'ng'}">${fits ? '✓ 間に合う' : '✗ 足りない'}</td>`}</tr>`;
                     })
                     .join('')}</tbody></table>`;
             }

@@ -1922,6 +1922,7 @@ if (window.chrome?.runtime && SPLIT_EXT_ID) {
 const borderPanel = new BorderPanel(document.getElementById('border-panel'), {
     getDiffs: () => DIFFS,
     getKillTimes: () => killTimes,
+    getReloadTimes: () => Object.fromEntries([...reloadEnabled].filter((id) => killTimes2[id]).map((id) => [id, killTimes2[id]])),
 });
 document.querySelector('.tab-btn[data-tab="border"]').addEventListener('click', () => borderPanel.refresh());
 </script>
