@@ -712,6 +712,75 @@
       ],
       "status": "confirmed",
       "note": "汎用の D上限 と合算して20%まで。超えた分は上限突破（gbf.wiki Damage Cap）。特殊上限そのものは上げない"
+    },
+    {
+      "id": "kikai_boost",
+      "name": "騎解方陣",
+      "aliases": [
+        "騎解方陣"
+      ],
+      "slot": {
+        "kind": "unclassified"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        1000
+      ],
+      "status": "confirmed",
+      "note": "効果と枠が未確定"
+    },
+    {
+      "id": "normal_amp_special",
+      "name": "通常与ダメ(特殊)",
+      "aliases": [
+        "通常与ダメ(特殊)",
+        "通常与ダメ"
+      ],
+      "slot": {
+        "kind": "unclassified"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed",
+      "note": "通常攻撃の与ダメUPと思われるが未確定"
+    },
+    {
+      "id": "cap_relax",
+      "name": "D上限緩和",
+      "aliases": [
+        "D上限緩和"
+      ],
+      "slot": {
+        "kind": "unclassified"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed",
+      "note": "上限突破（減衰率を下げる）の可能性があるが未確定"
+    },
+    {
+      "id": "rengeki",
+      "name": "連撃",
+      "aliases": [
+        "連撃"
+      ],
+      "slot": {
+        "kind": "unclassified"
+      },
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "status": "confirmed",
+      "note": "連撃率系と思われるが未確定"
     }
   ]
 }
