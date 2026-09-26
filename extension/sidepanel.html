@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GBF Tool — Side Panel</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #111115; --surface: #202028; --border: #2c2c38;
+    --text: #d8d5cc; --text-3: #9a968e;
+    --accent: #c09030; --accent-dim: rgba(192,144,48,0.12);
+  }
+  body {
+    display: flex; flex-direction: column; height: 100vh;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN',
+      'Yu Gothic', 'YuGothic', 'Meiryo', sans-serif;
+    font-size: 13px; -webkit-font-smoothing: antialiased;
+  }
+  #bar {
+    display: flex; align-items: center; gap: 4px;
+    padding: 5px 7px; background: var(--surface);
+    border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap;
+  }
+  .sp-tab {
+    font-size: 0.72em; padding: 2px 8px;
+    border: 1px solid var(--border); border-radius: 2px;
+    background: transparent; color: var(--text-3); cursor: pointer;
+    font-family: inherit; transition: all 0.1s; white-space: nowrap;
+  }
+  .sp-tab:hover { border-color: var(--accent); color: var(--accent); }
+  .sp-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  #url-display {
+    flex: 1; font-size: 0.68em; color: var(--text-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    min-width: 0; padding: 0 4px;
+  }
+  #reload-btn, #newtab-btn {
+    font-size: 0.72em; padding: 2px 7px;
+    border: 1px solid var(--border); border-radius: 2px;
+    background: transparent; color: var(--text-3); cursor: pointer;
+    font-family: inherit; white-space: nowrap; flex-shrink: 0;
+    transition: all 0.1s;
+  }
+  #reload-btn:hover, #newtab-btn:hover { border-color: var(--accent); color: var(--accent); }
+  #sp-iframe { flex: 1; border: none; width: 100%; background: var(--surface); }
+  #empty {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--text-3); font-size: 0.82em; text-align: center;
+    padding: 24px; line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+<div id="bar">
+  <button class="sp-tab" data-url="https://granbluefantasy.gamewith.jp/">GameWith</button>
+  <button class="sp-tab" data-url="https://kamigame.jp/%E3%82%B0%E3%83%A9%E3%83%96%E3%83%AB/%E6%B1%BA%E6%88%A6%EF%BC%81%E6%98%9F%E3%81%AE%E5%8F%A4%E6%88%A6%E5%A0%B4/index.html">神ゲー</button>
+  <span id="url-display">—</span>
+  <button id="reload-btn" title="再読込">↺</button>
+  <button id="newtab-btn" title="タブで開く">↗</button>
+</div>
+<iframe id="sp-iframe" src="about:blank"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowfullscreen style="display:none;"></iframe>
+<div id="empty">サイトタブを押すか、<br>ツール側のサイトボタンを押してください</div>
+
+<script>
+let currentUrl = null;
+
+async function init() {
+  try {
+    const r = await chrome.storage.session.get('sidePanelUrl');
+    if (r?.sidePanelUrl) loadUrl(r.sidePanelUrl);
+  } catch (_) {}
+}
+
+// URL updates from background when user clicks site button on the tool page
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'session' && changes.sidePanelUrl?.newValue) {
+    loadUrl(changes.sidePanelUrl.newValue);
+  }
+});
+
+function loadUrl(url) {
+  currentUrl = url;
+  document.getElementById('url-display').textContent = url;
+  const iframe = document.getElementById('sp-iframe');
+  iframe.src = url;
+  iframe.style.display = '';
+  document.getElementById('empty').style.display = 'none';
+  // Highlight matching tab
+  document.querySelectorAll('.sp-tab').forEach(t =>
+    t.classList.toggle('active', url.startsWith(t.dataset.url))
+  );
+}
+
+document.querySelectorAll('.sp-tab').forEach(tab =>
+  tab.addEventListener('click', () => loadUrl(tab.dataset.url))
+);
+
+document.getElementById('reload-btn').addEventListener('click', () => {
+  if (currentUrl) document.getElementById('sp-iframe').src = currentUrl;
+});
+
+document.getElementById('newtab-btn').addEventListener('click', () => {
+  if (currentUrl) chrome.tabs.create({ url: currentUrl });
+});
+
+init();
+</script>
+</body>
+</html>

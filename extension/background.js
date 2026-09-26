@@ -112,6 +112,56 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
         return true;
     }
 
+    // Side Panel: open chrome.sidePanel and navigate to URL
+    if (message.action === 'openSidePanel') {
+        const tabId = sender.tab?.id;
+        const url = message.url;
+        if (!tabId || !url) { sendResponse({ success: false, error: 'missing tabId or url' }); return; }
+        chrome.storage.session.set({ sidePanelUrl: url })
+            .then(async () => {
+                try {
+                    // Associate this side panel with the specific tab and open it
+                    await chrome.sidePanel.setOptions({ tabId, path: 'sidepanel.html', enabled: true });
+                    await chrome.sidePanel.open({ tabId });
+                    console.log(TAG, 'side panel opened for tab', tabId, '| url:', url);
+                    sendResponse({ success: true });
+                } catch (e) {
+                    console.error(TAG, 'sidePanel.open failed:', e.message);
+                    sendResponse({ success: false, error: e.message });
+                }
+            })
+            .catch(e => sendResponse({ success: false, error: e.message }));
+        return true;
+    }
+
+    // Diagnostic: fetch response headers for a URL (HEAD request from background)
+    // Extension host_permissions bypass CORS for listed origins.
+    // Note: headers may differ from actual sub_frame requests (no Sec-Fetch-Dest: iframe).
+    if (message.action === 'checkSiteHeaders') {
+        const url = message.url;
+        if (!url) { sendResponse({ error: 'no url' }); return; }
+        (async () => {
+            try {
+                const resp = await fetch(url, {
+                    method: 'HEAD',
+                    redirect: 'follow',
+                    credentials: 'omit'
+                });
+                sendResponse({
+                    status:        resp.status,
+                    finalUrl:      resp.url,
+                    xFrameOptions: resp.headers.get('x-frame-options'),
+                    csp:           resp.headers.get('content-security-policy'),
+                    contentType:   resp.headers.get('content-type'),
+                    redirected:    resp.redirected
+                });
+            } catch (e) {
+                sendResponse({ error: e.message });
+            }
+        })();
+        return true;
+    }
+
     // MODE B: chrome.debugger + OOPIF CSP bypass
     if (message.action === 'enableDebuggerBypass') {
         const tabId = sender.tab?.id;
