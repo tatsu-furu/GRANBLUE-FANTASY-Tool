@@ -106,6 +106,19 @@
         .sheet-grid td.cur-row { background: rgba(201,162,74,0.06); }
         .sheet-grid td.drop { box-shadow: inset 0 0 0 2px var(--info); background: var(--info-dim); }
         .sheet-move-hint { color: var(--text-muted); font-size: 0.8em; margin: 6px 0 0; }
+        .sheet-grid .grip { cursor: grab; padding: 0 6px; }
+        .sheet-grid th.row-head[draggable] { cursor: grab; }
+        .sheet-grid th.swap-target { background: var(--info-dim); color: var(--info); box-shadow: inset 0 0 0 2px var(--info); }
+        /* Googleスプレッドシート書き出しメニュー */
+        .gs-menu { background: var(--surface); border: 1px solid var(--border-hi); border-radius: 4px; padding: 10px; margin: 0 0 8px; display: grid; gap: 6px; max-width: 460px; }
+        .gs-menu[hidden] { display: none; }
+        .gs-menu .btn { text-align: left; white-space: normal; font-size: 0.82em; }
+        .gs-menu .gs-primary { background: var(--accent-lo); border-color: var(--accent); color: #1a1400; }
+        .gs-menu hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; width: 100%; }
+        .gs-note { color: var(--text-muted); font-size: 0.76em; margin: 0; }
+        .gs-msg { color: var(--text); font-size: 0.82em; margin: 0; }
+        .gs-msg:empty { display: none; }
+        .gs-msg a { color: var(--accent); }
         .setup-lead { color: var(--text-muted); font-size: 0.85em; margin: -4px 0 12px; }
         /* ルーム名・作成フォーム */
         .collab-room-name { flex: 0 1 16em; min-width: 0; background: var(--bg); color: var(--accent); font-weight: 700; border: 1px solid var(--border); border-radius: 3px; padding: 4px 8px; font-size: 1em; }
@@ -1663,7 +1676,8 @@
         initialize();
 
         // ===== スクショ一括取込 =====
-        (function() {
+        // モーダルの HTML はこのスクリプトより後ろにあるので、読み込み完了を待ってから組み立てる
+        document.addEventListener('DOMContentLoaded', function() {
             const modal     = document.getElementById('ss-modal');
             const pasteArea = document.getElementById('ss-paste-area');
             const fileInput = document.getElementById('ss-file-input');
@@ -1817,7 +1831,7 @@
                 renderCharacterInputs();
                 modal.style.display = 'none';
             });
-        })();
+        });
 
     </script>
 <!-- ===== スクショ一括取込モーダル ===== -->
@@ -1935,6 +1949,7 @@
 <script src="sheet.js"></script>
 <script src="palette.js"></script>
 <script src="shots.js"></script>
+<script src="gsheets.js"></script>
 <script>
   // 共有シート / 編成 / スクショの切り替え（最後に開いたタブを覚える）
   const TAB_KEY = 'gbfPageTab';

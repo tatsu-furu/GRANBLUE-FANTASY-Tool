@@ -44,6 +44,7 @@
             <button class="btn" data-act="al-r" title="右揃え">右揃え</button>
             <span class="sep"></span>
             <button class="btn" data-act="copy">表をコピー</button>
+            <button class="btn" data-act="gsheet">Googleスプレッドシートへ</button>
             <button class="btn" data-act="csv">CSVで保存</button>
             <button class="btn" data-act="rename">名前を変更</button>
             <button class="btn reset-btn" data-act="delete">シートを削除</button>
@@ -51,7 +52,7 @@
         <p class="sheet-where"></p>
         <div class="sheet-wrap"><table class="sheet-grid"></table></div>
         <p class="sheet-move-hint" hidden>ムーブ表シート: 右の「編成パーツ」でアビをタップすると、選んでいる行（ターン）のそのキャラの列に入ります。セルへドラッグしても置けます。</p>
-        <p class="sheet-hint">Googleスプレッドシートなどでコピーした範囲は、左上にしたいセルを選んで貼り付け（Ctrl+V）できます。Enterで下、Tabで右へ移動します。Shift+クリック・Shift+矢印で範囲選択、列・行の番号をクリックで列・行ごと選択できます（揃え・Delete・コピーが範囲にかかります）。</p>`;
+        <p class="sheet-hint">Googleスプレッドシートなどでコピーした範囲は、左上にしたいセルを選んで貼り付け（Ctrl+V）できます。Enterで下、Tabで右へ移動します。Shift+クリック・Shift+矢印で範囲選択、列・行の番号をクリックで列・行ごと選択できます（揃え・Delete・コピーが範囲にかかります）。行番号・列の文字を別の行・列へドラッグすると、中身ごと入れ替わります。</p>`;
     const tabsEl = panel.querySelector('.sheet-tabs');
     const gridEl = panel.querySelector('.sheet-grid');
     const whereEl = panel.querySelector('.sheet-where');
@@ -120,10 +121,10 @@
     function buildGrid(s, rows, cols) {
         const focused = document.activeElement?.closest?.('.sheet-grid') ? document.activeElement.dataset.key : null;
         let html = '<thead><tr><th class="corner"></th>';
-        for (let c = 0; c < cols; c++) html += `<th class="pick" data-c="${c}"><div class="col-head">${colName(c)}</div></th>`;
+        for (let c = 0; c < cols; c++) html += `<th class="pick" data-c="${c}"><div class="col-head"><span class="grip" draggable="true" title="ドラッグで列を入れ替え">${colName(c)}</span></div></th>`;
         html += '</tr></thead><tbody>';
         for (let r = 0; r < rows; r++) {
-            html += `<tr><th class="row-head pick" data-r="${r}">${r + 1}</th>`;
+            html += `<tr><th class="row-head pick" data-r="${r}" draggable="true" title="ドラッグで行を入れ替え">${r + 1}</th>`;
             for (let c = 0; c < cols; c++) html += `<td><input data-key="${r}_${c}" data-r="${r}" data-c="${c}" aria-label="${colName(c)}${r + 1}"></td>`;
             html += '</tr>';
         }
@@ -359,6 +360,92 @@
         try { GBFSheet.placeAt(Number(input.dataset.r), Number(input.dataset.c), JSON.parse(raw)); } catch (err) { console.warn(err); }
     });
 
+    // 行・列の入れ替え（行番号・列の文字を別の行・列へドラッグ）
+    const ROW_TYPE = 'application/x-gbf-row';
+    const COL_TYPE = 'application/x-gbf-col';
+    let swapTarget = null;
+    const clearSwap = () => { swapTarget?.classList.remove('swap-target'); swapTarget = null; };
+    gridEl.addEventListener('dragstart', (e) => {
+        const rowHead = e.target.closest?.('th.row-head');
+        const grip = e.target.closest?.('.grip');
+        if (rowHead) e.dataTransfer.setData(ROW_TYPE, rowHead.dataset.r);
+        else if (grip) e.dataTransfer.setData(COL_TYPE, grip.closest('th').dataset.c);
+        else return;
+        e.dataTransfer.effectAllowed = 'move';
+    });
+    // ドロップ先：行なら行番号かその行のセル、列なら列見出しかその列のセル
+    function swapHeadAt(e) {
+        const types = e.dataTransfer?.types || [];
+        const input = e.target.closest?.('input[data-key]');
+        if (types.includes(ROW_TYPE)) {
+            const r = e.target.closest?.('th.row-head')?.dataset.r ?? input?.dataset.r;
+            return r != null ? gridEl.querySelector(`th.row-head[data-r="${r}"]`) : null;
+        }
+        if (types.includes(COL_TYPE)) {
+            const c = e.target.closest?.('th[data-c]')?.dataset.c ?? input?.dataset.c;
+            return c != null ? gridEl.querySelector(`th[data-c="${c}"]`) : null;
+        }
+        return null;
+    }
+    gridEl.addEventListener('dragover', (e) => {
+        const head = swapHeadAt(e);
+        if (!head) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (swapTarget !== head) { clearSwap(); swapTarget = head; head.classList.add('swap-target'); }
+    });
+    gridEl.addEventListener('dragend', clearSwap);
+    gridEl.addEventListener('drop', (e) => {
+        const head = swapHeadAt(e);
+        clearSwap();
+        const s = active();
+        if (!head || !s) return;
+        e.preventDefault();
+        const fromR = e.dataTransfer.getData(ROW_TYPE);
+        const fromC = e.dataTransfer.getData(COL_TYPE);
+        if (fromR !== '' && head.dataset.r != null) swapLines(s, 'row', Number(fromR), Number(head.dataset.r));
+        else if (fromC !== '' && head.dataset.c != null) swapLines(s, 'col', Number(fromC), Number(head.dataset.c));
+    });
+    // 2つの行（列）の中身・揃え（列なら幅と、ムーブ表シートの役割）をまとめて入れ替える
+    function swapLines(s, kind, a, b) {
+        if (a === b) return;
+        const cells = cellsOf(s);
+        const align = s.align || {};
+        const n = kind === 'row' ? Math.min(Number(s.cols) || DEFAULT_COLS, MAX_COLS) : rowsOf(s);
+        const key = (line, i) => (kind === 'row' ? `${line}_${i}` : `${i}_${line}`);
+        const updates = {};
+        // ムーブ表シートの行を入れ替えるときは、ターン番号の列はそのまま（中身だけ入れ替える）
+        const keepCol = kind === 'row' && s.kind === 'move' ? colMapOf(s).turn : -1;
+        for (let i = 0; i < n; i++) {
+            if (i === keepCol) continue;
+            const ka = key(a, i);
+            const kb = key(b, i);
+            if ((cells[ka] ?? '') !== (cells[kb] ?? '')) { updates[`cells/${ka}`] = cells[kb] ?? null; updates[`cells/${kb}`] = cells[ka] ?? null; }
+            if ((align[ka] ?? '') !== (align[kb] ?? '')) { updates[`align/${ka}`] = align[kb] ?? null; updates[`align/${kb}`] = align[ka] ?? null; }
+        }
+        if (kind === 'col') {
+            const widths = s.widths || {};
+            updates[`widths/${a}`] = widths[b] ?? null;
+            updates[`widths/${b}`] = widths[a] ?? null;
+            if (s.kind === 'move') {
+                const cm = colMapOf(s);
+                for (const [role, c] of Object.entries(cm)) {
+                    if (c === a) updates[`colMap/${role}`] = b;
+                    else if (c === b) updates[`colMap/${role}`] = a;
+                }
+            }
+        }
+        // 画面は先に入れ替えておく（書き込みの反映待ちで一瞬戻らないように）
+        for (const [k, v] of Object.entries(updates)) {
+            if (!k.startsWith('cells/')) continue;
+            const el = gridEl.querySelector(`input[data-key="${k.slice(6)}"]`);
+            if (el) el.value = v ?? '';
+        }
+        write(`sheets/${s.id}`, updates);
+        whereEl.textContent = kind === 'row' ? `${a + 1}行目と${b + 1}行目を入れ替えました。` : `${colName(a)}列と${colName(b)}列を入れ替えました。`;
+        if (kind === 'row') setSel(b, 0, b, n - 1); else setSel(0, b, rowsOf(s) - 1, b);
+    }
+
     // ---------- ツールバー・タブ ----------
     function toText(s, sep, range) {
         const cells = cellsOf(s);
@@ -407,6 +494,8 @@
             if (confirm(`「${s.name}」を削除しますか？${GBFCollab.inRoom ? '\nルームの全員から消えます。' : ''}`)) { activeId = null; write('sheets', { [s.id]: null }); }
         } else if (act === 'copy') {
             navigator.clipboard?.writeText(toText(s, '\t')).then(() => { whereEl.textContent = 'コピーしました。スプレッドシートにそのまま貼り付けられます。'; });
+        } else if (act === 'gsheet') {
+            window.GBFGSheets?.toggle(e.target.closest('[data-act]'));
         } else if (act === 'csv') {
             const blob = new Blob(['﻿' + toText(s, ',')], { type: 'text/csv' });
             const a = document.createElement('a');
@@ -477,7 +566,38 @@
         return write('sheets', { [id]: { order, freeze: true, ...def } });
     }
 
+    // 書き出し用：シートの中身（使っている範囲まで）
+    function snapshot(s) {
+        const cells = cellsOf(s);
+        let lastR = -1;
+        let lastC = -1;
+        for (const k of Object.keys(cells)) {
+            const [r, c] = k.split('_').map(Number);
+            if (cells[k] !== '') { lastR = Math.max(lastR, r); lastC = Math.max(lastC, c); }
+        }
+        const align = s.align || {};
+        const widths = s.widths || {};
+        const grid = [];
+        for (let r = 0; r <= lastR; r++) {
+            const row = [];
+            for (let c = 0; c <= lastC; c++) row.push({ v: cells[`${r}_${c}`] ?? '', a: align[`${r}_${c}`] || 'l' });
+            grid.push(row);
+        }
+        return {
+            name: s.name || 'シート',
+            kind: s.kind || '',
+            freeze: !!s.freeze,
+            widths: Array.from({ length: lastC + 1 }, (_, c) => Number(widths[c]) || COL_W),
+            grid,
+        };
+    }
+
     window.GBFSheet = {
+        snapshot(which = 'active') {
+            if (which === 'all') return sheetList().map((x) => snapshot(sheets[x.id] ? { id: x.id, ...sheets[x.id] } : x));
+            const s = active();
+            return s ? [snapshot(s)] : [];
+        },
         get active() {
             const s = active();
             if (!s) return null;
