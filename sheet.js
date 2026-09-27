@@ -478,7 +478,13 @@
     }
 
     window.GBFSheet = {
-        get active() { const s = active(); return s ? { id: s.id, kind: s.kind || '', name: s.name, row: s.kind === 'move' ? currentMoveRow(s) : sel?.fr ?? null } : null; },
+        get active() {
+            const s = active();
+            if (!s) return null;
+            const row = s.kind === 'move' ? currentMoveRow(s) : sel?.fr ?? null;
+            const turn = s.kind === 'move' ? cellsOf(s)[`${row}_${colMapOf(s).turn}`] || '' : '';
+            return { id: s.id, kind: s.kind || '', name: s.name, row, turn };
+        },
 
         // 編成パーツをタップしたとき
         place(item) {

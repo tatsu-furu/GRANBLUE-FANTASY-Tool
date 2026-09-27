@@ -56,7 +56,7 @@
                 </section>`).join('')}
             <section class="pal-char"><h4><span>召喚石</span></h4><div class="chips">${summons.length ? summons.map((it) => chip(it, ' summon')).join('') : '<span class="pal-empty">編成で召喚石を登録すると出ます</span>'}</div></section>
             <section class="pal-char"><h4><span>ターン終了・アイテム</span></h4><div class="chips">${common.map((it) => chip(it, ' common')).join('')}</div></section>
-            <p class="pal-foot">キャラ名・アビ名・召喚石は「ムーブ表」タブの編成登録で変えられます（ルーム中は全員に反映）。</p>`;
+            <p class="pal-foot">キャラ名・アビ名・召喚石は「編成」タブで変えられます（ルーム中は全員に反映）。</p>`;
         renderStatus();
     }
 
@@ -70,7 +70,7 @@
             const inMove = movePhase.style.display === 'block' && !movePhase.classList.contains('playback-mode');
             box.innerHTML = inMove
                 ? '<p>タップでムーブ表に記録します（キャラは自動で切り替わります）。</p>'
-                : '<p>「共有シート」タブのムーブ表シートか、ムーブ入力画面で使えます。</p>';
+                : '<p>「共有シート」タブで、タップやドラッグでシートに置けます。</p>';
             return;
         }
         if (!sheet) { box.innerHTML = '<p>シートを選んでください。</p>'; return; }
@@ -78,7 +78,7 @@
             box.innerHTML = `
                 <div class="pal-turn">
                     <button class="btn" data-pal="up" aria-label="前の行へ">↑</button>
-                    <span>置き先: <strong>${sheet.row}行目</strong></span>
+                    <span>置き先: <strong>${sheet.turn ? `${esc(sheet.turn)}ターン目` : `${sheet.row + 1}行目`}</strong></span>
                     <button class="btn pal-next" data-pal="down">次のターン ↓</button>
                 </div>
                 <p>チップをタップ → この行のそのキャラの列へ。セルへドラッグでも置けます。</p>
