@@ -37,6 +37,7 @@
         <div class="sheet-toolbar">
             <button class="btn" data-act="rows">行を追加 (+10)</button>
             <button class="btn" data-act="cols">列を追加</button>
+            <button class="btn" data-act="lines" title="選んでいる行・列の前後に挿入、削除（右クリックでも開けます）">行・列の挿入・削除 ▾</button>
             <button class="btn" data-act="freeze"></button>
             <button class="btn" data-act="wrap"></button>
             <span class="sep"></span>
@@ -53,7 +54,7 @@
         <p class="sheet-where"></p>
         <div class="sheet-wrap"><table class="sheet-grid"></table></div>
         <p class="sheet-move-hint" hidden>ムーブ表シート: 右の「編成パーツ」でアビをタップすると、選んでいる行（ターン）のそのキャラの列に入ります。セルへドラッグしても置けます。</p>
-        <p class="sheet-hint">Googleスプレッドシートなどでコピーした範囲は、左上にしたいセルを選んで貼り付け（Ctrl+V）できます。Enterで下、Tabで右へ移動、Alt+Enter（Macは Option+Enter）でセル内改行します。Shift+クリック・Shift+矢印で範囲選択、列・行の番号をクリックで列・行ごと選択できます（揃え・Delete・コピーが範囲にかかります）。行番号・列の文字を別の行・列へドラッグすると、中身ごと入れ替わります。</p>`;
+        <p class="sheet-hint">Googleスプレッドシートなどでコピーした範囲は、左上にしたいセルを選んで貼り付け（Ctrl+V）できます。Enterで下、Tabで右へ移動、Alt+Enter（Macは Option+Enter）でセル内改行します。Shift+クリック・Shift+矢印で範囲選択、列・行の番号をクリックで列・行ごと選択できます（揃え・Delete・コピーが範囲にかかります）。行番号・列の文字を別の行・列の真ん中へドラッグすると入れ替え、端（線が出る位置）へドラッグするとその隙間へ移動します。右クリック（スマホは「行・列の挿入・削除」）で行・列を挿入・削除できます。</p>`;
     const tabsEl = panel.querySelector('.sheet-tabs');
     const gridEl = panel.querySelector('.sheet-grid');
     const whereEl = panel.querySelector('.sheet-where');
@@ -397,7 +398,8 @@
     const ROW_TYPE = 'application/x-gbf-row';
     const COL_TYPE = 'application/x-gbf-col';
     let swapTarget = null;
-    const clearSwap = () => { swapTarget?.classList.remove('swap-target'); swapTarget = null; };
+    const DROP_CLASSES = ['swap-target', 'ins-before', 'ins-after'];
+    const clearSwap = () => { swapTarget?.classList.remove(...DROP_CLASSES); swapTarget = null; };
     gridEl.addEventListener('dragstart', (e) => {
         const rowHead = e.target.closest?.('th.row-head');
         const grip = e.target.closest?.('.grip');
@@ -406,39 +408,200 @@
         else return;
         e.dataTransfer.effectAllowed = 'move';
     });
-    // ドロップ先：行なら行番号かその行のセル、列なら列見出しかその列のセル
+    // ドロップ先：行なら行番号かその行のセル、列なら列見出しかその列のセル。
+    // 端（行なら上下、列なら左右の 1/4）に落とすと「その隙間へ移動」、真ん中なら「入れ替え」
     function swapHeadAt(e) {
         const types = e.dataTransfer?.types || [];
         const input = e.target.closest?.('textarea.cell[data-key]');
+        let head = null;
+        let kind = '';
         if (types.includes(ROW_TYPE)) {
             const r = e.target.closest?.('th.row-head')?.dataset.r ?? input?.dataset.r;
-            return r != null ? gridEl.querySelector(`th.row-head[data-r="${r}"]`) : null;
-        }
-        if (types.includes(COL_TYPE)) {
+            head = r != null ? gridEl.querySelector(`th.row-head[data-r="${r}"]`) : null;
+            kind = 'row';
+        } else if (types.includes(COL_TYPE)) {
             const c = e.target.closest?.('th[data-c]')?.dataset.c ?? input?.dataset.c;
-            return c != null ? gridEl.querySelector(`th[data-c="${c}"]`) : null;
+            head = c != null ? gridEl.querySelector(`th[data-c="${c}"]`) : null;
+            kind = 'col';
         }
-        return null;
+        if (!head) return null;
+        const box = (kind === 'row' ? head : head).getBoundingClientRect();
+        const pos = kind === 'row' ? (e.clientY - box.top) / box.height : (e.clientX - box.left) / box.width;
+        const zone = pos < 0.25 ? 'ins-before' : pos > 0.75 ? 'ins-after' : 'swap-target';
+        return { head, kind, zone };
     }
     gridEl.addEventListener('dragover', (e) => {
-        const head = swapHeadAt(e);
-        if (!head) return;
+        const t = swapHeadAt(e);
+        if (!t) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        if (swapTarget !== head) { clearSwap(); swapTarget = head; head.classList.add('swap-target'); }
+        if (swapTarget !== t.head || !t.head.classList.contains(t.zone)) { clearSwap(); swapTarget = t.head; t.head.classList.add(t.zone); }
     });
     gridEl.addEventListener('dragend', clearSwap);
     gridEl.addEventListener('drop', (e) => {
-        const head = swapHeadAt(e);
+        const t = swapHeadAt(e);
         clearSwap();
         const s = active();
-        if (!head || !s) return;
+        if (!t || !s) return;
         e.preventDefault();
-        const fromR = e.dataTransfer.getData(ROW_TYPE);
-        const fromC = e.dataTransfer.getData(COL_TYPE);
-        if (fromR !== '' && head.dataset.r != null) swapLines(s, 'row', Number(fromR), Number(head.dataset.r));
-        else if (fromC !== '' && head.dataset.c != null) swapLines(s, 'col', Number(fromC), Number(head.dataset.c));
+        const from = Number(t.kind === 'row' ? e.dataTransfer.getData(ROW_TYPE) : e.dataTransfer.getData(COL_TYPE));
+        const to = Number(t.kind === 'row' ? t.head.dataset.r : t.head.dataset.c);
+        if (Number.isNaN(from) || Number.isNaN(to)) return;
+        if (t.zone === 'swap-target') swapLines(s, t.kind, from, to);
+        else moveLine(s, t.kind, from, t.zone === 'ins-before' ? to : to + 1);
     });
+
+    // ---------- 行・列の挿入・削除・移動 ----------
+    const lineCount = (s, kind) => (kind === 'row' ? rowsOf(s) : Math.min(Number(s.cols) || DEFAULT_COLS, MAX_COLS));
+    const MAX_OF = { row: MAX_ROWS, col: MAX_COLS };
+    // 行（列）番号を map(旧番号) → 新番号 / null（消す）で付け替えて、まとめて書き直す
+    function remapLines(s, kind, map, newCount, { keepTurn = false } = {}) {
+        const cells = cellsOf(s);
+        const align = s.align || {};
+        const keep = keepTurn && kind === 'row' && s.kind === 'move' ? colMapOf(s).turn : -1;
+        const nc = {};
+        const na = {};
+        let dropped = 0;
+        const move = (src, dst, k, v) => {
+            const [r, c] = k.split('_').map(Number);
+            if (kind === 'row' && c === keep) { dst[k] = v; return; }
+            const old = kind === 'row' ? r : c;
+            const nu = map(old);
+            if (nu == null) return;
+            if (nu >= MAX_OF[kind]) { if (src === cells && v) dropped++; return; }
+            dst[kind === 'row' ? `${nu}_${c}` : `${r}_${nu}`] = v;
+        };
+        for (const [k, v] of Object.entries(cells)) move(cells, nc, k, v);
+        for (const [k, v] of Object.entries(align)) move(align, na, k, v);
+        const updates = {
+            cells: Object.keys(nc).length ? nc : null,
+            align: Object.keys(na).length ? na : null,
+            [kind === 'row' ? 'rows' : 'cols']: Math.max(1, Math.min(newCount, MAX_OF[kind])),
+        };
+        if (kind === 'col') {
+            const widths = s.widths || {};
+            const nw = {};
+            for (const [c, w] of Object.entries(widths)) { const nu = map(Number(c)); if (nu != null && nu < MAX_COLS) nw[nu] = w; }
+            updates.widths = Object.keys(nw).length ? nw : null;
+            if (s.kind === 'move') {
+                // ムーブ表シートは、キャラなどの役割がどの列かも付け替える（消えた列は -1）
+                const cm = colMapOf(s);
+                updates.colMap = Object.fromEntries(Object.entries(cm).map(([role, c]) => { const nu = c >= 0 ? map(c) : null; return [role, nu == null ? -1 : nu]; }));
+            }
+        }
+        // 画面は先に並べ替えておく（書き込みの反映待ちで一瞬ずれて見えないように）
+        gridEl.querySelectorAll('textarea.cell[data-key]').forEach((el) => { if (el !== document.activeElement) el.value = nc[el.dataset.key] ?? ''; });
+        write(`sheets/${s.id}`, updates);
+        return dropped;
+    }
+    function insertLines(s, kind, at, count) {
+        const n = lineCount(s, kind);
+        if (n + count > MAX_OF[kind]) { whereEl.textContent = `${kind === 'row' ? '行' : '列'}はこれ以上増やせません（最大${MAX_OF[kind]}）。`; return; }
+        remapLines(s, kind, (i) => (i >= at ? i + count : i), n + count);
+        whereEl.textContent = kind === 'row' ? `${at + 1}行目に${count}行挿入しました。` : `${colName(at)}列に${count}列挿入しました。`;
+        if (kind === 'row') setSel(at, 0, at + count - 1, lineCount(s, 'col') - 1); else setSel(0, at, rowsOf(s) - 1, at + count - 1);
+    }
+    function deleteLines(s, kind, from, to) {
+        const n = lineCount(s, kind);
+        const count = to - from + 1;
+        if (count >= n) { whereEl.textContent = 'すべての行・列は削除できません。'; return; }
+        const cells = cellsOf(s);
+        const hasData = Object.entries(cells).some(([k, v]) => { const [r, c] = k.split('_').map(Number); const i = kind === 'row' ? r : c; return v && i >= from && i <= to; });
+        const label = kind === 'row' ? `${from + 1}〜${to + 1}行目` : `${colName(from)}〜${colName(to)}列`;
+        if (hasData && !confirm(`${label}を削除します。中身も消えます。よろしいですか？`)) return;
+        remapLines(s, kind, (i) => (i < from ? i : i > to ? i - count : null), n - count);
+        whereEl.textContent = `${label}を削除しました。`;
+        sel = null;
+        renderSelection();
+    }
+    // from の行（列）を、隙間 gap（0 = 先頭の前、n = 最後の後ろ）へ移す
+    function moveLine(s, kind, from, gap) {
+        const n = lineCount(s, kind);
+        if (gap === from || gap === from + 1) return;
+        const order = Array.from({ length: n }, (_, i) => i);
+        order.splice(from, 1);
+        const dest = gap > from ? gap - 1 : gap;
+        order.splice(dest, 0, from);
+        const newIndex = new Map(order.map((old, i) => [old, i]));
+        remapLines(s, kind, (i) => newIndex.get(i) ?? i, n, { keepTurn: true });
+        whereEl.textContent = kind === 'row' ? `${from + 1}行目を${dest + 1}行目へ移動しました。` : `${colName(from)}列を${colName(dest)}列へ移動しました。`;
+        if (kind === 'row') setSel(dest, 0, dest, lineCount(s, 'col') - 1); else setSel(0, dest, rowsOf(s) - 1, dest);
+    }
+
+    // 右クリック／「行・列」ボタンのメニュー
+    const ctxEl = document.createElement('div');
+    ctxEl.className = 'sheet-ctx';
+    ctxEl.hidden = true;
+    document.body.appendChild(ctxEl);
+    function targetRange() {
+        const q = rect();
+        if (q) return q;
+        if (lastKey) { const [r, c] = lastKey.split('_').map(Number); return { r1: r, r2: r, c1: c, c2: c }; }
+        return null;
+    }
+    function openCtx(x, y, only) {
+        const q = targetRange();
+        if (!q || !active()) { whereEl.textContent = '先に行・列（セル）を選んでください。'; return; }
+        const nr = q.r2 - q.r1 + 1;
+        const ncol = q.c2 - q.c1 + 1;
+        const item = (act, label) => `<button data-ctx="${act}">${label}</button>`;
+        let html = '';
+        if (only !== 'col') html += item('row-above', `上に${nr}行挿入`) + item('row-below', `下に${nr}行挿入`) + item('row-del', `${nr}行を削除`);
+        if (!only) html += '<hr>';
+        if (only !== 'row') html += item('col-left', `左に${ncol}列挿入`) + item('col-right', `右に${ncol}列挿入`) + item('col-del', `${ncol}列を削除`);
+        ctxEl.innerHTML = html;
+        ctxEl.hidden = false;
+        ctxOpenedAt = Date.now();
+        const w = ctxEl.offsetWidth;
+        const h = ctxEl.offsetHeight;
+        ctxEl.style.left = `${Math.max(4, Math.min(x, window.innerWidth - w - 4))}px`;
+        ctxEl.style.top = `${Math.max(4, Math.min(y, window.innerHeight - h - 4))}px`;
+    }
+    let ctxOpenedAt = 0;
+    const closeCtx = () => { ctxEl.hidden = true; };
+    gridEl.addEventListener('contextmenu', (e) => {
+        const th = e.target.closest('th.pick');
+        const input = e.target.closest('textarea.cell[data-key]');
+        const s = active();
+        if (!s || (!th && !input)) return;
+        e.preventDefault();
+        const q = rect();
+        const inSel = (r, c) => q && r >= q.r1 && r <= q.r2 && c >= q.c1 && c <= q.c2;
+        if (th?.dataset.r != null) {
+            const r = Number(th.dataset.r);
+            if (!(q && r >= q.r1 && r <= q.r2 && q.c1 === 0)) setSel(r, 0, r, lineCount(s, 'col') - 1);
+            openCtx(e.clientX, e.clientY, 'row');
+        } else if (th?.dataset.c != null) {
+            const c = Number(th.dataset.c);
+            if (!(q && c >= q.c1 && c <= q.c2 && q.r1 === 0)) setSel(0, c, rowsOf(s) - 1, c);
+            openCtx(e.clientX, e.clientY, 'col');
+        } else {
+            const r = Number(input.dataset.r);
+            const c = Number(input.dataset.c);
+            if (!inSel(r, c)) { setSel(r, c, r, c); lastKey = input.dataset.key; }
+            openCtx(e.clientX, e.clientY, null);
+        }
+    });
+    ctxEl.addEventListener('click', (e) => {
+        const act = e.target.closest('[data-ctx]')?.dataset.ctx;
+        const s = active();
+        const q = targetRange();
+        closeCtx();
+        if (!act || !s || !q) return;
+        const nr = q.r2 - q.r1 + 1;
+        const ncol = q.c2 - q.c1 + 1;
+        if (act === 'row-above') insertLines(s, 'row', q.r1, nr);
+        else if (act === 'row-below') insertLines(s, 'row', q.r2 + 1, nr);
+        else if (act === 'row-del') deleteLines(s, 'row', q.r1, q.r2);
+        else if (act === 'col-left') insertLines(s, 'col', q.c1, ncol);
+        else if (act === 'col-right') insertLines(s, 'col', q.c2 + 1, ncol);
+        else if (act === 'col-del') deleteLines(s, 'col', q.c1, q.c2);
+    });
+    document.addEventListener('pointerdown', (e) => { if (!ctxEl.hidden && !ctxEl.contains(e.target)) closeCtx(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCtx(); });
+    // 開いた直後のスクロール（要素を見える位置へ寄せたときなど）では閉じない
+    window.addEventListener('scroll', () => { if (Date.now() - ctxOpenedAt > 300) closeCtx(); }, true);
+
     // 2つの行（列）の中身・揃え（列なら幅と、ムーブ表シートの役割）をまとめて入れ替える
     function swapLines(s, kind, a, b) {
         if (a === b) return;
@@ -514,6 +677,7 @@
         if (act === 'rows') write(`sheets/${s.id}`, { rows: Math.min((Number(s.rows) || DEFAULT_ROWS) + 10, MAX_ROWS) });
         else if (act === 'cols') write(`sheets/${s.id}`, { cols: Math.min((Number(s.cols) || DEFAULT_COLS) + 1, MAX_COLS) });
         else if (act === 'freeze') write(`sheets/${s.id}`, { freeze: !s.freeze });
+        else if (act === 'lines') { const b = e.target.closest('[data-act]').getBoundingClientRect(); openCtx(b.left, b.bottom + 4, null); }
         else if (act === 'wrap') write(`sheets/${s.id}`, { nowrap: s.nowrap ? null : true });
         else if (act && act.startsWith('al-')) {
             const v = act === 'al-l' ? null : act.slice(3);
@@ -570,7 +734,8 @@
     const colMapOf = (s) => ({ ...MOVE_COLS, ...(s.colMap || {}) });
     // ムーブ表シートで「いまの行」。未選択なら行動が空の最初のターン行
     function currentMoveRow(s) {
-        if (sel && sel.fr > 0) return sel.fr;
+        // 1行だけ選んでいるときはその行。列ごと選択などで複数行のときは、行動が空の最初のターン行
+        if (sel && sel.fr > 0 && sel.ar === sel.fr) return sel.fr;
         const cm = colMapOf(s);
         const cells = cellsOf(s);
         const actionCols = [cm.c0, cm.c1, cm.c2, cm.c3, cm.other];
@@ -585,10 +750,11 @@
     // item = { role: 'c0'..'c8' | 'summon' | 'common', label: 'アビ名', full: '[キャラ] アビ名' }
     function columnFor(s, role) {
         const cm = colMapOf(s);
-        if (/^c[0-3]$/.test(role) && cm[role] != null) return cm[role];
-        return cm.other;
+        if (/^c[0-3]$/.test(role) && cm[role] != null && cm[role] >= 0) return cm[role];
+        return cm.other >= 0 ? cm.other : 0;
     }
-    const textFor = (s, c, item) => (s.kind === 'move' && /^c[0-3]$/.test(item.role) && columnFor(s, item.role) === c ? item.label : item.full);
+    // そのキャラ自身の列に入るときだけ名前を省く
+    const textFor = (s, c, item) => (s.kind === 'move' && /^c[0-3]$/.test(item.role) && colMapOf(s)[item.role] === c ? item.label : item.full);
 
     function createSheet(def) {
         const list = sheetList();
@@ -676,7 +842,7 @@
         insertOmen(o) {
             const s = active();
             if (!s) { whereEl.textContent = '先にシートを選んでください。'; return; }
-            if (s.kind === 'move') {
+            if (s.kind === 'move' && colMapOf(s).omen >= 0) {
                 const r = currentMoveRow(s);
                 const c = colMapOf(s).omen;
                 const clear = o.clear && !/なし/.test(o.clear) ? `（${o.clear}）` : '';
@@ -733,7 +899,7 @@
             const s = active();
             if (!s || s.kind !== 'move') return;
             const cm = colMapOf(s);
-            setCells(s.id, [0, 1, 2, 3].map((i) => [`0_${cm['c' + i]}`, names[i] || '']));
+            setCells(s.id, [0, 1, 2, 3].filter((i) => cm['c' + i] >= 0).map((i) => [`0_${cm['c' + i]}`, names[i] || '']));
         },
         // 予兆一覧をまとめてシートにする
         createOmenSheet(raid) {
