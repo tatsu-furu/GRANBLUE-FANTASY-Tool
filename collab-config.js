@@ -14,4 +14,4 @@ window.GBF_FIREBASE_CONFIG = {
 
 // Googleスプレッドシートへ直接書き出すときの OAuth クライアント ID（Google Cloud コンソールで作成）。
 // null のままでも「コピーして新しいスプレッドシートを開く」は使える。
-window.GBF_GOOGLE_CLIENT_ID = null;
+window.GBF_GOOGLE_CLIENT_ID = '398862065248-7u8sdu1q75u6oj7p4r0uf0duh2bttq6a.apps.googleusercontent.com';
