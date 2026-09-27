@@ -1,7 +1,7 @@
 // 共有シート（簡易スプレッドシート）。
 // データは GBFCollab.currentStore() の sheets/ 以下に置く。ルーム中は全員で同期、ルーム外はこのブラウザ内だけ。
 //   sheets/{id} = { name, order, rows, cols, freeze, widths: {列: px}, cells: { '行_列': 文字列 }, align: { '行_列': 'c' | 'r' },
-//                   kind: 'move' | 'omen' | なし, colMap: { 役割: 列 } }
+//                   kind: 'move' | 'omen' | なし, colMap: { 役割: 列 }, nowrap: true で折り返さない }
 // セル単位で書き込むので、別々のセルなら同時に編集しても消し合わない。
 // kind: 'move' は「ムーブ表シート」。1行が1ターンで、キャラごとの列がある（colMap で役割→列）。
 // 編成パーツ（palette.js）から置いた行動は、その行のそのキャラの列に入る。
@@ -38,6 +38,7 @@
             <button class="btn" data-act="rows">行を追加 (+10)</button>
             <button class="btn" data-act="cols">列を追加</button>
             <button class="btn" data-act="freeze"></button>
+            <button class="btn" data-act="wrap"></button>
             <span class="sep"></span>
             <button class="btn" data-act="al-l" title="左揃え">左揃え</button>
             <button class="btn" data-act="al-c" title="中央揃え">中央</button>
@@ -52,11 +53,12 @@
         <p class="sheet-where"></p>
         <div class="sheet-wrap"><table class="sheet-grid"></table></div>
         <p class="sheet-move-hint" hidden>ムーブ表シート: 右の「編成パーツ」でアビをタップすると、選んでいる行（ターン）のそのキャラの列に入ります。セルへドラッグしても置けます。</p>
-        <p class="sheet-hint">Googleスプレッドシートなどでコピーした範囲は、左上にしたいセルを選んで貼り付け（Ctrl+V）できます。Enterで下、Tabで右へ移動します。Shift+クリック・Shift+矢印で範囲選択、列・行の番号をクリックで列・行ごと選択できます（揃え・Delete・コピーが範囲にかかります）。行番号・列の文字を別の行・列へドラッグすると、中身ごと入れ替わります。</p>`;
+        <p class="sheet-hint">Googleスプレッドシートなどでコピーした範囲は、左上にしたいセルを選んで貼り付け（Ctrl+V）できます。Enterで下、Tabで右へ移動、Alt+Enter（Macは Option+Enter）でセル内改行します。Shift+クリック・Shift+矢印で範囲選択、列・行の番号をクリックで列・行ごと選択できます（揃え・Delete・コピーが範囲にかかります）。行番号・列の文字を別の行・列へドラッグすると、中身ごと入れ替わります。</p>`;
     const tabsEl = panel.querySelector('.sheet-tabs');
     const gridEl = panel.querySelector('.sheet-grid');
     const whereEl = panel.querySelector('.sheet-where');
     const freezeBtn = panel.querySelector('[data-act="freeze"]');
+    const wrapBtn = panel.querySelector('[data-act="wrap"]');
     const moveHintEl = panel.querySelector('.sheet-move-hint');
 
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -103,6 +105,7 @@
         window.dispatchEvent(new CustomEvent('gbf-sheet-active', { detail: s ? { id: s.id, kind: s.kind || '', name: s.name } : null }));
         if (!s) { gridEl.innerHTML = '<tbody><tr><td class="sheet-empty">「＋」でシートを追加してください</td></tr></tbody>'; builtFor = ''; return; }
         freezeBtn.textContent = s.freeze ? '1行目の固定を解除' : '1行目を固定';
+        wrapBtn.textContent = s.nowrap ? '折り返す' : '折り返さない';
 
         const rows = Math.min(Number(s.rows) || DEFAULT_ROWS, MAX_ROWS);
         const cols = Math.min(Number(s.cols) || DEFAULT_COLS, MAX_COLS);
@@ -112,8 +115,10 @@
             buildGrid(s, rows, cols);
         }
         gridEl.classList.toggle('freeze', !!s.freeze);
+        gridEl.classList.toggle('nowrap', !!s.nowrap);
         applyWidths(s, cols);
         fillValues(s);
+        autosizeAll();
         renderSelection();
         renderPresence();
     }
@@ -125,11 +130,11 @@
         html += '</tr></thead><tbody>';
         for (let r = 0; r < rows; r++) {
             html += `<tr><th class="row-head pick" data-r="${r}" draggable="true" title="ドラッグで行を入れ替え">${r + 1}</th>`;
-            for (let c = 0; c < cols; c++) html += `<td><input data-key="${r}_${c}" data-r="${r}" data-c="${c}" aria-label="${colName(c)}${r + 1}"></td>`;
+            for (let c = 0; c < cols; c++) html += `<td><textarea class="cell" rows="1" spellcheck="false" data-key="${r}_${c}" data-r="${r}" data-c="${c}" aria-label="${colName(c)}${r + 1}"></textarea></td>`;
             html += '</tr>';
         }
         gridEl.innerHTML = html + '</tbody>';
-        if (focused) gridEl.querySelector(`input[data-key="${focused}"]`)?.focus();
+        if (focused) gridEl.querySelector(`textarea.cell[data-key="${focused}"]`)?.focus();
     }
 
     function applyWidths(s, cols) {
@@ -143,7 +148,7 @@
     function fillValues(s) {
         const cells = cellsOf(s);
         const align = s.align || {};
-        gridEl.querySelectorAll('input[data-key]').forEach((input) => {
+        gridEl.querySelectorAll('textarea.cell[data-key]').forEach((input) => {
             const v = cells[input.dataset.key] ?? '';
             if (input !== document.activeElement && input.value !== v) input.value = v;
             const a = align[input.dataset.key];
@@ -152,6 +157,26 @@
             td.classList.toggle('al-r', a === 'r');
         });
     }
+
+    // ---------- 自動折り返し：行の高さを中身に合わせる ----------
+    // 1行の中で一番高いセルに、その行の全セルの高さをそろえる
+    function autosizeRows(rowEls) {
+        const wrap = !gridEl.classList.contains('nowrap');
+        const rows = [...rowEls];
+        const all = rows.flatMap((tr) => [...tr.querySelectorAll('textarea.cell')]);
+        all.forEach((t) => { t.style.height = ''; });
+        if (!wrap) return;
+        const heights = rows.map((tr) => Math.max(0, ...[...tr.querySelectorAll('textarea.cell')].map((t) => t.scrollHeight)));
+        rows.forEach((tr, i) => {
+            if (!heights[i]) return;
+            tr.querySelectorAll('textarea.cell').forEach((t) => { if (heights[i] > t.clientHeight + 1) t.style.height = `${heights[i]}px`; });
+        });
+    }
+    const autosizeAll = () => autosizeRows(gridEl.querySelectorAll('tbody tr'));
+    const autosizeRowOf = (el) => { const tr = el?.closest('tr'); if (tr) autosizeRows([tr]); };
+    window.addEventListener('resize', () => { clearTimeout(autosizeAll.t); autosizeAll.t = setTimeout(autosizeAll, 150); });
+    // 隠れている間は高さを測れないので、シートタブを開いたときに測り直す
+    window.addEventListener('gbf-tab', (e) => { if (e.detail === 'sheet') requestAnimationFrame(autosizeAll); });
 
     // ---------- 選択範囲 ----------
     const rect = () => sel && {
@@ -171,7 +196,7 @@
         const multi = isMulti();
         const s0 = active();
         const moveRow = s0 && s0.kind === 'move' && sel ? sel.fr : -1;
-        gridEl.querySelectorAll('input[data-key]').forEach((input) => {
+        gridEl.querySelectorAll('textarea.cell[data-key]').forEach((input) => {
             const r = Number(input.dataset.r);
             const c = Number(input.dataset.c);
             const td = input.parentElement;
@@ -193,7 +218,7 @@
         const presence = GBFCollab.presence || {};
         for (const [id, p] of Object.entries(presence)) {
             if (!p || id === GBFCollab.clientId || p.sheet !== activeId || !p.cell) continue;
-            const td = gridEl.querySelector(`input[data-key="${p.cell}"]`)?.parentElement;
+            const td = gridEl.querySelector(`textarea.cell[data-key="${p.cell}"]`)?.parentElement;
             if (!td) continue;
             td.classList.add('peer');
             td.style.setProperty('--peer', p.color || '#888');
@@ -202,7 +227,7 @@
     }
 
     // ---------- 入力 ----------
-    const inputAt = (r, c) => gridEl.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
+    const inputAt = (r, c) => gridEl.querySelector(`textarea.cell[data-r="${r}"][data-c="${c}"]`);
     function move(input, dr, dc, extend = false) {
         const next = inputAt(Number(input.dataset.r) + dr, Number(input.dataset.c) + dc);
         if (!next) return;
@@ -214,20 +239,20 @@
     }
 
     gridEl.addEventListener('input', (e) => {
-        const input = e.target.closest('input[data-key]');
+        const input = e.target.closest('textarea.cell[data-key]');
         const s = active();
-        if (input && s) setCells(s.id, [[input.dataset.key, input.value]]);
+        if (input && s) { setCells(s.id, [[input.dataset.key, input.value]]); autosizeRowOf(input); }
     });
     let extending = false; // Shift で範囲を広げている途中
     gridEl.addEventListener('mousedown', (e) => {
-        const input = e.target.closest('input[data-key]');
+        const input = e.target.closest('textarea.cell[data-key]');
         if (input && e.shiftKey && sel) {
             e.preventDefault();
             setSel(sel.ar, sel.ac, Number(input.dataset.r), Number(input.dataset.c));
         }
     });
     gridEl.addEventListener('focusin', (e) => {
-        const input = e.target.closest('input[data-key]');
+        const input = e.target.closest('textarea.cell[data-key]');
         if (!input) return;
         lastKey = input.dataset.key;
         if (!extending) setSel(Number(input.dataset.r), Number(input.dataset.c), Number(input.dataset.r), Number(input.dataset.c));
@@ -236,7 +261,7 @@
         if (key !== lastAnnounced) { lastAnnounced = key; GBFCollab.announce({ sheet: activeId, cell: input.dataset.key }); }
     });
     gridEl.addEventListener('keydown', (e) => {
-        const input = e.target.closest('input[data-key]');
+        const input = e.target.closest('textarea.cell[data-key]');
         if (!input || e.isComposing || e.keyCode === 229) return;
         const atStart = input.selectionStart === 0 && input.selectionEnd === 0;
         const atEnd = input.selectionStart === input.value.length;
@@ -245,6 +270,13 @@
             e.preventDefault();
             const d = { ArrowDown: [1, 0], ArrowUp: [-1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];
             move(input, d[0], d[1], true);
+        } else if (e.key === 'Enter' && e.altKey) {
+            // セル内で改行（表計算ソフトと同じ）
+            e.preventDefault();
+            const { selectionStart: a, selectionEnd: b, value } = input;
+            input.value = value.slice(0, a) + '\n' + value.slice(b);
+            input.selectionStart = input.selectionEnd = a + 1;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
         } else if (e.key === 'Enter') { e.preventDefault(); move(input, e.shiftKey ? -1 : 1, 0); }
         else if (e.key === 'ArrowDown') { e.preventDefault(); move(input, 1, 0); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); move(input, -1, 0); }
@@ -254,7 +286,7 @@
             // 範囲選択中は範囲をまとめて消す
             e.preventDefault();
             const keys = selectedKeys();
-            keys.forEach((k) => { const el = gridEl.querySelector(`input[data-key="${k}"]`); if (el) el.value = ''; });
+            keys.forEach((k) => { const el = gridEl.querySelector(`textarea.cell[data-key="${k}"]`); if (el) el.value = ''; });
             setCells(s.id, keys.map((k) => [k, '']));
         } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && isMulti() && s) {
             e.preventDefault();
@@ -286,7 +318,7 @@
         return rows;
     }
     gridEl.addEventListener('paste', (e) => {
-        const input = e.target.closest('input[data-key]');
+        const input = e.target.closest('textarea.cell[data-key]');
         const s = active();
         const text = e.clipboardData?.getData('text/plain') || '';
         if (!input || !s || !/[\t\n]/.test(text.replace(/\n$/, ''))) return; // 1セル分は普通に貼る
@@ -320,6 +352,7 @@
             const c = head.parentElement.dataset.c;
             if (head.offsetWidth !== start) head.parentElement.dataset.justResized = '1';
             if (s && head.offsetWidth !== start) write(`sheets/${s.id}/widths`, { [c]: Math.max(40, Math.min(600, head.offsetWidth)) });
+            autosizeAll();
         };
         window.addEventListener('pointerup', done);
     });
@@ -344,7 +377,7 @@
     const clearDrop = () => { dropTd?.classList.remove('drop'); dropTd = null; };
     gridEl.addEventListener('dragover', (e) => {
         if (!e.dataTransfer?.types?.includes(TOKEN_TYPE)) return;
-        const input = e.target.closest?.('input[data-key]');
+        const input = e.target.closest?.('textarea.cell[data-key]');
         if (!input) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
@@ -353,7 +386,7 @@
     gridEl.addEventListener('dragleave', (e) => { if (!gridEl.contains(e.relatedTarget)) clearDrop(); });
     gridEl.addEventListener('drop', (e) => {
         const raw = e.dataTransfer?.getData(TOKEN_TYPE);
-        const input = e.target.closest?.('input[data-key]');
+        const input = e.target.closest?.('textarea.cell[data-key]');
         clearDrop();
         if (!raw || !input) return;
         e.preventDefault();
@@ -376,7 +409,7 @@
     // ドロップ先：行なら行番号かその行のセル、列なら列見出しかその列のセル
     function swapHeadAt(e) {
         const types = e.dataTransfer?.types || [];
-        const input = e.target.closest?.('input[data-key]');
+        const input = e.target.closest?.('textarea.cell[data-key]');
         if (types.includes(ROW_TYPE)) {
             const r = e.target.closest?.('th.row-head')?.dataset.r ?? input?.dataset.r;
             return r != null ? gridEl.querySelector(`th.row-head[data-r="${r}"]`) : null;
@@ -438,7 +471,7 @@
         // 画面は先に入れ替えておく（書き込みの反映待ちで一瞬戻らないように）
         for (const [k, v] of Object.entries(updates)) {
             if (!k.startsWith('cells/')) continue;
-            const el = gridEl.querySelector(`input[data-key="${k.slice(6)}"]`);
+            const el = gridEl.querySelector(`textarea.cell[data-key="${k.slice(6)}"]`);
             if (el) el.value = v ?? '';
         }
         write(`sheets/${s.id}`, updates);
@@ -481,6 +514,7 @@
         if (act === 'rows') write(`sheets/${s.id}`, { rows: Math.min((Number(s.rows) || DEFAULT_ROWS) + 10, MAX_ROWS) });
         else if (act === 'cols') write(`sheets/${s.id}`, { cols: Math.min((Number(s.cols) || DEFAULT_COLS) + 1, MAX_COLS) });
         else if (act === 'freeze') write(`sheets/${s.id}`, { freeze: !s.freeze });
+        else if (act === 'wrap') write(`sheets/${s.id}`, { nowrap: s.nowrap ? null : true });
         else if (act && act.startsWith('al-')) {
             const v = act === 'al-l' ? null : act.slice(3);
             const keys = selectedKeys();
@@ -526,10 +560,10 @@
     // ---------- 外から使う入口（編成パーツ・予兆パネル） ----------
     function appendCell(s, r, c, text, sep) {
         const key = `${r}_${c}`;
-        const input = gridEl.querySelector(`input[data-key="${key}"]`);
+        const input = gridEl.querySelector(`textarea.cell[data-key="${key}"]`);
         const cur = input && input === document.activeElement ? input.value : (cellsOf(s)[key] || '');
         const next = cur ? `${cur}${sep}${text}` : text;
-        if (input) input.value = next;
+        if (input) { input.value = next; autosizeRowOf(input); }
         return setCells(s.id, [[key, next]]);
     }
     const rowsOf = (s) => Math.min(Number(s.rows) || DEFAULT_ROWS, MAX_ROWS);
@@ -587,6 +621,7 @@
             name: s.name || 'シート',
             kind: s.kind || '',
             freeze: !!s.freeze,
+            wrap: !s.nowrap,
             widths: Array.from({ length: lastC + 1 }, (_, c) => Number(widths[c]) || COL_W),
             grid,
         };
