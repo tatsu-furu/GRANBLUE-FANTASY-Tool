@@ -186,7 +186,12 @@
             subCount: Number(s.subCount) || 2,
             overallMemo: s.overallMemo || '',
             weaponImageBase64: s.weaponImageBase64 || null,
+            raidTemplate: s.raidTemplate || '',
+            memos: {},
         };
+        for (const [id, m] of Object.entries(s.memos || {})) {
+            if (m && typeof m === 'object') setup.memos[id] = { name: m.name || '', text: m.text || '', order: Number(m.order) || 0 };
+        }
         let turns = toArray(v && v.turns).filter(Boolean).map((t, i) => ({
             turnNumber: Number(t.turnNumber) || i + 1,
             branches: toArray(t.branches).filter(Boolean).map((b) => ({
@@ -441,6 +446,7 @@
         onStoreChange,
         announce,
         get inRoom() { return !!state.room; },
+        get myName() { return nameCache; },
         get clientId() { return state.clientId; },
         get presence() { return state.presence; },
         // テスト・デバッグ用
