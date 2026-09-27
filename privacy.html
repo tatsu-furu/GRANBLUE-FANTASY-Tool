@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>プライバシーポリシー | GRANBLUE FANTASY Tool</title>
+    <style>
+        :root {
+            --bg: #111115; --surface: #18181e; --border: #2c2c38;
+            --text: #d8d5cc; --text-2: #9a968f; --accent: #c09030;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif; line-height: 1.8; }
+        main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+        h1 { font-size: 1.4em; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+        h2 { font-size: 1.05em; margin-top: 28px; color: var(--text); }
+        p, li { color: var(--text-2); font-size: 0.95em; }
+        ul { padding-left: 1.3em; }
+        a { color: var(--accent); }
+        .updated { font-size: 0.85em; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>プライバシーポリシー</h1>
+    <p class="updated">最終更新日：2026年9月27日</p>
+    <p>GRANBLUE FANTASY Tool（<a href="https://granbluefantasy.tools.alt4l.dev/">granbluefantasy.tools.alt4l.dev</a>、以下「本サイト」）で扱う情報について説明します。本サイトは個人が運営するファン制作のツールで、株式会社Cygames とは関係ありません。</p>
+
+    <h2>1. ブラウザ内に保存する情報</h2>
+    <p>入力した編成・ムーブ・シート・設定などは、お使いのブラウザ（localStorage）に保存されます。これらは運営者のサーバーには送信されず、ブラウザのデータを消去すると削除されます。</p>
+
+    <h2>2. 共同編集（ルーム）で保存する情報</h2>
+    <p>ムーブ表ツールでルームを作成・参加した場合、次の情報を Google の Firebase Realtime Database に保存し、同じルームの参加者と共有します。</p>
+    <ul>
+        <li>ルーム名、表示名（任意に入力したもの）</li>
+        <li>編成（キャラ名・アビ名・召喚石・アイコン画像など）、共有シート、メモ</li>
+        <li>スクショ置き場にアップロードした画像（ブラウザ内で縮小してから保存）</li>
+        <li>参加中であることを示す一時的な情報（ページを閉じると消えます）</li>
+    </ul>
+    <p>ルームの内容は、ルームのリンクを知っている人なら誰でも閲覧・編集できます。個人情報や他人に見られて困る情報は入力しないでください。保存された内容は自動では削除されません。削除を希望する場合は下記の連絡先までご連絡ください。</p>
+
+    <h2>3. Googleアカウントの利用（スプレッドシートへの書き出し）</h2>
+    <p>共有シートの「Googleに直接書き出す」を使う場合に限り、Googleアカウントでのログインを求めます。</p>
+    <ul>
+        <li>要求する権限は <code>https://www.googleapis.com/auth/drive.file</code>（本サイトが作成したファイルにのみアクセスできる権限）だけです。お使いの Google ドライブ上のほかのファイルを閲覧・変更することはできません。</li>
+        <li>この権限は、共有シートの内容から新しい Google スプレッドシートを作成するためだけに使います。</li>
+        <li>ログインで得られるアクセストークンはブラウザのメモリ内でのみ使用し、運営者のサーバーやデータベースには保存・送信しません。ページを閉じると破棄されます。</li>
+        <li>Google から受け取った情報を、広告目的で使用したり、第三者に販売・提供したりしません。本サイトによる Google API から受け取った情報の使用および他のアプリへの転送は、<a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API サービスのユーザーデータに関するポリシー</a>（限定的使用の要件を含む）に従います。</li>
+    </ul>
+    <p>アクセスの許可は、<a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google アカウントの設定</a>からいつでも取り消せます。</p>
+
+    <h2>4. 外部サービス</h2>
+    <p>本サイトは機能の提供のため、次の外部サービスを読み込むことがあります。これらのサービスでは、各社のポリシーに従って通信情報（IPアドレスなど）が扱われます。</p>
+    <ul>
+        <li>Google（Firebase、Google Identity Services、Google Sheets API）</li>
+        <li>jsDelivr（ダメージ計算機の文字認識用データの配信）</li>
+        <li>gbfdata.com（古戦場ツールのボーダー情報の取得）</li>
+        <li>Ko-fi（支援ボタン）</li>
+    </ul>
+    <p>ダメージ計算機のスクショ読み取りはブラウザ内で行い、画像を外部に送信しません。本サイトはアクセス解析や広告のための Cookie を使用していません。</p>
+
+    <h2>5. お問い合わせ</h2>
+    <p>本ポリシーや保存された情報の削除についてのお問い合わせは、<a href="mailto:tatsuki.furukawa@alt4l.dev">tatsuki.furukawa@alt4l.dev</a> までご連絡ください。</p>
+
+    <h2>6. 変更</h2>
+    <p>本ポリシーは必要に応じて変更することがあります。変更した場合は本ページで告知します。</p>
+
+    <p style="margin-top:32px;"><a href="./">← トップへ戻る</a></p>
+</main>
+</body>
+</html>
