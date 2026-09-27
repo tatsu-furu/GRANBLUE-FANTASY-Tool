@@ -11,3 +11,7 @@ window.GBF_FIREBASE_CONFIG = {
     messagingSenderId: '379423081933',
     appId: '1:379423081933:web:74e99262f71f85f58cf084',
 };
+
+// Googleスプレッドシートへ直接書き出すときの OAuth クライアント ID（Google Cloud コンソールで作成）。
+// null のままでも「コピーして新しいスプレッドシートを開く」は使える。
+window.GBF_GOOGLE_CLIENT_ID = null;
