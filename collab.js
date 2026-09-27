@@ -327,6 +327,8 @@
                 await room.set('meta', { createdAt: Date.now(), createdBy: myName(), name: name.slice(0, 40) });
                 await room.set('move', clone(move));
                 if (carrySheets) await room.set('sheets', carrySheets);
+                // 空で作ったときも、開いてすぐ書けるよう空のシートを1枚置いておく
+                else await room.set('sheets', { [Math.random().toString(36).slice(2, 10)]: { name: 'シート1', order: 1, rows: 30, cols: 8, freeze: true } });
             } else {
                 const meta = await room.get('meta');
                 if (!meta) { room.close(); setStatus('error', 'ルームが見つかりません（リンクを確認してください）'); if (!state.room) clearHash(); return; }

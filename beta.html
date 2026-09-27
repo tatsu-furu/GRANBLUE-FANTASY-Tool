@@ -111,6 +111,16 @@
         .sheet-grid .grip { cursor: grab; padding: 0 6px; }
         .sheet-grid th.row-head[draggable] { cursor: grab; }
         .sheet-grid th.swap-target { background: var(--info-dim); color: var(--info); box-shadow: inset 0 0 0 2px var(--info); }
+        .sheet-grid th.row-head.ins-before { box-shadow: inset 0 3px 0 var(--info); }
+        .sheet-grid th.row-head.ins-after { box-shadow: inset 0 -3px 0 var(--info); }
+        .sheet-grid th[data-c].ins-before { box-shadow: inset 3px 0 0 var(--info); }
+        .sheet-grid th[data-c].ins-after { box-shadow: inset -3px 0 0 var(--info); }
+        .sheet-ctx { position: fixed; z-index: 150; background: var(--surface-2); border: 1px solid var(--border-hi); border-radius: 4px; padding: 4px; min-width: 170px; box-shadow: 0 6px 18px rgba(0,0,0,0.4); display: grid; }
+        .sheet-ctx[hidden] { display: none; }
+        .sheet-ctx button { background: none; border: none; color: var(--text); text-align: left; padding: 7px 12px; font: inherit; font-size: 0.85em; cursor: pointer; border-radius: 3px; }
+        .sheet-ctx button:hover { background: var(--accent-dim); color: var(--accent); }
+        .sheet-ctx button[data-ctx$="-del"] { color: var(--danger-hi); }
+        .sheet-ctx hr { border: none; border-top: 1px solid var(--border); margin: 3px 0; }
         /* Googleスプレッドシート書き出しメニュー */
         .gs-menu { background: var(--surface); border: 1px solid var(--border-hi); border-radius: 4px; padding: 10px; margin: 0 0 8px; display: grid; gap: 6px; max-width: 460px; }
         .gs-menu[hidden] { display: none; }
