@@ -49,6 +49,38 @@
         .sheet-grid td.peer { box-shadow: inset 0 0 0 2px var(--peer); }
         .sheet-grid td.peer::after { content: attr(data-peer); position: absolute; right: 0; top: -1.3em; background: var(--peer); color: #111; font-size: 0.7em; padding: 0 4px; border-radius: 2px; white-space: nowrap; pointer-events: none; z-index: 4; }
         .sheet-empty { padding: 20px; color: var(--text-muted); }
+        .sheet-grid td.sel { background: var(--accent-dim); }
+        .sheet-grid td.al-c input { text-align: center; }
+        .sheet-grid td.al-r input { text-align: right; }
+        .sheet-grid th.pick { cursor: pointer; }
+        .sheet-grid th.pick:hover { color: var(--accent); }
+        .sheet-toolbar .sep { width: 1px; background: var(--border); margin: 0 2px; }
+        .sheet-toolbar .btn.on { border-color: var(--accent); color: var(--accent); }
+        /* 人ごとのメモ */
+        .memo-label { font-size: 0.82em; color: var(--text-muted); }
+        .person-memo { margin-top: 10px; border-left: 3px solid var(--accent-lo); padding-left: 8px; }
+        .person-memo-head { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+        .person-memo-name { flex: 0 1 12em; min-width: 0; background: var(--bg); color: var(--accent); font-weight: 700; border: 1px solid var(--border); border-radius: 3px; padding: 4px 6px; }
+        .person-memo-name::placeholder { color: var(--text-faint); }
+        .person-memo-del { padding: 3px 8px; font-size: 0.8em; }
+        .person-memo-text { min-height: 60px; }
+        /* 右側の予兆パネル */
+        :root { --side-w: 340px; }
+        #side-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(var(--side-w), 88vw); background: var(--surface); border-left: 1px solid var(--border); box-shadow: -6px 0 18px rgba(0,0,0,0.35); transform: translateX(100%); transition: transform 0.2s ease; z-index: 60; display: flex; flex-direction: column; visibility: hidden; }
+        body.side-open #side-panel { transform: none; visibility: visible; }
+        .side-resize { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: ew-resize; }
+        .side-head { padding: 10px 12px 8px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+        .side-title-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 700; color: var(--accent); font-size: 0.9em; }
+        .side-close { background: none; border: none; color: var(--text-muted); font-size: 1.1em; cursor: pointer; padding: 2px 6px; }
+        #side-raid-select { width: 100%; margin-top: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 5px; }
+        .side-hint { color: var(--text-muted); font-size: 0.76em; margin-top: 6px; }
+        .side-body { flex: 1; overflow-y: auto; padding: 8px 10px; }
+        .side-toggle { position: fixed; right: 0; top: 45%; z-index: 59; writing-mode: vertical-rl; background: var(--accent-lo); color: #1a1400; border: 1px solid var(--accent); border-right: none; border-radius: 4px 0 0 4px; padding: 12px 5px; font: inherit; font-weight: 700; font-size: 0.82em; cursor: pointer; letter-spacing: 0.1em; }
+        body.side-open .side-toggle { display: none; }
+        @media (min-width: 1000px) {
+            body { transition: padding-right 0.2s ease; }
+            body.side-open { padding-right: calc(var(--side-w) + 12px); }
+        }
     </style>
 </head>
 <body>
@@ -122,7 +154,9 @@
                     <li><strong>ルームを作成</strong>: 上の「ルームを作成」を押してリンクを送ると、編成・ムーブ表・共有シートを同時に編集できます</li>
                     <li>今いるターンや選択中のキャラは人ごとに別々です。同じターンに同時に行動を入れると片方が消えることがあります</li>
                     <li>他の人の編集が入ると、Undo の履歴はそこで区切られます</li>
-                    <li><strong>共有シート</strong>: スプレッドシートからコピーした範囲をそのまま貼り付けられます。「表をコピー」で逆に持ち出せます</li>
+                    <li><strong>共有シート</strong>: スプレッドシートからコピーした範囲をそのまま貼り付けられます。「表をコピー」で逆に持ち出せます。Shift+クリックや列・行番号のクリックで範囲を選んで、左・中央・右揃えを変えられます</li>
+                    <li><strong>全体メモ</strong>: 「＋ 自分のメモ欄を追加」で、書く人ごとの欄が作れます（同時に書いても消し合いません）</li>
+                    <li><strong>予兆一覧</strong>: 画面右端の「予兆一覧」で右側に開きます。開いたまま編集でき、左端をドラッグで幅を変えられます。行クリックでターンメモ（シートでは選択中のセル）に挿入します</li>
                     <li>リンクを知っている人は誰でも閲覧・編集できます</li>
                 </ul>
 
@@ -177,7 +211,10 @@
 
             <fieldset>
                 <legend>ムーブ全体メモ</legend>
+                <label for="overall-memo-input" class="memo-label">共通メモ</label>
                 <textarea id="overall-memo-input" placeholder="ムーブの前提条件、討伐時間目安、注意点など..."></textarea>
+                <div id="person-memos"></div>
+                <button id="add-person-memo-btn" class="btn" type="button" style="margin-top:8px;">＋ 自分のメモ欄を追加</button>
             </fieldset>
 
             <fieldset>
@@ -236,7 +273,7 @@
                         <option value="versacia">ヴェルサシア</option>
                     </select>
                 </div>
-                <small style="color:#888; display:block; margin-top:6px;">ムーブ入力画面に予兆・解除条件の参照パネルが表示されます</small>
+                <small style="color:#888; display:block; margin-top:6px;">右側の「予兆一覧」パネルに予兆・解除条件が表示されます（ムーブ表・共有シートどちらでも開けます）</small>
             </fieldset>
 
             <button id="setup-complete-btn" class="btn">ムーブ入力画面へ</button>
@@ -374,20 +411,29 @@
                     </div>
                 </div>
             </div>
-            <div id="raid-info-panel" style="display:none; background:#1a1d23; border:1px solid #ffb400; border-radius:6px; overflow:hidden;">
-                <div style="padding:8px 10px; border-bottom:1px solid #363a44; background:#21242a; position:sticky; top:0; z-index:1;">
-                    <div style="font-weight:bold; color:#c9a24a; font-size:0.88em;"><span id="raid-panel-title">予兆一覧</span></div>
-                    <div style="color:#888; font-size:0.76em; margin-top:1px;">行クリックでメモ挿入</div>
-                    <div id="raid-phase-tabs" style="display:flex; gap:4px; flex-wrap:wrap; margin-top:8px;"></div>
-                </div>
-                <div style="padding:8px 10px; overflow-y:auto; max-height:calc(100vh - 200px);">
-                    <div id="raid-notes" style="font-size:0.78em; color:#aaa; margin-bottom:8px; padding:6px; background:#0d0f14; border-radius:3px; line-height:1.6;"></div>
-                    <div id="raid-phase-content" style="font-size:0.8em;"></div>
-                </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- 右側の予兆パネル（横にスライド。開いたまま左側を編集できる） -->
+    <button id="side-toggle" class="side-toggle" aria-controls="side-panel" aria-expanded="false">予兆一覧</button>
+    <aside id="side-panel" aria-label="予兆一覧">
+        <div class="side-resize" title="ドラッグで幅を変更"></div>
+        <div class="side-head">
+            <div class="side-title-row">
+                <span id="raid-panel-title">予兆一覧</span>
+                <button id="side-close" class="side-close" aria-label="閉じる">✕</button>
             </div>
+            <select id="side-raid-select" aria-label="レイドを選択"></select>
+            <div class="side-hint" id="raid-hint">行クリックでメモ挿入</div>
+            <div id="raid-phase-tabs" style="display:flex; gap:4px; flex-wrap:wrap; margin-top:8px;"></div>
         </div>
+        <div id="raid-info-panel" class="side-body">
+            <div id="raid-notes" style="font-size:0.78em; color:#aaa; margin-bottom:8px; padding:6px; background:#0d0f14; border-radius:3px; line-height:1.6;"></div>
+            <div id="raid-phase-content" style="font-size:0.8em;"></div>
         </div>
-    </div> <script>
+    </aside>
+    <script>
         // --- 定数・変数 ---
         const STORAGE_KEY_SLOTS = 'gbfMoveMakerV5_slots';
         const STORAGE_KEY_PREFIX = 'gbfMoveMakerV5_slot_';
@@ -404,7 +450,9 @@
                 summons: ["", "", "", "", "", ""],
                 subCount: 2,
                 overallMemo: "",
-                weaponImageBase64: null
+                weaponImageBase64: null,
+                raidTemplate: "",
+                memos: {}
             },
             state: { currentTurn: 1, selectedCharIndex: 0, turns: [ { turnNumber: 1, branches: [ { actions: [], memo: "" } ] } ], isBranchingMode: false, currentBranchIndex: 0, totalBranchesInTurn: 1 },
             slotName: ""
@@ -643,26 +691,41 @@
         let currentRaidTemplate = null;
         let currentRaidPhaseIndex = 0;
 
+        const raidSelects = () => [document.getElementById('raid-template-select'), document.getElementById('side-raid-select')].filter(Boolean);
+
         function initRaidPanel() {
-            const sel = document.getElementById('raid-template-select');
-            if (!sel) return;
-            sel.addEventListener('change', () => {
-                currentRaidTemplate = RAID_TEMPLATES[sel.value] || null;
-                currentRaidPhaseIndex = 0;
-            });
+            const [setupSel, sideSel] = raidSelects();
+            if (sideSel && setupSel) sideSel.innerHTML = setupSel.innerHTML;
+            raidSelects().forEach(sel => sel.addEventListener('change', () => {
+                setRaidTemplate(sel.value);
+                currentWorkData.setup.raidTemplate = sel.value;
+                saveCurrentWork();
+                if (sel.value) openSidePanel(true);
+            }));
+        }
+
+        // レイドテンプレを切り替える（保存はしない）
+        function setRaidTemplate(key) {
+            const next = RAID_TEMPLATES[key] || null;
+            if (next !== currentRaidTemplate) currentRaidPhaseIndex = 0;
+            currentRaidTemplate = next;
+            raidSelects().forEach(sel => { sel.value = next ? key : ''; });
+            showRaidPanel();
         }
 
         function showRaidPanel() {
             const panel = document.getElementById('raid-info-panel');
             if (!panel) return;
-            const grid = document.querySelector('.move-grid');
             if (!currentRaidTemplate) {
-                panel.style.display = 'none';
-                grid?.classList.remove('raid-active');
+                document.getElementById('raid-panel-title').textContent = '予兆一覧';
+                document.getElementById('raid-hint').textContent = '上でレイドを選ぶと、予兆と解除条件が出ます';
+                document.getElementById('raid-phase-tabs').innerHTML = '';
+                document.getElementById('raid-notes').style.display = 'none';
+                document.getElementById('raid-phase-content').innerHTML = '';
                 return;
             }
-            panel.style.display = 'block';
-            grid?.classList.add('raid-active');
+            document.getElementById('raid-notes').style.display = '';
+            document.getElementById('raid-hint').textContent = document.body.dataset.tab === 'sheet' ? '行クリックで選択中のセルに挿入' : '行クリックでターンメモに挿入';
             document.getElementById('raid-panel-title').textContent = currentRaidTemplate.name + ' 予兆一覧';
             const notesEl = document.getElementById('raid-notes');
             notesEl.innerHTML = '<strong style="color:#c9a24a;">基本情報:</strong> HP ' + currentRaidTemplate.hp + ' / 制限 ' + currentRaidTemplate.timeLimit + ' / ' + currentRaidTemplate.ct + '<br>'
@@ -725,6 +788,7 @@
             contentEl.querySelectorAll('.raid-row').forEach(row => {
                 row.addEventListener('click', () => {
                     const memo = row.dataset.memo;
+                    if (document.body.dataset.tab === 'sheet') { window.GBFSheet?.insertText(memo); return; }
                     const ta = document.getElementById('turn-memo-input');
                     if (ta) {
                         ta.value = ta.value ? ta.value + '\n' + memo : memo;
@@ -870,6 +934,8 @@
             subMemberCountSelect.value = currentWorkData.setup.subCount;
             saveSlotNameInput.value = currentWorkData.slotName;
             overallMemoInput.value = currentWorkData.setup.overallMemo;
+            renderPersonMemos();
+            setRaidTemplate(currentWorkData.setup.raidTemplate || '');
             updateImagePreview(currentWorkData.setup.weaponImageBase64);
         }
         function loadStateDataToDOM() {
@@ -1174,6 +1240,49 @@
             });
 
         overallMemoInput.addEventListener('input', saveCurrentWork);
+
+        // --- 人ごとのメモ欄 ---
+        // setup.memos = { id: { name, text, order } }。id ごとに持つので、同時に追加しても消し合わない
+        const personMemosEl = document.getElementById('person-memos');
+        const memoList = () => Object.entries(currentWorkData.setup.memos || {})
+            .filter(([, m]) => m && typeof m === 'object')
+            .sort(([a, x], [b, y]) => (x.order || 0) - (y.order || 0) || a.localeCompare(b));
+        function renderPersonMemos() {
+            const list = memoList();
+            const ids = list.map(([id]) => id);
+            // 入力中の欄を消さないよう、欄は id ごとに使い回す
+            personMemosEl.querySelectorAll('.person-memo').forEach(el => { if (!ids.includes(el.dataset.id)) el.remove(); });
+            list.forEach(([id, m], i) => {
+                let el = personMemosEl.querySelector(`.person-memo[data-id="${id}"]`);
+                if (!el) {
+                    el = document.createElement('div');
+                    el.className = 'person-memo';
+                    el.dataset.id = id;
+                    el.innerHTML = '<div class="person-memo-head"><input class="person-memo-name" maxlength="16" aria-label="書いた人"><button class="btn reset-btn person-memo-del" type="button" title="このメモ欄を削除">✕</button></div><textarea class="person-memo-text" placeholder="担当・動き方など"></textarea>';
+                    el.querySelector('.person-memo-name').addEventListener('input', e => { const mm = currentWorkData.setup.memos?.[id]; if (mm) { mm.name = e.target.value; saveCurrentWork(); } });
+                    el.querySelector('.person-memo-text').addEventListener('input', e => { const mm = currentWorkData.setup.memos?.[id]; if (mm) { mm.text = e.target.value; saveCurrentWork(); } });
+                    el.querySelector('.person-memo-del').addEventListener('click', () => {
+                        const mm = currentWorkData.setup.memos?.[id];
+                        if (mm && (mm.text || '').trim() && !confirm(`「${mm.name || 'ななし'}」のメモ欄を削除しますか？`)) return;
+                        delete currentWorkData.setup.memos[id];
+                        saveCurrentWork(); renderPersonMemos();
+                    });
+                }
+                if (personMemosEl.children[i] !== el) personMemosEl.insertBefore(el, personMemosEl.children[i] || null);
+                const nameEl = el.querySelector('.person-memo-name');
+                const textEl = el.querySelector('.person-memo-text');
+                if (document.activeElement !== nameEl && nameEl.value !== (m.name || '')) nameEl.value = m.name || '';
+                if (document.activeElement !== textEl && textEl.value !== (m.text || '')) textEl.value = m.text || '';
+            });
+        }
+        document.getElementById('add-person-memo-btn').addEventListener('click', () => {
+            if (!currentWorkData.setup.memos) currentWorkData.setup.memos = {};
+            const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+            const order = Math.max(0, ...memoList().map(([, m]) => m.order || 0)) + 1;
+            currentWorkData.setup.memos[id] = { name: window.GBFCollab?.myName || '', text: '', order };
+            saveCurrentWork(); renderPersonMemos();
+            personMemosEl.querySelector(`.person-memo[data-id="${id}"] .person-memo-text`)?.focus();
+        });
         weaponImageInput.addEventListener('change', handleImageUpload);
         clearWeaponImageBtn.addEventListener('click', () => { currentWorkData.setup.weaponImageBase64 = null; updateImagePreview(null); saveCurrentWork(); weaponImageInput.value = null; });
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => { weaponImageUploadArea.addEventListener(eventName, preventDefaults, false); });
@@ -1403,6 +1512,7 @@
             let lines = [];
             lines.push(`═══ グラブル ムーブ表 ${raidName}═══`);
             if (setup.overallMemo) lines.push(`📝 ${setup.overallMemo}`);
+            memoList().forEach(([, m]) => { if ((m.text || '').trim()) lines.push(`📝 ${m.name || 'ななし'}: ${m.text}`); });
             lines.push(`👥 ${charNames.join(' / ')}`);
             if (summonNames.length) lines.push(`🔮 ${summonNames.join(' / ')}`);
             lines.push('');
@@ -1716,6 +1826,40 @@
   </div>
 </div>
 
+<script>
+  // 右側の予兆パネル：開閉と幅（幅・開閉状態はこのブラウザに記憶）
+  (function () {
+    const KEY = 'gbfSidePanel';
+    const toggle = document.getElementById('side-toggle');
+    const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+    const write = (patch) => { try { localStorage.setItem(KEY, JSON.stringify({ ...read(), ...patch })); } catch { /* 容量 */ } };
+    window.openSidePanel = (open) => {
+      document.body.classList.toggle('side-open', open);
+      toggle.setAttribute('aria-expanded', open);
+      write({ open });
+    };
+    const saved = read();
+    if (saved.w) document.documentElement.style.setProperty('--side-w', `${saved.w}px`);
+    if (saved.open) openSidePanel(true);
+    toggle.addEventListener('click', () => openSidePanel(true));
+    document.getElementById('side-close').addEventListener('click', () => openSidePanel(false));
+    // 左端をドラッグして幅を変える
+    document.querySelector('.side-resize').addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const move = (ev) => {
+        const w = Math.max(260, Math.min(700, window.innerWidth - ev.clientX));
+        document.documentElement.style.setProperty('--side-w', `${w}px`);
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        write({ w: parseInt(getComputedStyle(document.documentElement).getPropertyValue('--side-w'), 10) });
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  })();
+</script>
 <script src="collab-config.js"></script>
 <script src="collab.js"></script>
 <script src="sheet.js"></script>
@@ -1728,6 +1872,7 @@
     document.getElementById('move-tool').hidden = tab !== 'move';
     document.getElementById('sheet-panel').hidden = tab !== 'sheet';
     window.dispatchEvent(new CustomEvent('gbf-tab', { detail: tab }));
+    showRaidPanel();
   }));
 </script>
 <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
