@@ -18,7 +18,7 @@
         const cols = sheet.widths.map((w) => `<col width="${w}">`).join('');
         const rows = sheet.grid.map((row, r) => `<tr>${row.map((cell) => {
             const bold = r === 0 && sheet.freeze ? 'font-weight:bold;background:#eeeeee;' : '';
-            return `<td style="text-align:${ALIGN[cell.a] || 'left'};${bold}">${esc(cell.v)}</td>`;
+            return `<td style="text-align:${ALIGN[cell.a] || 'left'};vertical-align:top;${sheet.wrap ? 'white-space:pre-wrap;' : ''}${bold}">${esc(cell.v).replace(/\n/g, '<br>')}</td>`;
         }).join('')}</tr>`).join('');
         return `<meta charset="utf-8"><table>${cols}${rows}</table>`;
     }
@@ -109,6 +109,7 @@
                                 const fmt = {};
                                 if (cell.a === 'c') fmt.horizontalAlignment = 'CENTER';
                                 if (cell.a === 'r') fmt.horizontalAlignment = 'RIGHT';
+                                if (sh.wrap && cell.v !== '') { fmt.wrapStrategy = 'WRAP'; fmt.verticalAlignment = 'TOP'; }
                                 if (r === 0 && sh.freeze) {
                                     fmt.textFormat = { bold: true };
                                     fmt.backgroundColor = { red: 0.93, green: 0.93, blue: 0.93 };
