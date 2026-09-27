@@ -106,6 +106,40 @@
         .sheet-grid td.cur-row { background: rgba(201,162,74,0.06); }
         .sheet-grid td.drop { box-shadow: inset 0 0 0 2px var(--info); background: var(--info-dim); }
         .sheet-move-hint { color: var(--text-muted); font-size: 0.8em; margin: 6px 0 0; }
+        .setup-lead { color: var(--text-muted); font-size: 0.85em; margin: -4px 0 12px; }
+        /* ルーム名・作成フォーム */
+        .collab-room-name { flex: 0 1 16em; min-width: 0; background: var(--bg); color: var(--accent); font-weight: 700; border: 1px solid var(--border); border-radius: 3px; padding: 4px 8px; font-size: 1em; }
+        .collab-room-name::placeholder { color: var(--text-faint); font-weight: 400; }
+        .collab-recent { max-width: 16em; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 5px; font-size: 0.95em; }
+        .collab-form { background: var(--bg); border: 1px dashed var(--accent-lo); border-radius: 4px; padding: 8px; }
+        .collab-room-new { width: 14em; max-width: 60vw; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 5px 7px; }
+        /* スクショ置き場 */
+        #shots-panel[hidden] { display: none; }
+        .shots-drop { border: 2px dashed var(--border-hi); border-radius: 6px; padding: 18px 12px; text-align: center; cursor: pointer; display: grid; gap: 4px; color: var(--text-muted); font-size: 0.88em; }
+        .shots-drop strong { color: var(--accent); font-size: 1.05em; }
+        .shots-drop.over, .shots-drop:hover { border-color: var(--accent); background: var(--accent-dim); }
+        .shots-drop.off { opacity: 0.5; }
+        .shots-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; font-size: 0.85em; color: var(--text-muted); }
+        .shots-filter { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 4px; }
+        .shots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .shots-empty { color: var(--text-muted); font-size: 0.88em; grid-column: 1 / -1; }
+        .shot-card { margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+        .shot-open { display: block; width: 100%; padding: 0; border: none; background: var(--bg); cursor: zoom-in; }
+        .shot-open img { display: block; width: 100%; height: 150px; object-fit: cover; }
+        .shot-card figcaption { display: grid; grid-template-columns: 1fr auto; gap: 2px 6px; padding: 6px 8px; align-items: center; }
+        .shot-title { background: transparent; border: 1px solid transparent; color: var(--text); font: inherit; font-size: 0.85em; font-weight: 700; padding: 2px 4px; border-radius: 3px; min-width: 0; }
+        .shot-title:hover, .shot-title:focus { border-color: var(--border); background: var(--bg); }
+        .shot-meta { grid-column: 1; color: var(--text-muted); font-size: 0.74em; padding-left: 4px; }
+        .shot-del { grid-row: 1 / span 2; grid-column: 2; padding: 3px 8px; font-size: 0.78em; }
+        .shots-view { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 200; display: flex; align-items: center; justify-content: center; }
+        .shots-view[hidden] { display: none; }
+        .shots-view-inner { position: relative; max-width: 96vw; max-height: 94vh; display: flex; flex-direction: column; align-items: center; }
+        .shots-view-head { display: flex; gap: 8px; align-items: center; width: 100%; margin-bottom: 8px; color: var(--text); font-size: 0.9em; }
+        .shots-view-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .shots-view img { max-width: 96vw; max-height: 84vh; object-fit: contain; }
+        .shots-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: #fff; border: none; font-size: 2em; padding: 8px 12px; cursor: pointer; border-radius: 4px; }
+        .shots-nav.prev { left: 4px; }
+        .shots-nav.next { right: 4px; }
         .side-close { background: none; border: none; color: var(--text-muted); font-size: 1.1em; cursor: pointer; padding: 2px 6px; }
         #side-raid-select { width: 100%; margin-top: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 5px; }
         .side-hint { color: var(--text-muted); font-size: 0.76em; margin-top: 6px; }
@@ -131,50 +165,18 @@
             <div style="line-height: 1.8; color: #b8b5ad;">
                 <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px;">基本的な使い方</h3>
                 <ol style="padding-left: 25px;">
-                    <li><strong>編成登録</strong>: キャラクター名と召喚石名を入力します</li>
-                    <li><strong>武器編成画像</strong>: クリック、ドラッグ＆ドロップ、またはCtrl+Vで画像を追加できます</li>
-                    <li><strong>スロット保存</strong>: スロット名を入力して保存すると、いつでも呼び出せます</li>
-                    <li><strong>ムーブ入力画面へ</strong>: ボタンを押してムーブ作成を開始します</li>
+                    <li><strong>編成タブ</strong>: キャラ名・アビ名・召喚石を登録します（レイドテンプレもここで選べます）</li>
+                    <li><strong>共有シート</strong>: 「＋ ムーブ表」でムーブ表シートを作り、右パネルの「編成パーツ」でアビをタップして組み立てます</li>
+                    <li><strong>スクショタブ</strong>: 所持キャラや編成のスクショを何枚でも置いて、みんなで見られます（ルーム中）</li>
+                    <li><strong>ルーム</strong>: 上の「ルームを作成」で名前をつけてルームを作り、リンクを送ると全部を同時に編集できます</li>
                 </ol>
 
-                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">ムーブ入力</h3>
+                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">ムーブ表シート</h3>
                 <ul style="padding-left: 25px;">
-                    <li><strong>キャラ選択</strong>: 行動させるキャラを選択します（サブキャラは灰色表示）</li>
-                    <li><strong>アビリティ</strong>: 1〜4アビ、ガード、キュアポなどを選択</li>
-                    <li><strong>召喚石</strong>: 登録した召喚石をクリックして使用</li>
-                    <li><strong>ターン終了</strong>: 「攻撃（奥義ON/OFF）」でターンを進めます</li>
-                    <li><strong>ターンメモ</strong>: 各ターンにHP予兆や敵の行動を記録できます</li>
-                </ul>
-
-                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">分岐システム</h3>
-                <p>「このターンに分岐を作成」ボタンで、複数のパターンを記録できます（2〜4分岐）</p>
-                <ul style="padding-left: 25px;">
-                    <li>各分岐に独立した行動とメモを記録</li>
-                    <li>分岐間の切り替えが可能</li>
-                    <li>「分岐をキャンセル」で取り消し可能</li>
-                </ul>
-
-                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">キーボードショートカット</h3>
-                <div style="background-color: #0f1115; padding: 12px; border-radius: 4px; border: 1px solid #363a44; margin: 10px 0;">
-                    <strong>基本操作:</strong><br>
-                    • <kbd>Ctrl+Z</kbd>: Undo（1つ前に戻る）<br>
-                    • <kbd>Ctrl+S</kbd>: 上書き保存<br>
-                    <strong>キャラ選択:</strong><br>
-                    • <kbd>Q</kbd> / <kbd>W</kbd> / <kbd>E</kbd> / <kbd>R</kbd>: キャラ1〜4<br>
-                    • <kbd>A</kbd> / <kbd>S</kbd>: サブ1〜2<br>
-                    <strong>アビリティ:</strong><br>
-                    • <kbd>1</kbd> 〜 <kbd>4</kbd>: 各アビリティ<br>
-                    • <kbd>G</kbd>: ガード<br>
-                    <strong>ターン終了:</strong><br>
-                    • <kbd>Enter</kbd>: 攻撃（奥義ON）<br>
-                    • <kbd>Shift+Enter</kbd>: 攻撃（奥義OFF）<br>
-                </div>
-
-                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">再生モード（カンペ）</h3>
-                <ul style="padding-left: 25px;">
-                    <li>作成したムーブ表を見やすく表示</li>
-                    <li>ターンごとにハイライト表示</li>
-                    <li>画像として保存可能</li>
+                    <li>1行=1ターンで、キャラごとの列・予兆・召喚・メモの列があります</li>
+                    <li>チップをタップ → 置き先の行のそのキャラの列へ。「次のターン ↓」で次の行へ</li>
+                    <li>セルへドラッグすると好きな場所に置けます（別キャラの列なら名前つき）</li>
+                    <li>以前のムーブ表の内容は、「＋ ムーブ表」で作るときに書き写せます</li>
                 </ul>
 
                 <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">データ管理</h3>
@@ -212,14 +214,17 @@
 
         <div id="collab-bar" class="collab-bar" hidden></div>
         <nav class="page-tabs" role="tablist">
-            <button class="page-tab on" data-tab="move" role="tab" aria-selected="true">ムーブ表</button>
-            <button class="page-tab" data-tab="sheet" role="tab" aria-selected="false">共有シート</button>
+            <button class="page-tab on" data-tab="sheet" role="tab" aria-selected="true">共有シート</button>
+            <button class="page-tab" data-tab="move" role="tab" aria-selected="false">編成</button>
+            <button class="page-tab" data-tab="shots" role="tab" aria-selected="false">スクショ</button>
         </nav>
         <div id="sheet-panel" hidden></div>
+        <div id="shots-panel" hidden></div>
 
         <div id="move-tool">
         <div id="setup-phase" style="display: block;">
-            <h2>1. 編成登録 / 保存ロード</h2>
+            <h2>編成（キャラ・アビ名・召喚石）</h2>
+            <p class="setup-lead">ここで登録したキャラ・アビ名・召喚石が、共有シートの右パネル「編成パーツ」に並びます。ルーム中は全員に反映されます。</p>
 
             <fieldset id="save-load-section">
                 <legend>保存 / ロード (スロット)</legend>
@@ -313,7 +318,7 @@
                 <small style="color:#888; display:block; margin-top:6px;">右側の「予兆一覧」パネルに予兆・解除条件が表示されます（ムーブ表・共有シートどちらでも開けます）</small>
             </fieldset>
 
-            <button id="setup-complete-btn" class="btn">ムーブ入力画面へ</button>
+            <button id="setup-complete-btn" class="btn" style="display:none">ムーブ入力画面へ</button>
 
             <div class="reset-buttons" style="margin-top: 15px;">
                 <button id="reset-setup-btn" class="reset-btn btn">編成入力欄のみクリア</button>
@@ -772,7 +777,7 @@
             }
             document.getElementById('raid-notes').style.display = '';
             const sheetKind = window.GBFSheet?.active?.kind;
-            document.getElementById('raid-hint').textContent = document.body.dataset.tab !== 'sheet' ? '行クリックでターンメモに挿入'
+            document.getElementById('raid-hint').textContent = document.body.dataset.tab !== 'sheet' ? '共有シートを開くと、行クリックでシートに入れられます'
                 : sheetKind === 'move' ? '行クリックで、置き先の行の「予兆・HP」に挿入' : '行クリックで選択中のセルに挿入';
             document.getElementById('omen-to-sheet').hidden = false;
             document.getElementById('raid-panel-title').textContent = currentRaidTemplate.name + ' 予兆一覧';
@@ -838,6 +843,7 @@
                 row.addEventListener('click', () => {
                     const memo = row.dataset.memo;
                     if (document.body.dataset.tab === 'sheet') { window.GBFSheet?.insertOmen({ memo, name: row.dataset.name, clear: row.dataset.clear }); return; }
+                    if (document.body.dataset.tab !== 'move' || movePhase.style.display !== 'block') return;
                     const ta = document.getElementById('turn-memo-input');
                     if (ta) {
                         ta.value = ta.value ? ta.value + '\n' + memo : memo;
@@ -1450,7 +1456,7 @@
         function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
         function handleImageDrop(e) { const dt = e.dataTransfer; const file = dt.files[0]; if (file && file.type.startsWith('image/')) { handleImageFile(file); } else { alert('画像選択'); } }
         function handleImageUpload(event) { const file = event.target.files[0]; if (file) { handleImageFile(file); } }
-        function handlePaste(event) { if (document.getElementById('ss-modal')?.style.display !== 'none') return; const targetTagName = event.target.tagName.toLowerCase(); if (targetTagName === 'input' || targetTagName === 'textarea') { return; } const items = event.clipboardData?.items; if (!items) return; processClipboardItems(items, event); }
+        function handlePaste(event) { if ((document.body.dataset.tab || 'move') !== 'move') return; if (document.getElementById('ss-modal')?.style.display !== 'none') return; const targetTagName = event.target.tagName.toLowerCase(); if (targetTagName === 'input' || targetTagName === 'textarea') { return; } const items = event.clipboardData?.items; if (!items) return; processClipboardItems(items, event); }
         async function processClipboardItems(items, event = null) { for (let i = 0; i < items.length; i++) { const item = items[i]; const imageTypes = item.types?.filter(type => type.startsWith("image/")); if (imageTypes?.length > 0) { try { const blob = await item.getType(imageTypes[0]); if (blob) { handleBlobAsFile(blob, event); return; } } catch (err) { console.warn("item.getType() Error:", err); } } if (typeof item.getAsFile === 'function' && item.type.startsWith('image/')) { const blob = item.getAsFile(); if (blob) { handleBlobAsFile(blob, event); return; } } } }
         function handleBlobAsFile(blob, event = null) { if (event) { event.preventDefault(); } const fileName = `pasted_image.${blob.type.split('/')[1] || 'png'}`; const file = new File([blob], fileName, { type: blob.type }); handleImageFile(file); }
         function handleImageFile(file) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { let canvas = document.createElement('canvas'); let ctx = canvas.getContext('2d'); let width = img.width; let height = img.height; if (width > MAX_IMAGE_WIDTH) { height *= MAX_IMAGE_WIDTH / width; width = MAX_IMAGE_WIDTH; } canvas.width = width; canvas.height = height; ctx.drawImage(img, 0, 0, width, height); const base64String = canvas.toDataURL('image/jpeg', IMAGE_QUALITY); currentWorkData.setup.weaponImageBase64 = base64String; updateImagePreview(base64String); saveCurrentWork(); const originalSizeMB = (file.size / 1024 / 1024).toFixed(2); const compressedSizeKB = (base64String.length * 0.75 / 1024).toFixed(0); uploadFeedback.textContent = `(元:${originalSizeMB}MB → 圧縮後 約${compressedSizeKB}KB)`; }; img.onerror = () => { alert('画像読込失敗'); }; img.src = e.target.result; }; reader.onerror = () => { alert('ファイル読込失敗'); }; reader.readAsDataURL(file); }
@@ -1928,17 +1934,22 @@
 <script src="collab.js"></script>
 <script src="sheet.js"></script>
 <script src="palette.js"></script>
+<script src="shots.js"></script>
 <script>
-  // ムーブ表 / 共有シートの切り替え
-  document.querySelectorAll('.page-tab').forEach((btn) => btn.addEventListener('click', () => {
-    const tab = btn.dataset.tab;
+  // 共有シート / 編成 / スクショの切り替え（最後に開いたタブを覚える）
+  const TAB_KEY = 'gbfPageTab';
+  const panels = { move: 'move-tool', sheet: 'sheet-panel', shots: 'shots-panel' };
+  function showTab(tab) {
+    if (!panels[tab]) tab = 'sheet';
     document.body.dataset.tab = tab;
-    document.querySelectorAll('.page-tab').forEach((b) => { b.classList.toggle('on', b === btn); b.setAttribute('aria-selected', b === btn); });
-    document.getElementById('move-tool').hidden = tab !== 'move';
-    document.getElementById('sheet-panel').hidden = tab !== 'sheet';
+    document.querySelectorAll('.page-tab').forEach((b) => { const on = b.dataset.tab === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+    Object.entries(panels).forEach(([t, id]) => { document.getElementById(id).hidden = t !== tab; });
+    try { localStorage.setItem(TAB_KEY, tab); } catch { /* 容量 */ }
     window.dispatchEvent(new CustomEvent('gbf-tab', { detail: tab }));
     showRaidPanel();
-  }));
+  }
+  document.querySelectorAll('.page-tab').forEach((btn) => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
+  (function () { let t = 'sheet'; try { t = localStorage.getItem(TAB_KEY) || 'sheet'; } catch { /* 無効 */ } showTab(t); })();
 </script>
 <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
 <script>

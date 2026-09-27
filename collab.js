@@ -307,30 +307,50 @@
     const emitStoreChange = () => state.listeners.forEach((fn) => { try { fn(currentStore()); } catch (e) { console.error(e); } });
 
     // ---------- ルームの作成・参加・退出 ----------
-    async function connect(roomId, { create }) {
+    const RECENT_KEY = 'gbfRecentRooms';
+    function recentRooms() { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } }
+    function saveRecent(id, name) {
+        const list = recentRooms().filter((r) => r.id !== id);
+        list.unshift({ id, name: name || '', at: Date.now() });
+        try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 12))); } catch { /* 容量 */ }
+    }
+
+    // create: 新しく作る / blank: 空で作る（false なら今の内容を持っていく）
+    async function connect(roomId, { create, blank = false, name = '' }) {
         if (!remoteAdapter) return;
         setStatus('busy', create ? 'ルームを作成中…' : 'ルームに接続中…');
         try {
             const room = await remoteAdapter.connect(roomId);
             if (create) {
-                const localSheets = await currentStore().get('sheets');
-                await room.set('meta', { createdAt: Date.now(), createdBy: myName() });
-                await room.set('move', clone(sharedMove(currentWorkData)));
-                if (localSheets) await room.set('sheets', localSheets);
+                const carrySheets = blank ? null : await currentStore().get('sheets');
+                const move = blank ? sharedMove(getDefaultWorkData()) : sharedMove(currentWorkData);
+                await room.set('meta', { createdAt: Date.now(), createdBy: myName(), name: name.slice(0, 40) });
+                await room.set('move', clone(move));
+                if (carrySheets) await room.set('sheets', carrySheets);
             } else {
                 const meta = await room.get('meta');
-                if (!meta) { room.close(); setStatus('error', 'ルームが見つかりません（リンクを確認してください）'); clearHash(); return; }
-                // 参加前の自分の作業は念のため退避しておく
-                try { localStorage.setItem(BACKUP_KEY, localStorage.getItem(STORAGE_KEY_CURRENT) || ''); } catch { /* 容量 */ }
+                if (!meta) { room.close(); setStatus('error', 'ルームが見つかりません（リンクを確認してください）'); if (!state.room) clearHash(); return; }
             }
+            // 別の内容に置き換わるときは、自分の作業を念のため退避しておく
+            if (!create || blank) { try { localStorage.setItem(BACKUP_KEY, localStorage.getItem(STORAGE_KEY_CURRENT) || ''); } catch { /* 容量 */ } }
+            teardown(); // 前のルームにいたら抜ける
             state.room = room;
             state.roomId = roomId;
-            state.lastMoveFlat = create ? flatten(clone(sharedMove(currentWorkData))) : null;
+            state.roomName = name;
+            formOpen = false;
+            state.lastMoveFlat = create && !blank ? flatten(clone(sharedMove(currentWorkData))) : null;
             state.unsubs.push(room.onValue('move', (v) => { if (v) applyRemoteMove(v); }));
             state.unsubs.push(room.onValue('presence', (v) => { state.presence = v || {}; renderBar(); window.dispatchEvent(new CustomEvent('gbf-presence', { detail: state.presence })); }));
+            state.unsubs.push(room.onValue('meta', (v) => {
+                state.roomName = (v && v.name) || '';
+                saveRecent(roomId, state.roomName);
+                renderBar();
+                window.dispatchEvent(new CustomEvent('gbf-room', { detail: { id: roomId, name: state.roomName } }));
+            }));
+            saveRecent(roomId, name);
             await announce({});
             if (location.hash !== `#room=${roomId}`) history.replaceState(null, '', `#room=${roomId}`);
-            setStatus('ok', '');
+            setStatus('ok', create ? 'ルームを作りました。リンクを送ってください' : '');
             emitStoreChange();
         } catch (e) {
             console.error(e);
@@ -338,20 +358,31 @@
         }
     }
 
-    function leave() {
+    function teardown() {
         if (!state.room) return;
         state.unsubs.forEach((u) => u());
         state.unsubs = [];
         state.room.close();
         state.room = null;
         state.roomId = null;
+        state.roomName = '';
         state.lastMoveFlat = null;
         state.presence = {};
+    }
+    function leave() {
+        if (!state.room) return;
+        teardown();
         clearHash();
         setStatus('ok', '');
         emitStoreChange();
     }
     const clearHash = () => history.replaceState(null, '', location.pathname + location.search);
+
+    function renameRoom(name) {
+        if (!state.room) return;
+        state.roomName = name.slice(0, 40);
+        state.room.update('meta', { name: state.roomName }).catch((e) => setStatus('error', '名前を保存できませんでした: ' + e.message));
+    }
 
     // 自分の在室情報（extra に今いるセルなどを入れる）
     let lastExtra = {};
@@ -364,56 +395,97 @@
     window.addEventListener('pagehide', () => { if (state.room) state.room.close(); });
 
     // ---------- 画面（上部のルームバー） ----------
+    // 入力中の欄を消さないよう、骨組みは状態が変わったときだけ作り直し、中身は差し替える
     const bar = document.getElementById('collab-bar');
     let status = { kind: 'ok', text: '' };
+    let formOpen = false;
+    let builtMode = '';
     function setStatus(kind, text) { status = { kind, text }; renderBar(); }
 
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const recentOptions = () => {
+        const list = recentRooms().filter((r) => r.id !== state.roomId);
+        return `<option value="">${list.length ? '最近のルームを開く…' : '最近のルームはまだありません'}</option>`
+            + list.map((r) => `<option value="${esc(r.id)}">${esc(r.name || '名前なし')}（${new Date(r.at).toLocaleDateString('ja-JP')}）</option>`).join('');
+    };
+    const createForm = () => `
+        <div class="collab-row collab-form">
+            <label>ルーム名 <input class="collab-room-new" maxlength="40" placeholder="例: 〇〇団 古戦場"></label>
+            <button class="btn collab-primary" data-act="create-copy">今の内容で作成</button>
+            <button class="btn" data-act="create-blank">空で作成</button>
+            <button class="btn reset-btn" data-act="cancel">やめる</button>
+        </div>`;
 
     function renderBar() {
         if (!bar) return;
         if (!remoteAdapter) { bar.hidden = true; return; }
         bar.hidden = false;
-        const people = Object.entries(state.presence)
-            .filter(([, p]) => p && p.name)
-            .map(([id, p]) => `<span class="collab-chip" style="--c:${esc(p.color || '#888')}">${esc(p.name)}${id === state.clientId ? '（自分）' : ''}</span>`)
-            .join('');
-        const msg = status.text ? `<span class="collab-msg ${status.kind}">${esc(status.text)}</span>` : '';
-        if (state.room) {
-            bar.innerHTML = `
-                <div class="collab-row">
-                    <span class="collab-live">● 共同編集中</span>
-                    <span class="collab-people">${people}</span>
-                </div>
-                <div class="collab-row">
-                    <input class="collab-link" readonly value="${esc(roomUrl(state.roomId))}" aria-label="共有リンク">
-                    <button class="btn" data-act="copy">リンクをコピー</button>
-                    <button class="btn reset-btn" data-act="leave">ルームを出る</button>
-                </div>
-                <div class="collab-row small">
-                    <label>表示名 <input class="collab-name" maxlength="16" value="${esc(myName())}"></label>
-                    <span class="collab-note">リンクを知っている人は誰でも見て編集できます。</span>
-                    ${msg}
-                </div>`;
-        } else {
-            bar.innerHTML = `
-                <div class="collab-row">
-                    <strong class="collab-title">共同編集</strong>
-                    <span class="collab-note">ルームを作ってリンクを送ると、ムーブ表と共有シートをみんなで同時に編集できます。</span>
-                </div>
-                <div class="collab-row">
-                    <label>表示名 <input class="collab-name" maxlength="16" value="${esc(myName())}"></label>
-                    <button class="btn collab-primary" data-act="create" ${status.kind === 'busy' ? 'disabled' : ''}>ルームを作成</button>
-                    ${msg}
-                </div>`;
+        const mode = `${state.room ? 'room' : 'idle'}:${formOpen}:${state.roomId || ''}`;
+        if (mode !== builtMode) {
+            builtMode = mode;
+            if (state.room) {
+                bar.innerHTML = `
+                    <div class="collab-row">
+                        <span class="collab-live">● 共同編集中</span>
+                        <input class="collab-room-name" maxlength="40" placeholder="ルーム名をつける" aria-label="ルーム名">
+                        <span class="collab-people"></span>
+                    </div>
+                    <div class="collab-row">
+                        <input class="collab-link" readonly value="${esc(roomUrl(state.roomId))}" aria-label="共有リンク">
+                        <button class="btn" data-act="copy">リンクをコピー</button>
+                        <button class="btn" data-act="new">新しいルーム</button>
+                        <select class="collab-recent" aria-label="最近のルーム"></select>
+                        <button class="btn reset-btn" data-act="leave">ルームを出る</button>
+                    </div>
+                    ${formOpen ? createForm() : ''}
+                    <div class="collab-row small">
+                        <label>表示名 <input class="collab-name" maxlength="16"></label>
+                        <span class="collab-note">リンクを知っている人は誰でも見て編集できます。</span>
+                        <span class="collab-msg"></span>
+                    </div>`;
+            } else {
+                bar.innerHTML = `
+                    <div class="collab-row">
+                        <strong class="collab-title">共同編集</strong>
+                        <span class="collab-note">ルームを作ってリンクを送ると、シート・編成・スクショをみんなで同時に編集できます。</span>
+                    </div>
+                    <div class="collab-row">
+                        <label>表示名 <input class="collab-name" maxlength="16"></label>
+                        <button class="btn collab-primary" data-act="new">ルームを作成</button>
+                        <select class="collab-recent" aria-label="最近のルーム"></select>
+                        <span class="collab-msg"></span>
+                    </div>
+                    ${formOpen ? createForm() : ''}`;
+            }
+            bar.querySelector('.collab-room-new')?.focus();
         }
+        const setVal = (sel, v) => { const el = bar.querySelector(sel); if (el && document.activeElement !== el && el.value !== v) el.value = v; };
+        setVal('.collab-name', myName());
+        setVal('.collab-room-name', state.roomName || '');
+        const recent = bar.querySelector('.collab-recent');
+        if (recent && document.activeElement !== recent) recent.innerHTML = recentOptions();
+        const people = bar.querySelector('.collab-people');
+        if (people) {
+            people.innerHTML = Object.entries(state.presence)
+                .filter(([, p]) => p && p.name)
+                .map(([id, p]) => `<span class="collab-chip" style="--c:${esc(p.color || '#888')}">${esc(p.name)}${id === state.clientId ? '（自分）' : ''}</span>`)
+                .join('');
+        }
+        const msg = bar.querySelector('.collab-msg');
+        if (msg) { msg.className = `collab-msg ${status.kind}`; msg.textContent = status.text; }
+        bar.querySelectorAll('[data-act^="create"]').forEach((b) => { b.disabled = status.kind === 'busy'; });
     }
 
     bar?.addEventListener('click', (e) => {
         const act = e.target.closest('[data-act]')?.dataset.act;
-        if (act === 'create') {
-            if (!confirm('今の編成・ムーブ・共有シートを元に共同編集ルームを作ります。\nリンクを知っている人は誰でも閲覧・編集できます。よろしいですか？')) return;
-            connect(newRoomId(), { create: true });
+        if (act === 'new') { formOpen = true; renderBar(); }
+        else if (act === 'cancel') { formOpen = false; renderBar(); }
+        else if (act === 'create-copy' || act === 'create-blank') {
+            const name = (bar.querySelector('.collab-room-new')?.value || '').trim();
+            const blank = act === 'create-blank';
+            const what = blank ? '空の' : '今の編成・シートを引き継いだ';
+            if (!confirm(`${what}ルーム「${name || '名前なし'}」を作ります。\nリンクを知っている人は誰でも閲覧・編集できます。よろしいですか？`)) return;
+            connect(newRoomId(), { create: true, blank, name });
         } else if (act === 'copy') {
             const input = bar.querySelector('.collab-link');
             navigator.clipboard?.writeText(input.value).then(() => setStatus('ok', 'コピーしました'), () => { input.select(); setStatus('ok', '選択したのでコピーしてください'); });
@@ -422,11 +494,22 @@
         }
     });
     bar?.addEventListener('change', (e) => {
-        if (!e.target.classList.contains('collab-name')) return;
-        nameCache = e.target.value.trim().slice(0, 16);
-        try { localStorage.setItem(NAME_KEY, nameCache); } catch { /* 容量 */ }
-        announce({});
-        renderBar();
+        if (e.target.classList.contains('collab-name')) {
+            nameCache = e.target.value.trim().slice(0, 16);
+            try { localStorage.setItem(NAME_KEY, nameCache); } catch { /* 容量 */ }
+            announce({});
+            renderBar();
+        } else if (e.target.classList.contains('collab-room-name')) {
+            renameRoom(e.target.value.trim());
+        } else if (e.target.classList.contains('collab-recent') && e.target.value) {
+            const id = e.target.value;
+            e.target.value = '';
+            if (state.room && !confirm('今のルームを出て、選んだルームに移ります。')) return;
+            connect(id, { create: false });
+        }
+    });
+    bar?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.classList.contains('collab-room-name')) e.target.blur();
     });
 
     // ルーム中にスロットのロードやファイル読込をすると全員の内容が置き換わるので確認する
@@ -438,7 +521,7 @@
 
     window.addEventListener('hashchange', () => {
         const id = roomFromHash();
-        if (id && id !== state.roomId) { leave(); connect(id, { create: false }); }
+        if (id && id !== state.roomId) connect(id, { create: false });
     });
 
     window.GBFCollab = {
@@ -448,6 +531,7 @@
         announce,
         get inRoom() { return !!state.room; },
         get myName() { return nameCache; },
+        get roomName() { return state.roomName || ''; },
         get clientId() { return state.clientId; },
         get presence() { return state.presence; },
         // テスト・デバッグ用

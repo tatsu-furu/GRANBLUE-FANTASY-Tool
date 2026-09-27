@@ -7,7 +7,8 @@
         ".read": "$room.matches(/^[A-Za-z0-9]{20}$/)",
         ".write": "$room.matches(/^[A-Za-z0-9]{20}$/)",
         "meta": {
-          ".validate": "newData.hasChild('createdAt')"
+          ".validate": "newData.hasChild('createdAt')",
+          "name": { ".validate": "newData.isString() && newData.val().length <= 40" }
         },
         "move": {
           "setup": {
@@ -24,6 +25,16 @@
               "$cell": { ".validate": "$cell.matches(/^[0-9]{1,3}_[0-9]{1,2}$/) && newData.isString() && newData.val().length <= 2000" }
             }
           }
+        },
+        "shots": {
+          "$shot": {
+            ".validate": "newData.hasChildren(['title', 'at'])",
+            "title": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "thumb": { ".validate": "newData.isString() && newData.val().length < 100000" }
+          }
+        },
+        "shotData": {
+          "$shot": { ".validate": "newData.isString() && newData.val().length < 1500000" }
         },
         "presence": {
           "$client": { ".validate": "newData.hasChild('name') && newData.child('name').isString() && newData.child('name').val().length <= 32" }
