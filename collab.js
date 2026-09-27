@@ -274,6 +274,7 @@
         } finally {
             state.applyingRemote = false;
         }
+        window.dispatchEvent(new Event('gbf-work-changed'));
     }
 
     function refreshMoveDom(setupChanged) {

@@ -1,7 +1,10 @@
 // 共有シート（簡易スプレッドシート）。
 // データは GBFCollab.currentStore() の sheets/ 以下に置く。ルーム中は全員で同期、ルーム外はこのブラウザ内だけ。
-//   sheets/{id} = { name, order, rows, cols, freeze, widths: {列: px}, cells: { '行_列': 文字列 }, align: { '行_列': 'c' | 'r' } }
+//   sheets/{id} = { name, order, rows, cols, freeze, widths: {列: px}, cells: { '行_列': 文字列 }, align: { '行_列': 'c' | 'r' },
+//                   kind: 'move' | 'omen' | なし, colMap: { 役割: 列 } }
 // セル単位で書き込むので、別々のセルなら同時に編集しても消し合わない。
+// kind: 'move' は「ムーブ表シート」。1行が1ターンで、キャラごとの列がある（colMap で役割→列）。
+// 編成パーツ（palette.js）から置いた行動は、その行のそのキャラの列に入る。
 (function () {
     'use strict';
 
@@ -11,6 +14,10 @@
     const MAX_COLS = 52;
     const MAX_CELL = 2000;
     const COL_W = 110;
+    const ACTION_SEP = ' → ';
+    // ムーブ表シートの列（役割 → 列番号）
+    const MOVE_COLS = { turn: 0, omen: 1, c0: 2, c1: 3, c2: 4, c3: 5, other: 6, memo: 7 };
+    const MOVE_TURNS = 30;
 
     const panel = document.getElementById('sheet-panel');
     if (!panel || !window.GBFCollab) return;
@@ -43,11 +50,13 @@
         </div>
         <p class="sheet-where"></p>
         <div class="sheet-wrap"><table class="sheet-grid"></table></div>
+        <p class="sheet-move-hint" hidden>ムーブ表シート: 右の「編成パーツ」でアビをタップすると、選んでいる行（ターン）のそのキャラの列に入ります。セルへドラッグしても置けます。</p>
         <p class="sheet-hint">Googleスプレッドシートなどでコピーした範囲は、左上にしたいセルを選んで貼り付け（Ctrl+V）できます。Enterで下、Tabで右へ移動します。Shift+クリック・Shift+矢印で範囲選択、列・行の番号をクリックで列・行ごと選択できます（揃え・Delete・コピーが範囲にかかります）。</p>`;
     const tabsEl = panel.querySelector('.sheet-tabs');
     const gridEl = panel.querySelector('.sheet-grid');
     const whereEl = panel.querySelector('.sheet-where');
     const freezeBtn = panel.querySelector('[data-act="freeze"]');
+    const moveHintEl = panel.querySelector('.sheet-move-hint');
 
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const colName = (c) => (c < 26 ? '' : String.fromCharCode(64 + Math.floor(c / 26))) + String.fromCharCode(65 + (c % 26));
@@ -79,14 +88,18 @@
     function render() {
         const list = sheetList();
         if (!active()) activeId = list[0]?.id || null;
-        tabsEl.innerHTML = list.map((s) => `<button class="sheet-tab${s.id === activeId ? ' on' : ''}" role="tab" aria-selected="${s.id === activeId}" data-id="${esc(s.id)}">${esc(s.name || '無題')}</button>`).join('')
-            + '<button class="sheet-tab add" data-act="add" title="シートを追加">＋</button>';
+        const icon = (k) => (k === 'move' ? '⚔ ' : k === 'omen' ? '📋 ' : '');
+        tabsEl.innerHTML = list.map((s) => `<button class="sheet-tab${s.id === activeId ? ' on' : ''}" role="tab" aria-selected="${s.id === activeId}" data-id="${esc(s.id)}">${icon(s.kind)}${esc(s.name || '無題')}</button>`).join('')
+            + '<button class="sheet-tab add" data-act="add" title="空のシートを追加">＋</button>'
+            + '<button class="sheet-tab add" data-act="add-move" title="ムーブ表シートを追加">＋ ムーブ表</button>';
         whereEl.textContent = GBFCollab.inRoom
             ? 'ルームの全員と同期しています。'
             : 'いまはこのブラウザ内だけに保存されます。上の「ルームを作成」で共有できます。';
 
         const s = active();
         panel.querySelectorAll('.sheet-toolbar .btn').forEach((b) => { b.disabled = !s; });
+        moveHintEl.hidden = !(s && s.kind === 'move');
+        window.dispatchEvent(new CustomEvent('gbf-sheet-active', { detail: s ? { id: s.id, kind: s.kind || '', name: s.name } : null }));
         if (!s) { gridEl.innerHTML = '<tbody><tr><td class="sheet-empty">「＋」でシートを追加してください</td></tr></tbody>'; builtFor = ''; return; }
         freezeBtn.textContent = s.freeze ? '1行目の固定を解除' : '1行目を固定';
 
@@ -155,11 +168,17 @@
     function renderSelection() {
         const q = rect();
         const multi = isMulti();
+        const s0 = active();
+        const moveRow = s0 && s0.kind === 'move' && sel ? sel.fr : -1;
         gridEl.querySelectorAll('input[data-key]').forEach((input) => {
             const r = Number(input.dataset.r);
             const c = Number(input.dataset.c);
-            input.parentElement.classList.toggle('sel', multi && r >= q.r1 && r <= q.r2 && c >= q.c1 && c <= q.c2);
+            const td = input.parentElement;
+            td.classList.toggle('sel', multi && r >= q.r1 && r <= q.r2 && c >= q.c1 && c <= q.c2);
+            td.classList.toggle('cur', !!sel && r === sel.fr && c === sel.fc);
+            td.classList.toggle('cur-row', r === moveRow && r > 0);
         });
+        window.dispatchEvent(new CustomEvent('gbf-sheet-cursor', { detail: sel ? { row: sel.fr, col: sel.fc } : null }));
         // ツールバーの揃えボタンに、いまのセルの揃えを表示
         const s = active();
         const a = s && sel ? (s.align || {})[`${sel.fr}_${sel.fc}`] || 'l' : null;
@@ -318,6 +337,28 @@
         extending = false;
     });
 
+    // 編成パーツのドラッグ＆ドロップ
+    const TOKEN_TYPE = 'application/x-gbf-token';
+    let dropTd = null;
+    const clearDrop = () => { dropTd?.classList.remove('drop'); dropTd = null; };
+    gridEl.addEventListener('dragover', (e) => {
+        if (!e.dataTransfer?.types?.includes(TOKEN_TYPE)) return;
+        const input = e.target.closest?.('input[data-key]');
+        if (!input) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        if (dropTd !== input.parentElement) { clearDrop(); dropTd = input.parentElement; dropTd.classList.add('drop'); }
+    });
+    gridEl.addEventListener('dragleave', (e) => { if (!gridEl.contains(e.relatedTarget)) clearDrop(); });
+    gridEl.addEventListener('drop', (e) => {
+        const raw = e.dataTransfer?.getData(TOKEN_TYPE);
+        const input = e.target.closest?.('input[data-key]');
+        clearDrop();
+        if (!raw || !input) return;
+        e.preventDefault();
+        try { GBFSheet.placeAt(Number(input.dataset.r), Number(input.dataset.c), JSON.parse(raw)); } catch (err) { console.warn(err); }
+    });
+
     // ---------- ツールバー・タブ ----------
     function toText(s, sep, range) {
         const cells = cellsOf(s);
@@ -348,6 +389,7 @@
         const act = e.target.closest('[data-act]')?.dataset.act;
         const s = active();
         if (act === 'add') addSheet();
+        if (act === 'add-move') { if (window.GBFPalette) GBFPalette.createMoveSheet(); else GBFSheet.createMoveSheet(); return; }
         if (!s) return;
         if (act === 'rows') write(`sheets/${s.id}`, { rows: Math.min((Number(s.rows) || DEFAULT_ROWS) + 10, MAX_ROWS) });
         else if (act === 'cols') write(`sheets/${s.id}`, { cols: Math.min((Number(s.cols) || DEFAULT_COLS) + 1, MAX_COLS) });
@@ -392,16 +434,162 @@
         if (!sheetList().length) store.get('sheets').then((v) => { if (!v) addSheet('シート1'); });
     });
 
-    // 予兆パネルの行クリックなど、外から最後に選んでいたセルへ文字を足す
+    // ---------- 外から使う入口（編成パーツ・予兆パネル） ----------
+    function appendCell(s, r, c, text, sep) {
+        const key = `${r}_${c}`;
+        const input = gridEl.querySelector(`input[data-key="${key}"]`);
+        const cur = input && input === document.activeElement ? input.value : (cellsOf(s)[key] || '');
+        const next = cur ? `${cur}${sep}${text}` : text;
+        if (input) input.value = next;
+        return setCells(s.id, [[key, next]]);
+    }
+    const rowsOf = (s) => Math.min(Number(s.rows) || DEFAULT_ROWS, MAX_ROWS);
+    const colMapOf = (s) => ({ ...MOVE_COLS, ...(s.colMap || {}) });
+    // ムーブ表シートで「いまの行」。未選択なら行動が空の最初のターン行
+    function currentMoveRow(s) {
+        if (sel && sel.fr > 0) return sel.fr;
+        const cm = colMapOf(s);
+        const cells = cellsOf(s);
+        const actionCols = [cm.c0, cm.c1, cm.c2, cm.c3, cm.other];
+        for (let r = 1; r < rowsOf(s); r++) if (actionCols.every((c) => !cells[`${r}_${c}`])) return r;
+        return 1;
+    }
+    function moveCursor(r, c) {
+        setSel(r, c, r, c);
+        lastKey = `${r}_${c}`;
+        inputAt(r, c)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+    // item = { role: 'c0'..'c8' | 'summon' | 'common', label: 'アビ名', full: '[キャラ] アビ名' }
+    function columnFor(s, role) {
+        const cm = colMapOf(s);
+        if (/^c[0-3]$/.test(role) && cm[role] != null) return cm[role];
+        return cm.other;
+    }
+    const textFor = (s, c, item) => (s.kind === 'move' && /^c[0-3]$/.test(item.role) && columnFor(s, item.role) === c ? item.label : item.full);
+
+    function createSheet(def) {
+        const list = sheetList();
+        const id = newId();
+        const order = list.length ? Math.max(...list.map((x) => x.order || 0)) + 1 : 1;
+        activeId = id;
+        sel = null;
+        lastKey = null;
+        return write('sheets', { [id]: { order, freeze: true, ...def } });
+    }
+
     window.GBFSheet = {
+        get active() { const s = active(); return s ? { id: s.id, kind: s.kind || '', name: s.name, row: s.kind === 'move' ? currentMoveRow(s) : sel?.fr ?? null } : null; },
+
+        // 編成パーツをタップしたとき
+        place(item) {
+            const s = active();
+            if (!s) { whereEl.textContent = '先にシートを選んでください。'; return false; }
+            if (s.kind === 'move') {
+                const r = currentMoveRow(s);
+                const c = columnFor(s, item.role);
+                appendCell(s, r, c, textFor(s, c, item), ACTION_SEP);
+                moveCursor(r, c);
+                return true;
+            }
+            if (!lastKey) { whereEl.textContent = '先に置きたいセルをクリックしてください。'; return false; }
+            const [r, c] = lastKey.split('_').map(Number);
+            appendCell(s, r, c, item.full, ACTION_SEP);
+            return true;
+        },
+        // セルへドロップしたとき
+        placeAt(r, c, item) {
+            const s = active();
+            if (!s) return;
+            appendCell(s, r, c, textFor(s, c, item), ACTION_SEP);
+            moveCursor(r, c);
+        },
+        // ムーブ表シートで行（ターン）を進める・戻す
+        stepRow(d) {
+            const s = active();
+            if (!s) return;
+            const r = Math.max(1, Math.min(rowsOf(s) - 1, (s.kind === 'move' ? currentMoveRow(s) : sel?.fr ?? 0) + d));
+            if (r >= rowsOf(s) - 1 && d > 0) write(`sheets/${s.id}`, { rows: Math.min(rowsOf(s) + 10, MAX_ROWS) });
+            moveCursor(r, sel ? sel.fc : colMapOf(s).c0);
+        },
+        // 予兆一覧の行クリック
+        insertOmen(o) {
+            const s = active();
+            if (!s) { whereEl.textContent = '先にシートを選んでください。'; return; }
+            if (s.kind === 'move') {
+                const r = currentMoveRow(s);
+                const c = colMapOf(s).omen;
+                const clear = o.clear && !/なし/.test(o.clear) ? `（${o.clear}）` : '';
+                appendCell(s, r, c, `${o.name}${clear}`, ' / ');
+                moveCursor(r, c);
+                return;
+            }
+            if (!lastKey) { whereEl.textContent = '先に挿入したいセルをクリックしてください。'; return; }
+            const [r, c] = lastKey.split('_').map(Number);
+            appendCell(s, r, c, o.memo, ' / ');
+        },
+        // 旧来の文字挿入（互換用）
         insertText(text) {
             const s = active();
             if (!s || !lastKey) { whereEl.textContent = '先に挿入したいセルをクリックしてください。'; return; }
-            const input = gridEl.querySelector(`input[data-key="${lastKey}"]`);
-            const cur = input ? input.value : (cellsOf(s)[lastKey] || '');
-            const next = cur ? `${cur} / ${text}` : text;
-            if (input) input.value = next;
-            setCells(s.id, [[lastKey, next]]);
+            const [r, c] = lastKey.split('_').map(Number);
+            appendCell(s, r, c, text, ' / ');
+        },
+
+        // ムーブ表シートを作る。turns にムーブ表タブの内容を渡すと書き写す
+        createMoveSheet({ names = [], turns = null, name } = {}) {
+            const cm = MOVE_COLS;
+            const cells = {};
+            const align = {};
+            const head = ['ターン', '予兆・HP', names[0] || '主人公', names[1] || 'キャラ2', names[2] || 'キャラ3', names[3] || 'キャラ4', '召喚・その他', 'メモ'];
+            head.forEach((h, c) => { cells[`0_${c}`] = h; align[`0_${c}`] = 'c'; });
+            let r = 1;
+            const put = (c, v) => { if (v) cells[`${r}_${c}`] = String(v).slice(0, MAX_CELL); };
+            if (turns && turns.length) {
+                turns.forEach((t) => {
+                    t.branches.forEach((b, bi) => {
+                        put(cm.turn, t.branches.length > 1 ? `${t.turnNumber}-${String.fromCharCode(65 + bi)}` : t.turnNumber);
+                        align[`${r}_${cm.turn}`] = 'c';
+                        const byCol = {};
+                        b.cells.forEach(([role, text]) => { const c = /^c[0-3]$/.test(role) ? cm[role] : cm.other; (byCol[c] ||= []).push(text); });
+                        Object.entries(byCol).forEach(([c, arr]) => put(Number(c), arr.join(ACTION_SEP)));
+                        put(cm.memo, b.memo);
+                        r++;
+                    });
+                });
+            }
+            // 書き写した後ろは、続きのターン番号だけ入れた空行
+            const rows = Math.max(r + 10, MOVE_TURNS + 1);
+            const lastTurn = turns && turns.length ? Number(turns[turns.length - 1].turnNumber) || 0 : 0;
+            for (let rr = r; rr < rows; rr++) {
+                cells[`${rr}_${cm.turn}`] = String(lastTurn + (rr - r) + 1);
+                align[`${rr}_${cm.turn}`] = 'c';
+            }
+            const widths = { 0: 56, 1: 200, 2: 150, 3: 150, 4: 150, 5: 150, 6: 170, 7: 200 };
+            return createSheet({ name: (name || 'ムーブ表').slice(0, 30), kind: 'move', colMap: cm, rows, cols: 8, cells, align, widths });
+        },
+        // 見出し行のキャラ名を今の編成に合わせる
+        syncMoveHeader(names) {
+            const s = active();
+            if (!s || s.kind !== 'move') return;
+            const cm = colMapOf(s);
+            setCells(s.id, [0, 1, 2, 3].map((i) => [`0_${cm['c' + i]}`, names[i] || '']));
+        },
+        // 予兆一覧をまとめてシートにする
+        createOmenSheet(raid) {
+            const cells = {};
+            const align = {};
+            const head = ['条件', '予兆名', '解除条件', '備考', '担当', '済'];
+            head.forEach((h, c) => { cells[`0_${c}`] = h; align[`0_${c}`] = 'c'; });
+            let r = 1;
+            const row = (vals) => { vals.forEach((v, c) => { if (v) cells[`${r}_${c}`] = String(v).slice(0, MAX_CELL); }); align[`${r}_5`] = 'c'; r++; };
+            if (raid.notes?.length) row([`■ ${raid.name}`, `HP ${raid.hp} / ${raid.timeLimit} / ${raid.ct}`, '', raid.notes.join(' / ')]);
+            raid.phases.forEach((p) => {
+                row([`■ ${p.range}`]);
+                p.triggers.forEach((t) => row([t.condition, t.name, t.clear, t.note || '']));
+                (p.ctSpecials || []).forEach((ct) => row(['CT', ct.name, ct.clear, ct.note || '']));
+            });
+            const widths = { 0: 90, 1: 150, 2: 170, 3: 300, 4: 90, 5: 44 };
+            return createSheet({ name: `予兆: ${raid.name}`.slice(0, 30), kind: 'omen', rows: Math.max(r + 5, 20), cols: 6, cells, align, widths });
         },
     };
 

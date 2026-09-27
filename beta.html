@@ -45,6 +45,8 @@
         .sheet-grid td input { width: 100%; box-sizing: border-box; background: transparent; color: var(--text); border: none; padding: 4px 6px; font: inherit; outline: none; }
         .sheet-grid td input:focus { box-shadow: inset 0 0 0 2px var(--accent); background: var(--surface); }
         .sheet-grid.freeze tbody tr:first-child td { position: sticky; top: 23px; z-index: 1; background: var(--surface); }
+        .sheet-grid th.row-head { z-index: 2; }
+        .sheet-grid.freeze tbody tr:first-child th.row-head { top: 23px; z-index: 3; }
         .sheet-grid.freeze tbody tr:first-child td input { font-weight: 700; }
         .sheet-grid td.peer { box-shadow: inset 0 0 0 2px var(--peer); }
         .sheet-grid td.peer::after { content: attr(data-peer); position: absolute; right: 0; top: -1.3em; background: var(--peer); color: #111; font-size: 0.7em; padding: 0 4px; border-radius: 2px; white-space: nowrap; pointer-events: none; z-index: 4; }
@@ -71,6 +73,39 @@
         .side-resize { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: ew-resize; }
         .side-head { padding: 10px 12px 8px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
         .side-title-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 700; color: var(--accent); font-size: 0.9em; }
+        .side-tabs { display: flex; gap: 4px; }
+        .side-tab { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 3px; padding: 4px 12px; font: inherit; font-size: 0.95em; font-weight: 700; cursor: pointer; }
+        .side-tab.on { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .side-sub { margin-top: 8px; color: var(--accent); font-size: 0.85em; font-weight: 700; }
+        .side-action { width: 100%; margin-top: 8px; padding: 6px 10px; font-size: 0.82em; }
+        [data-pane][hidden] { display: none !important; }
+        /* 編成パーツ */
+        .pal-status { position: sticky; top: -8px; background: var(--surface); padding: 4px 0 8px; margin-bottom: 6px; border-bottom: 1px solid var(--border); z-index: 1; }
+        .pal-status p { color: var(--text-muted); font-size: 0.78em; margin: 4px 0; }
+        .pal-turn { display: flex; align-items: center; gap: 6px; font-size: 0.85em; }
+        .pal-turn .btn { padding: 4px 10px; font-size: 0.85em; }
+        .pal-turn span { flex: 1; text-align: center; color: var(--text-muted); }
+        .pal-turn strong { color: var(--accent); }
+        .pal-next { background: var(--accent-lo); border-color: var(--accent); color: #1a1400; }
+        .pal-small { padding: 4px 8px; font-size: 0.76em; }
+        .pal-char { margin-bottom: 10px; }
+        .pal-char.sub { opacity: 0.8; }
+        .pal-char h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: 0.82em; color: var(--text); }
+        .pal-char h4 img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+        .pal-char h4 small { color: var(--text-faint); font-weight: 400; }
+        .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+        .chip { background: var(--surface-2); border: 1px solid var(--border-hi); color: var(--text); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 0.78em; cursor: grab; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; touch-action: manipulation; }
+        .chip:hover { border-color: var(--accent); }
+        .chip.minor { color: var(--text-muted); }
+        .chip.summon { border-color: var(--info); }
+        .chip.common { border-color: var(--accent-lo); }
+        .chip.flash { background: var(--accent-dim); border-color: var(--accent); }
+        .pal-empty, .pal-foot { color: var(--text-faint); font-size: 0.76em; }
+        /* シートの置き先 */
+        .sheet-grid td.cur { box-shadow: inset 0 0 0 2px var(--accent-lo); }
+        .sheet-grid td.cur-row { background: rgba(201,162,74,0.06); }
+        .sheet-grid td.drop { box-shadow: inset 0 0 0 2px var(--info); background: var(--info-dim); }
+        .sheet-move-hint { color: var(--text-muted); font-size: 0.8em; margin: 6px 0 0; }
         .side-close { background: none; border: none; color: var(--text-muted); font-size: 1.1em; cursor: pointer; padding: 2px 6px; }
         #side-raid-select { width: 100%; margin-top: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 5px; }
         .side-hint { color: var(--text-muted); font-size: 0.76em; margin-top: 6px; }
@@ -156,7 +191,9 @@
                     <li>他の人の編集が入ると、Undo の履歴はそこで区切られます</li>
                     <li><strong>共有シート</strong>: スプレッドシートからコピーした範囲をそのまま貼り付けられます。「表をコピー」で逆に持ち出せます。Shift+クリックや列・行番号のクリックで範囲を選んで、左・中央・右揃えを変えられます</li>
                     <li><strong>全体メモ</strong>: 「＋ 自分のメモ欄を追加」で、書く人ごとの欄が作れます（同時に書いても消し合いません）</li>
-                    <li><strong>予兆一覧</strong>: 画面右端の「予兆一覧」で右側に開きます。開いたまま編集でき、左端をドラッグで幅を変えられます。行クリックでターンメモ（シートでは選択中のセル）に挿入します</li>
+                    <li><strong>右パネル</strong>: 画面右端のつまみで開きます。開いたまま編集でき、左端をドラッグで幅を変えられます</li>
+                    <li><strong>ムーブ表シート</strong>: 共有シートの「＋ ムーブ表」で、1行=1ターン・キャラごとの列があるシートを作れます（ムーブ表タブの内容も書き写せます）。右パネルの「編成パーツ」でアビをタップすると置き先の行のそのキャラの列に入り、「次のターン ↓」で次の行へ。セルへドラッグでも置けます</li>
+                    <li><strong>予兆</strong>: 「📋 予兆表をシートにする」でレイドの予兆一覧を担当・済の列つきでシートにします。行クリックで、ムーブ表シートなら置き先の行の「予兆・HP」に入ります</li>
                     <li>リンクを知っている人は誰でも閲覧・編集できます</li>
                 </ul>
 
@@ -416,19 +453,27 @@
     </div>
 
     <!-- 右側の予兆パネル（横にスライド。開いたまま左側を編集できる） -->
-    <button id="side-toggle" class="side-toggle" aria-controls="side-panel" aria-expanded="false">予兆一覧</button>
-    <aside id="side-panel" aria-label="予兆一覧">
+    <button id="side-toggle" class="side-toggle" aria-controls="side-panel" aria-expanded="false">予兆・編成パーツ</button>
+    <aside id="side-panel" aria-label="予兆・編成パーツ">
         <div class="side-resize" title="ドラッグで幅を変更"></div>
         <div class="side-head">
             <div class="side-title-row">
-                <span id="raid-panel-title">予兆一覧</span>
+                <div class="side-tabs" role="tablist">
+                    <button class="side-tab on" data-pane="party" role="tab">編成パーツ</button>
+                    <button class="side-tab" data-pane="raid" role="tab">予兆</button>
+                </div>
                 <button id="side-close" class="side-close" aria-label="閉じる">✕</button>
             </div>
-            <select id="side-raid-select" aria-label="レイドを選択"></select>
-            <div class="side-hint" id="raid-hint">行クリックでメモ挿入</div>
-            <div id="raid-phase-tabs" style="display:flex; gap:4px; flex-wrap:wrap; margin-top:8px;"></div>
+            <div class="side-pane-head" data-pane="raid" hidden>
+                <div id="raid-panel-title" class="side-sub">予兆一覧</div>
+                <select id="side-raid-select" aria-label="レイドを選択"></select>
+                <button id="omen-to-sheet" class="btn side-action" type="button">📋 予兆表をシートにする</button>
+                <div class="side-hint" id="raid-hint">行クリックでメモ挿入</div>
+                <div id="raid-phase-tabs" style="display:flex; gap:4px; flex-wrap:wrap; margin-top:8px;"></div>
+            </div>
         </div>
-        <div id="raid-info-panel" class="side-body">
+        <div id="party-palette" class="side-body" data-pane="party"></div>
+        <div id="raid-info-panel" class="side-body" data-pane="raid" hidden>
             <div id="raid-notes" style="font-size:0.78em; color:#aaa; margin-bottom:8px; padding:6px; background:#0d0f14; border-radius:3px; line-height:1.6;"></div>
             <div id="raid-phase-content" style="font-size:0.8em;"></div>
         </div>
@@ -700,7 +745,7 @@
                 setRaidTemplate(sel.value);
                 currentWorkData.setup.raidTemplate = sel.value;
                 saveCurrentWork();
-                if (sel.value) openSidePanel(true);
+                if (sel.value) { openSidePanel(true); window.showSidePane?.('raid'); }
             }));
         }
 
@@ -722,10 +767,14 @@
                 document.getElementById('raid-phase-tabs').innerHTML = '';
                 document.getElementById('raid-notes').style.display = 'none';
                 document.getElementById('raid-phase-content').innerHTML = '';
+                document.getElementById('omen-to-sheet').hidden = true;
                 return;
             }
             document.getElementById('raid-notes').style.display = '';
-            document.getElementById('raid-hint').textContent = document.body.dataset.tab === 'sheet' ? '行クリックで選択中のセルに挿入' : '行クリックでターンメモに挿入';
+            const sheetKind = window.GBFSheet?.active?.kind;
+            document.getElementById('raid-hint').textContent = document.body.dataset.tab !== 'sheet' ? '行クリックでターンメモに挿入'
+                : sheetKind === 'move' ? '行クリックで、置き先の行の「予兆・HP」に挿入' : '行クリックで選択中のセルに挿入';
+            document.getElementById('omen-to-sheet').hidden = false;
             document.getElementById('raid-panel-title').textContent = currentRaidTemplate.name + ' 予兆一覧';
             const notesEl = document.getElementById('raid-notes');
             notesEl.innerHTML = '<strong style="color:#c9a24a;">基本情報:</strong> HP ' + currentRaidTemplate.hp + ' / 制限 ' + currentRaidTemplate.timeLimit + ' / ' + currentRaidTemplate.ct + '<br>'
@@ -761,7 +810,7 @@
                 const needsClear = t.clear && t.clear !== 'なし' && !t.clear.includes('なし');
                 const clearColor = needsClear ? '#7ab87a' : '#52504c';
                 const memo = '[' + t.name + '] ' + (t.note ? t.note + ' ' : '') + '解除: ' + t.clear;
-                html += '<div class="raid-row" data-memo="' + memo.replace(/"/g, '&quot;') + '" style="' + rowStyle + '" onmouseover="this.style.background=\'#282c34\'" onmouseout="this.style.background=\'transparent\'">'
+                html += '<div class="raid-row" data-memo="' + memo.replace(/"/g, '&quot;') + '" data-name="' + t.name.replace(/"/g, '&quot;') + '" data-clear="' + String(t.clear || '').replace(/"/g, '&quot;') + '" style="' + rowStyle + '" onmouseover="this.style.background=\'#282c34\'" onmouseout="this.style.background=\'transparent\'">'
                     + '<span style="color:#8c8880;">' + t.condition + '</span>'
                     + '<span style="color:#e5e2da; font-weight:bold;">' + t.name + '</span>'
                     + '<span style="color:' + clearColor + ';">' + t.clear + '</span>'
@@ -776,7 +825,7 @@
                 html += '<div style="' + headerStyle.replace('#c9a24a','#a84040').replace('#8f6b24','#a84040') + '"><span>予兆名</span><span>解除条件</span><span>備考</span></div>';
                 phase.ctSpecials.forEach(ct => {
                     const memo = '[CT:' + ct.name + '] 解除: ' + ct.clear + (ct.note ? ' / ' + ct.note : '');
-                    html += '<div class="raid-row" data-memo="' + memo.replace(/"/g, '&quot;') + '" style="' + rowStyle.replace('grid-template-columns:70px 1fr 1fr','grid-template-columns:1fr 1fr 1fr') + '" onmouseover="this.style.background=\'#282c34\'" onmouseout="this.style.background=\'transparent\'">'
+                    html += '<div class="raid-row" data-memo="' + memo.replace(/"/g, '&quot;') + '" data-name="' + ('CT:' + ct.name).replace(/"/g, '&quot;') + '" data-clear="' + String(ct.clear || '').replace(/"/g, '&quot;') + '" style="' + rowStyle.replace('grid-template-columns:70px 1fr 1fr','grid-template-columns:1fr 1fr 1fr') + '" onmouseover="this.style.background=\'#282c34\'" onmouseout="this.style.background=\'transparent\'">'
                         + '<span style="color:#e5e2da; font-weight:bold;">' + ct.name + '</span>'
                         + '<span style="color:#7ab87a;">' + ct.clear + '</span>'
                         + '<span style="color:#52504c;">' + ct.note + '</span>'
@@ -788,7 +837,7 @@
             contentEl.querySelectorAll('.raid-row').forEach(row => {
                 row.addEventListener('click', () => {
                     const memo = row.dataset.memo;
-                    if (document.body.dataset.tab === 'sheet') { window.GBFSheet?.insertText(memo); return; }
+                    if (document.body.dataset.tab === 'sheet') { window.GBFSheet?.insertOmen({ memo, name: row.dataset.name, clear: row.dataset.clear }); return; }
                     const ta = document.getElementById('turn-memo-input');
                     if (ta) {
                         ta.value = ta.value ? ta.value + '\n' + memo : memo;
@@ -886,6 +935,7 @@
              localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(currentWorkData));
              // 共同編集中なら変わったところだけルームへ送る
              if (window.GBFCollab) GBFCollab.onLocalSave();
+             window.dispatchEvent(new Event('gbf-work-changed'));
         }
         function loadCurrentWork() {
              const loadedData = localStorage.getItem(STORAGE_KEY_CURRENT);
@@ -1842,6 +1892,20 @@
     if (saved.w) document.documentElement.style.setProperty('--side-w', `${saved.w}px`);
     if (saved.open) openSidePanel(true);
     toggle.addEventListener('click', () => openSidePanel(true));
+    // パネル内のタブ（編成パーツ / 予兆）
+    const showPane = (pane) => {
+      document.querySelectorAll('#side-panel .side-tab').forEach((b) => b.classList.toggle('on', b.dataset.pane === pane));
+      document.querySelectorAll('#side-panel [data-pane]:not(.side-tab)').forEach((el) => { el.hidden = el.dataset.pane !== pane; });
+      write({ pane });
+    };
+    window.showSidePane = showPane;
+    document.querySelectorAll('#side-panel .side-tab').forEach((b) => b.addEventListener('click', () => showPane(b.dataset.pane)));
+    if (saved.pane) showPane(saved.pane);
+    document.getElementById('omen-to-sheet').addEventListener('click', () => {
+      if (!currentRaidTemplate) return;
+      document.querySelector('.page-tab[data-tab="sheet"]').click();
+      window.GBFSheet?.createOmenSheet(currentRaidTemplate);
+    });
     document.getElementById('side-close').addEventListener('click', () => openSidePanel(false));
     // 左端をドラッグして幅を変える
     document.querySelector('.side-resize').addEventListener('pointerdown', (e) => {
@@ -1863,6 +1927,7 @@
 <script src="collab-config.js"></script>
 <script src="collab.js"></script>
 <script src="sheet.js"></script>
+<script src="palette.js"></script>
 <script>
   // ムーブ表 / 共有シートの切り替え
   document.querySelectorAll('.page-tab').forEach((btn) => btn.addEventListener('click', () => {
