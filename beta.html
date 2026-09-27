@@ -6,6 +6,50 @@
     <title>グラブル ムーブ表作成ツール</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        /* ページ切り替えタブ */
+        .page-tabs { display: flex; gap: 4px; margin: 0 0 14px; border-bottom: 1px solid var(--border); }
+        .page-tab { background: none; border: 1px solid transparent; border-bottom: none; color: var(--text-muted); padding: 8px 16px; font: inherit; font-weight: 700; cursor: pointer; border-radius: 4px 4px 0 0; }
+        .page-tab.on { background: var(--surface); border-color: var(--border); color: var(--accent); margin-bottom: -1px; }
+        /* 共同編集バー */
+        .collab-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin: 0 0 12px; display: grid; gap: 8px; font-size: 0.88em; }
+        .collab-bar[hidden] { display: none; }
+        .collab-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .collab-row.small { font-size: 0.92em; color: var(--text-muted); }
+        .collab-title { color: var(--accent); }
+        .collab-note { color: var(--text-muted); }
+        .collab-live { color: #81c784; font-weight: 700; }
+        .collab-people { display: flex; flex-wrap: wrap; gap: 6px; }
+        .collab-chip { border: 1px solid var(--c); color: var(--c); border-radius: 999px; padding: 1px 9px; font-size: 0.92em; }
+        .collab-link { flex: 1 1 240px; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 6px 8px; font-size: 0.9em; }
+        .collab-name { width: 9em; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 4px 6px; }
+        .collab-primary { background: var(--accent-lo); border-color: var(--accent); color: #1a1400; }
+        .collab-msg.error { color: var(--danger-hi); }
+        .collab-msg.busy, .collab-msg.ok { color: var(--text-muted); }
+        /* 共有シート */
+        #sheet-panel[hidden] { display: none; }
+        .sheet-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+        .sheet-tab { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 3px; padding: 5px 12px; font: inherit; font-size: 0.88em; cursor: pointer; max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sheet-tab.on { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .sheet-tab.add { color: var(--accent); }
+        .sheet-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+        .sheet-toolbar .btn { padding: 5px 10px; font-size: 0.8em; }
+        .sheet-where, .sheet-hint { color: var(--text-muted); font-size: 0.8em; margin: 4px 0 8px; }
+        .sheet-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: 3px; background: var(--bg); }
+        .sheet-grid { border-collapse: separate; border-spacing: 0; font-size: 0.85em; }
+        .sheet-grid th { background: var(--surface-2); color: var(--text-muted); font-weight: 400; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; padding: 0; }
+        .sheet-grid th.row-head { position: sticky; left: 0; z-index: 1; min-width: 36px; padding: 0 4px; text-align: right; }
+        .sheet-grid th.corner { left: 0; z-index: 3; }
+        .sheet-grid .col-head { resize: horizontal; overflow: hidden; min-width: 40px; padding: 3px 4px; text-align: center; }
+        .sheet-grid td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 0; position: relative; }
+        .sheet-grid td input { width: 100%; box-sizing: border-box; background: transparent; color: var(--text); border: none; padding: 4px 6px; font: inherit; outline: none; }
+        .sheet-grid td input:focus { box-shadow: inset 0 0 0 2px var(--accent); background: var(--surface); }
+        .sheet-grid.freeze tbody tr:first-child td { position: sticky; top: 23px; z-index: 1; background: var(--surface); }
+        .sheet-grid.freeze tbody tr:first-child td input { font-weight: 700; }
+        .sheet-grid td.peer { box-shadow: inset 0 0 0 2px var(--peer); }
+        .sheet-grid td.peer::after { content: attr(data-peer); position: absolute; right: 0; top: -1.3em; background: var(--peer); color: #111; font-size: 0.7em; padding: 0 4px; border-radius: 2px; white-space: nowrap; pointer-events: none; z-index: 4; }
+        .sheet-empty { padding: 20px; color: var(--text-muted); }
+    </style>
 </head>
 <body>
 
@@ -73,6 +117,15 @@
                     <li><strong>上書き保存</strong>: ムーブ入力中でも簡単に保存</li>
                 </ul>
 
+                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">共同編集・共有シート（ベータ）</h3>
+                <ul style="padding-left: 25px;">
+                    <li><strong>ルームを作成</strong>: 上の「ルームを作成」を押してリンクを送ると、編成・ムーブ表・共有シートを同時に編集できます</li>
+                    <li>今いるターンや選択中のキャラは人ごとに別々です。同じターンに同時に行動を入れると片方が消えることがあります</li>
+                    <li>他の人の編集が入ると、Undo の履歴はそこで区切られます</li>
+                    <li><strong>共有シート</strong>: スプレッドシートからコピーした範囲をそのまま貼り付けられます。「表をコピー」で逆に持ち出せます</li>
+                    <li>リンクを知っている人は誰でも閲覧・編集できます</li>
+                </ul>
+
                 <div style="background-color: rgba(90,138,184,0.1); padding: 12px; border-radius: 4px; margin-top: 16px; border-left: 3px solid #5a8ab8;">
                     <strong>ヒント:</strong><br>
                     • データはブラウザのローカルストレージに保存されます<br>
@@ -86,6 +139,14 @@
     <div class="container">
         <h1>グラブル ムーブ表作成ツール <span style="font-size: 0.5em; color: #c9a24a; background-color: #21242a; padding: 3px 8px; border-radius: 3px; border: 1px solid #8f6b24;">BETA v2.0</span> <button id="open-tutorial-btn" class="btn" style="margin-left: 10px; font-size: 0.4em; padding: 6px 12px;">使い方</button></h1>
 
+        <div id="collab-bar" class="collab-bar" hidden></div>
+        <nav class="page-tabs" role="tablist">
+            <button class="page-tab on" data-tab="move" role="tab" aria-selected="true">ムーブ表</button>
+            <button class="page-tab" data-tab="sheet" role="tab" aria-selected="false">共有シート</button>
+        </nav>
+        <div id="sheet-panel" hidden></div>
+
+        <div id="move-tool">
         <div id="setup-phase" style="display: block;">
             <h2>1. 編成登録 / 保存ロード</h2>
 
@@ -324,6 +385,7 @@
                     <div id="raid-phase-content" style="font-size:0.8em;"></div>
                 </div>
             </div>
+        </div>
         </div>
     </div> <script>
         // --- 定数・変数 ---
@@ -758,7 +820,8 @@
                  }
              }
              localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(currentWorkData));
-             // console.log("Saved:", JSON.stringify(currentWorkData)); // Debug
+             // 共同編集中なら変わったところだけルームへ送る
+             if (window.GBFCollab) GBFCollab.onLocalSave();
         }
         function loadCurrentWork() {
              const loadedData = localStorage.getItem(STORAGE_KEY_CURRENT);
@@ -1135,7 +1198,8 @@
             const targetTagName = e.target.tagName.toLowerCase();
             if (targetTagName === 'input' || targetTagName === 'textarea') { return; }
 
-            // ムーブ入力画面でのみ有効
+            // ムーブ入力画面でのみ有効（共有シートを開いているときは無効）
+            if (document.body.dataset.tab === 'sheet') { return; }
             if (movePhase.style.display !== 'block' || movePhase.classList.contains('playback-mode')) { return; }
 
             // Ctrl+Z: Undo
@@ -1652,6 +1716,20 @@
   </div>
 </div>
 
+<script src="collab-config.js"></script>
+<script src="collab.js"></script>
+<script src="sheet.js"></script>
+<script>
+  // ムーブ表 / 共有シートの切り替え
+  document.querySelectorAll('.page-tab').forEach((btn) => btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.body.dataset.tab = tab;
+    document.querySelectorAll('.page-tab').forEach((b) => { b.classList.toggle('on', b === btn); b.setAttribute('aria-selected', b === btn); });
+    document.getElementById('move-tool').hidden = tab !== 'move';
+    document.getElementById('sheet-panel').hidden = tab !== 'sheet';
+    window.dispatchEvent(new CustomEvent('gbf-tab', { detail: tab }));
+  }));
+</script>
 <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
 <script>
   kofiWidgetOverlay.draw('alt4l', { type: 'floating-chat', 'floating-chat.donateButton.text': 'Support me', 'floating-chat.donateButton.background-color': '#794bc4', 'floating-chat.donateButton.text-color': '#fff' });
