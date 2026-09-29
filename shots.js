@@ -11,6 +11,7 @@
     const FULL_MAX_W = 1600;
     const FULL_MAX_CHARS = 1400000; // rules の上限（1.5M 文字）より少し下
     const THUMB_W = 360;
+    const THUMB_MAX_CHARS = 80000; // rules の上限（10万文字）より下
 
     let store = null;
     let unsub = null;
@@ -65,8 +66,8 @@
         img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('画像を読めませんでした')); };
         img.src = url;
     });
-    function encode(img, maxW, quality) {
-        const scale = Math.min(1, maxW / img.naturalWidth);
+    function encode(img, maxW, quality, maxH = Infinity) {
+        const scale = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight);
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(img.naturalWidth * scale);
         canvas.height = Math.round(img.naturalHeight * scale);
@@ -93,7 +94,12 @@
                 const img = await loadImage(file);
                 const full = encodeFull(img);
                 if (!full) { say(`「${file.name}」は大きすぎて置けませんでした`); continue; }
-                const thumb = encode(img, THUMB_W, 0.6);
+                // サムネイルは縦長のスクショでも上限に収まるよう、縦横とも抑えて画質を下げていく
+                let thumb = null;
+                for (const [w, q] of [[THUMB_W, 0.6], [THUMB_W, 0.45], [280, 0.45], [200, 0.4]]) {
+                    thumb = encode(img, w, q, w * 1.4);
+                    if (thumb.data.length <= THUMB_MAX_CHARS) break;
+                }
                 const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
                 const base = (file.name || '').replace(/\.[^.]+$/, '');
                 const title = (/^(image|pasted_image|スクリーンショット|Screenshot)/i.test(base) || !base) ? `${GBFCollab.myName || 'ななし'}のスクショ` : base;
@@ -105,7 +111,9 @@
                 done++;
             } catch (e) {
                 console.warn(e);
-                say(`追加できませんでした: ${e.message || e}`);
+                say(/permission/i.test(String(e && (e.code || e.message)))
+                    ? '追加できませんでした（サーバーに拒否されました）。管理人は Firebase のルールが最新（database.rules.json）になっているか確認してください。'
+                    : `追加できませんでした: ${e.message || e}`);
                 return;
             }
         }
