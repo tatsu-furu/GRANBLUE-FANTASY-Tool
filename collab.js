@@ -203,7 +203,7 @@
             characterIcons: toArray(s.characterIcons, 9, null),
             characterAbilities: toArray(s.characterAbilities, 9, null).map((a) => toArray(a, 4, '')),
             summons: toArray(s.summons, 6, ''),
-            subCount: Number(s.subCount) || 2,
+            subCount: Number.isFinite(Number(s.subCount)) && s.subCount !== '' && s.subCount != null ? Math.max(0, Math.min(5, Number(s.subCount))) : 2,
             overallMemo: s.overallMemo || '',
             weaponImageBase64: s.weaponImageBase64 || null,
             raidTemplate: s.raidTemplate || '',
