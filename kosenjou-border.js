@@ -80,6 +80,32 @@
 
     const GBFDATA_API = 'https://gbfdata.com/api/users/borders';
     const BATTLE_OPEN_HOUR = 7; // 毎日 0〜7時は集計が止まる
+    // gbfdata は毎時5分ごろに更新（運営者に確認済み）。それまでは取り直しても同じなので API を呼ばない
+    const UPDATE_MINUTE = 5;
+    const RETRY_MIN = 10; // 反映が遅れていたときは、この分数たてば取り直せる
+    const HOUR_MS = 3600e3;
+    const JST_MS = 9 * HOUR_MS;
+
+    /** t 以前で一番新しい「毎時5分」 */
+    function lastUpdateSlot(t) {
+        return Math.floor((t - UPDATE_MINUTE * 60e3) / HOUR_MS) * HOUR_MS + UPDATE_MINUTE * 60e3;
+    }
+    /**
+     * 次に API を呼んでよい時刻。
+     * ・取れたデータが最新の時刻分なら、次の「毎時5分」
+     * ・反映が遅れて古かったら、RETRY_MIN 分後
+     * ・0〜7時（集計停止中）は、その日の7時5分
+     */
+    function nextFetchTime(fetchedAt, latestPointAt) {
+        const slot = lastUpdateSlot(fetchedAt);
+        const jst = new Date(fetchedAt + JST_MS);
+        if (jst.getUTCHours() < BATTLE_OPEN_HOUR) {
+            return Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate(), BATTLE_OPEN_HOUR, UPDATE_MINUTE) - JST_MS;
+        }
+        const fresh = latestPointAt != null && latestPointAt >= slot - UPDATE_MINUTE * 60e3;
+        return fresh ? slot + HOUR_MS : fetchedAt + RETRY_MIN * 60e3;
+    }
+    const hhmm = (t) => { const d = new Date(t + JST_MS); return `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
 
     /** 「2000位」「12万位」「100000」→ 順位の数値 */
     function rankOf(label) {
@@ -130,7 +156,19 @@
             };
         });
         const days = meta && Array.isArray(meta.schedules) ? meta.schedules.map((x) => x.day).filter(Boolean).sort() : [];
-        return { raid: meta ? meta.raid_number : null, generatedAt: meta ? meta.generated_at : null, lastDay: days[days.length - 1] || null, rows };
+        // 一番新しいデータ点の時刻（day_of 日目の time 時、日本時間）
+        let latestPointAt = null;
+        for (const sr of series) {
+            const pts = Array.isArray(sr.points) ? sr.points : [];
+            const last = pts[pts.length - 1];
+            const day = last && days[last.day_of - 1];
+            if (!day || !last.time) continue;
+            const [y, mo, d] = day.split('-').map(Number);
+            const [hh, mm] = String(last.time).split(':').map(Number);
+            const t = Date.UTC(y, mo - 1, d, hh || 0, mm || 0) - JST_MS;
+            if (Number.isFinite(t) && (latestPointAt == null || t > latestPointAt)) latestPointAt = t;
+        }
+        return { raid: meta ? meta.raid_number : null, generatedAt: meta ? meta.generated_at : null, lastDay: days[days.length - 1] || null, latestPointAt, rows };
     }
 
     /** 今から最終日の24時までのうち、毎日7〜24時（集計が動いている時間）の合計時間（日本時間で計算） */
@@ -172,7 +210,7 @@
         }
 
         load() {
-            const fallback = { rows: DEFAULT_ROWS.map((r) => ({ ...r })), mine: null, days: 0, hours: 0, target: 0, fetchNote: '' };
+            const fallback = { rows: DEFAULT_ROWS.map((r) => ({ ...r })), mine: null, days: 0, hours: 0, target: 0, fetchNote: '', fetchedAt: 0, nextFetchAt: 0, fetchedRanks: '' };
             try {
                 const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
                 if (!s || !Array.isArray(s.rows)) return fallback;
@@ -192,6 +230,9 @@
                     hours: Number.isFinite(s.hours) ? s.hours : 0,
                     target: Number.isInteger(s.target) ? s.target : 0,
                     fetchNote: typeof s.fetchNote === 'string' ? s.fetchNote.slice(0, 200) : '',
+                    fetchedAt: Number.isFinite(s.fetchedAt) ? s.fetchedAt : 0,
+                    nextFetchAt: Number.isFinite(s.nextFetchAt) ? s.nextFetchAt : 0,
+                    fetchedRanks: typeof s.fetchedRanks === 'string' ? s.fetchedRanks.slice(0, 100) : '',
                 };
             } catch (e) {
                 return fallback;
@@ -252,6 +293,8 @@
 .bd-chart .fin { fill:var(--accent); stroke:var(--bg); stroke-width:2; }
 .bd-chart .cross { stroke:var(--text-3); stroke-width:1; }
 .bd-chart .lbl { fill:var(--text-2); font-size:11px; }
+.bd-credit { font-size:0.76em; color:var(--text-2); margin:2px 0 6px; }
+.bd-credit a { color:var(--accent); }
 .bd-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:0.78em; color:var(--text-2); margin-top:4px; }
 .bd-legend i { display:inline-block; width:16px; height:0; border-top:2px solid var(--accent); margin-right:5px; vertical-align:3px; }
 .bd-legend i.prev { border-top-color:var(--text-3); }
@@ -309,6 +352,7 @@
     <a href="${SOURCES[0].url}" target="_blank" rel="noopener noreferrer" style="font-size:0.82em;color:var(--accent)">gbfdata を開く ↗</a>
     <a href="${SOURCES[1].url}" target="_blank" rel="noopener noreferrer" style="font-size:0.82em;color:var(--accent)">ランキング速報を開く ↗</a>
   </div>
+  <div class="bd-credit">ボーダーデータ：<a href="https://gbfdata.com/" target="_blank" rel="noopener noreferrer">gbfdata.com</a>（毎時5分ごろ更新）<span data-next-fetch>${this.nextFetchText()}</span></div>
   <div class="bd-status" data-fetch-status>${esc(s.fetchNote || 'ボタンを押すと、下の順位のボーダーと最終予想・残り時間が入ります。')}</div>
   <div class="bd-ranks">${cards}</div>
   <details class="bd-details">
@@ -395,6 +439,18 @@
             const status = this.root.querySelector('[data-fetch-status]');
             const ranks = [...new Set(this.state.rows.map((r) => rankOf(r.label)).filter((r) => r && r > 0))].slice(0, 8);
             if (ranks.length === 0) { status.textContent = '「順位を変える・手で入力する」で、順位を「2000位」「10万位」のように入れてください'; return; }
+            const ranksKey = ranks.slice().sort((a, b) => a - b).join(',');
+            const now = Date.now();
+            // 前回と同じ順位で、まだ次の更新（毎時5分ごろ）前なら、手元の値のままにする
+            if (ranksKey === this.state.fetchedRanks && now < this.state.nextFetchAt) {
+                const wait = this.state.nextFetchAt - this.state.fetchedAt < 30 * 60e3
+                    ? `gbfdata の反映が遅れているようです。${hhmm(this.state.nextFetchAt)} から取り直せます`
+                    : `これが最新です。gbfdata の次の更新は ${hhmm(this.state.nextFetchAt)} ごろです`;
+                status.textContent = `${this.state.fetchNote ? `${this.state.fetchNote} ／ ` : ''}${wait}`;
+                return;
+            }
+            if (this.fetching) return;
+            this.fetching = true;
             button.disabled = true;
             status.textContent = '取得しています…';
             try {
@@ -413,15 +469,27 @@
                     this.state.days = Math.min(4, Math.floor(h / 24));
                     this.state.hours = Math.min(23, h - this.state.days * 24);
                 }
+                this.state.fetchedAt = now;
+                this.state.fetchedRanks = ranksKey;
+                this.state.nextFetchAt = nextFetchTime(now, parsed.latestPointAt);
                 const at = parsed.rows[0] ? parsed.rows[0].at : '';
                 const prevRow = parsed.rows.find((r) => r.prevRaid);
                 this.state.fetchNote = `第${parsed.raid}回 ${at} 時点（gbfdata）。最終予想は${prevRow ? `前回（第${prevRow.prevRaid}回）の同じ時刻からの伸び率` : '前回のデータが無いため未計算'}。残り時間は 0〜7時を除いて自動で入れました`;
                 this.save();
                 this.render();
             } catch (err) {
-                status.textContent = `取得できませんでした（${err && err.message ? err.message : err}）。「順位を変える・手で入力する」から値を入れてください`;
+                // gbfdata 側で API が一時停止・変更されている場合もある。手入力はいつでも使える
+                status.textContent = `gbfdata のデータを取得できませんでした（${err && err.message ? err.message : err}）。一時停止中の可能性があります。時間をおいて試すか、「順位を変える・手で入力する」から値を入れてください`;
                 button.disabled = false;
+            } finally {
+                this.fetching = false;
             }
+        }
+
+        nextFetchText() {
+            const t = this.state.nextFetchAt;
+            if (!t || Date.now() >= t) return '';
+            return t - this.state.fetchedAt < 30 * 60e3 ? ` ・反映待ち（${hhmm(t)} から取り直せます）` : ` ・次の更新 ${hhmm(t)} ごろ`;
         }
 
         async request(ranks, prevRaid) {
@@ -430,7 +498,9 @@
             if (prevRaid) for (const r of ranks) q.append('additional_targets[]', `rank:${prevRaid}:${r}`);
             const res = await fetch(`${GBFDATA_API}?${q}`, { headers: { Accept: 'application/json' } });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.json();
+            const json = await res.json();
+            if (!json || !Array.isArray(json.data)) throw new Error('データの形式が変わっています');
+            return json;
         }
 
         /** 討伐時間の変更などを反映する */
@@ -554,7 +624,8 @@ ${marks}
 </svg>
 <div class="bd-tip" data-tip hidden></div>
 </div>
-<div class="bd-legend"><span><i></i>今回（${esc(label)}）</span>${prev.length > 1 ? '<span><i class="prev"></i>前回</span>' : ''}${row.final != null ? '<span><i class="pred"></i>最終予想まで</span>' : ''}${mine != null ? '<span><i class="me"></i>自分</span>' : ''}</div>`;
+<div class="bd-legend"><span><i></i>今回（${esc(label)}）</span>${prev.length > 1 ? '<span><i class="prev"></i>前回</span>' : ''}${row.final != null ? '<span><i class="pred"></i>最終予想まで</span>' : ''}${mine != null ? '<span><i class="me"></i>自分</span>' : ''}</div>
+<div class="bd-credit">ボーダーデータ：<a href="https://gbfdata.com/" target="_blank" rel="noopener noreferrer">gbfdata.com</a></div>`;
         }
 
         bindChart(out, row) {
@@ -601,4 +672,5 @@ ${marks}
     BorderPanel.remainingActiveHours = remainingActiveHours;
     BorderPanel.rankOf = rankOf;
     global.BorderPanel = BorderPanel;
+    BorderPanel._time = { lastUpdateSlot, nextFetchTime };
 })(window);
