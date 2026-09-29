@@ -702,7 +702,9 @@
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             a.download = `${s.name || 'sheet'}.csv`;
+            document.body.appendChild(a);
             a.click();
+            a.remove();
             URL.revokeObjectURL(a.href);
         }
     });

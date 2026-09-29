@@ -2,13 +2,29 @@
   "rules": {
     ".read": false,
     ".write": false,
+    "locks": {
+      "$room": {
+        ".read": false,
+        ".write": "auth != null && root.child('rooms').child($room).child('meta/owner').val() === auth.uid",
+        ".validate": "newData.isString() && newData.val().length === 64"
+      }
+    },
     "rooms": {
       "$room": {
-        ".read": "$room.matches(/^[A-Za-z0-9]{20}$/)",
-        ".write": "$room.matches(/^[A-Za-z0-9]{20}$/)",
+        ".read": "auth != null && $room.matches(/^[A-Za-z0-9]{20}$/) && (!root.child('locks').child($room).exists() || data.child('members').child(auth.uid).val() === root.child('locks').child($room).val())",
+        ".write": "auth != null && $room.matches(/^[A-Za-z0-9]{20}$/) && (!root.child('locks').child($room).exists() || data.child('members').child(auth.uid).val() === root.child('locks').child($room).val()) && (newData.exists() || data.child('meta/owner').val() === auth.uid)",
+        ".validate": "newData.child('meta/createdAt').exists()",
         "meta": {
-          ".validate": "newData.hasChild('createdAt')",
-          "name": { ".validate": "newData.isString() && newData.val().length <= 40" }
+          ".validate": "newData.hasChild('createdAt') && (!data.child('owner').exists() || newData.child('owner').val() === data.child('owner').val())",
+          "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "owner": { ".validate": "(!data.exists() && newData.val() === auth.uid) || data.val() === newData.val()" },
+          "locked": { ".validate": "newData.isBoolean()" }
+        },
+        "members": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && $room.matches(/^[A-Za-z0-9]{20}$/)",
+            ".validate": "newData.isString() && newData.val() === newData.parent().parent().parent().parent().child('locks').child($room).val()"
+          }
         },
         "move": {
           "setup": {

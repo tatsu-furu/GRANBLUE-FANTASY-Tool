@@ -97,6 +97,11 @@
             async set(path, value) { commit({ [joinPath(path)]: value }); },
             async get(path) { return clone(getAt(data, path)); },
             async setPresence(id, value) { presenceIds.add(id); return room.update('presence', { [id]: value }); },
+            uid: null,
+            // ローカル置き場では「ルームごと消す」だけ扱う（rooms/<id> を消す指示を、この置き場全体の削除として扱う）
+            async rootUpdate(updates) {
+                if (Object.entries(updates).some(([k, v]) => /^rooms\/[^/]+$/.test(k) && v == null)) { commit({ '': null }); data = {}; try { localStorage.removeItem(storageKey); } catch { /* 無効 */ } }
+            },
             close() {
                 listeners.clear();
                 // ページを閉じたら自分の在室表示を消す（Firebase の onDisconnect 相当）
@@ -120,27 +125,42 @@
             const appMod = await import(`${base}/firebase-app.js`);
             const dbMod = await import(`${base}/firebase-database.js`);
             const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
-            return { db: dbMod.getDatabase(app), m: dbMod };
+            // 匿名ログイン：ブラウザごとに見えない ID が付くだけ（管理者・鍵の判定に使う）。
+            // Firebase 側で匿名ログインが有効になっていなければ、ID なしで今まで通り動く
+            let uid = null;
+            try {
+                const authMod = await import(`${base}/firebase-auth.js`);
+                const auth = authMod.getAuth(app);
+                if (config.authEmulatorUrl) authMod.connectAuthEmulator(auth, config.authEmulatorUrl, { disableWarnings: true });
+                uid = (await authMod.signInAnonymously(auth)).user.uid;
+            } catch (e) {
+                console.warn('anonymous sign-in unavailable', e);
+            }
+            return { db: dbMod.getDatabase(app), m: dbMod, uid };
         })());
         return {
             kind: 'firebase',
             available: true,
             async connect(roomId) {
-                const { db, m } = await load();
+                const { db, m, uid } = await load();
                 const base = `rooms/${roomId}`;
                 const r = (p) => m.ref(db, joinPath(base, p));
                 const unsubs = new Set();
                 const presenceRefs = [];
                 return {
                     kind: 'firebase',
-                    onValue(path, cb) {
-                        const off = m.onValue(r(path), (snap) => cb(snap.val()), (err) => console.warn('onValue error', path, err));
+                    uid,
+                    // onError は読む権限がなくなったとき（鍵がかかった・パスワードが変わった）に呼ばれる
+                    onValue(path, cb, onError) {
+                        const off = m.onValue(r(path), (snap) => cb(snap.val()), (err) => { console.warn('onValue error', path, err); onError?.(err); });
                         unsubs.add(off);
                         return () => { off(); unsubs.delete(off); };
                     },
                     update(path, updates) { return m.update(r(path), updates); },
                     set(path, value) { return m.set(r(path), value); },
                     async get(path) { return (await m.get(r(path))).val(); },
+                    // rooms/ の外（locks/）もまとめて書く。キーは DB のルートからのパス
+                    rootUpdate(updates) { return m.update(m.ref(db), updates); },
                     async setPresence(id, value) {
                         const pref = r(`presence/${id}`);
                         if (!presenceRefs.includes(id)) { presenceRefs.push(id); await m.onDisconnect(pref).remove(); }
@@ -215,6 +235,10 @@
         presence: {},
         listeners: new Set(),
         localSheets: null,
+        roomName: '',
+        owner: null, // ルームの管理者（作った人）の匿名ID
+        locked: false,
+        lockPrompt: null, // 鍵つきルームのパスワード入力待ち { roomId, msg }
     };
 
     let nameCache = (() => { try { return (localStorage.getItem(NAME_KEY) || '').trim(); } catch { return ''; } })();
@@ -314,48 +338,100 @@
         list.unshift({ id, name: name || '', at: Date.now() });
         try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 12))); } catch { /* 容量 */ }
     }
+    function removeRecent(id) {
+        try { localStorage.setItem(RECENT_KEY, JSON.stringify(recentRooms().filter((r) => r.id !== id))); } catch { /* 容量 */ }
+    }
+    const isPermissionError = (e) => /permission/i.test(String((e && (e.code || e.message)) || e));
+    // 鍵のパスワードはそのまま送らず、ルームIDと混ぜたハッシュにする
+    async function hashPassword(roomId, pw) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`gbf-room:${roomId}:${pw}`));
+        return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    }
+    const defaultSheets = () => ({ [Math.random().toString(36).slice(2, 10)]: { name: 'シート1', order: 1, rows: 30, cols: 8, freeze: true } });
 
-    // create: 新しく作る / blank: 空で作る（false なら今の内容を持っていく）
-    async function connect(roomId, { create, blank = false, name = '' }) {
+    // create: 新しく作る / blank: 空で作る / seed: 保存ファイルから復元する中身
+    async function connect(roomId, { create = false, blank = false, name = '', seed = null } = {}) {
         if (!remoteAdapter) return;
-        setStatus('busy', create ? 'ルームを作成中…' : 'ルームに接続中…');
+        setStatus('busy', seed ? '復元中…' : create ? 'ルームを作成中…' : 'ルームに接続中…');
+        let room = null;
         try {
-            const room = await remoteAdapter.connect(roomId);
+            room = await remoteAdapter.connect(roomId);
             if (create) {
-                const carrySheets = blank ? null : await currentStore().get('sheets');
-                const move = blank ? sharedMove(getDefaultWorkData()) : sharedMove(currentWorkData);
-                await room.set('meta', { createdAt: Date.now(), createdBy: myName(), name: name.slice(0, 40) });
+                const sheets = seed ? seed.sheets : blank ? null : await currentStore().get('sheets');
+                const move = seed ? normalizeMove(seed.move) : sharedMove(blank ? getDefaultWorkData() : currentWorkData);
+                const meta = { createdAt: Date.now(), createdBy: myName(), name: (name || '').slice(0, 40) };
+                if (room.uid) meta.owner = room.uid;
+                await room.set('meta', meta);
                 await room.set('move', clone(move));
-                if (carrySheets) await room.set('sheets', carrySheets);
-                // 空で作ったときも、開いてすぐ書けるよう空のシートを1枚置いておく
-                else await room.set('sheets', { [Math.random().toString(36).slice(2, 10)]: { name: 'シート1', order: 1, rows: 30, cols: 8, freeze: true } });
+                await room.set('sheets', sheets && Object.keys(sheets).length ? sheets : defaultSheets());
+                // スクショは1枚ずつ（1回の書き込みを小さくする）
+                for (const [id, shot] of Object.entries((seed && seed.shots) || {})) {
+                    const data = seed.shotData && seed.shotData[id];
+                    if (shot && data) await room.update('', { [`shots/${id}`]: shot, [`shotData/${id}`]: data });
+                }
             } else {
-                const meta = await room.get('meta');
-                if (!meta) { room.close(); setStatus('error', 'ルームが見つかりません（リンクを確認してください）'); if (!state.room) clearHash(); return; }
+                let meta;
+                try { meta = await room.get('meta'); } catch (e) {
+                    if (!isPermissionError(e)) throw e;
+                    room.close();
+                    askPassword(roomId, '');
+                    return;
+                }
+                if (!meta) {
+                    room.close();
+                    removeRecent(roomId);
+                    setStatus('error', 'ルームが見つかりません（削除されたか、リンクが違います）');
+                    if (!state.room) clearHash();
+                    return;
+                }
             }
             // 別の内容に置き換わるときは、自分の作業を念のため退避しておく
-            if (!create || blank) { try { localStorage.setItem(BACKUP_KEY, localStorage.getItem(STORAGE_KEY_CURRENT) || ''); } catch { /* 容量 */ } }
+            if (!create || blank || seed) { try { localStorage.setItem(BACKUP_KEY, localStorage.getItem(STORAGE_KEY_CURRENT) || ''); } catch { /* 容量 */ } }
             teardown(); // 前のルームにいたら抜ける
             state.room = room;
             state.roomId = roomId;
             state.roomName = name;
+            state.owner = create ? room.uid : null;
+            state.locked = false;
+            state.lockPrompt = null;
             formOpen = false;
-            state.lastMoveFlat = create && !blank ? flatten(clone(sharedMove(currentWorkData))) : null;
-            state.unsubs.push(room.onValue('move', (v) => { if (v) applyRemoteMove(v); }));
-            state.unsubs.push(room.onValue('presence', (v) => { state.presence = v || {}; renderBar(); window.dispatchEvent(new CustomEvent('gbf-presence', { detail: state.presence })); }));
+            manageOpen = false;
+            state.lastMoveFlat = create && !blank && !seed ? flatten(clone(sharedMove(currentWorkData))) : null;
+            // 読めなくなった（鍵がかかった・パスワードが変わった）ら、パスワードを聞き直す
+            const lost = (err) => {
+                if (state.room !== room || !isPermissionError(err)) return;
+                teardown();
+                askPassword(roomId, 'このルームに鍵がかかったか、パスワードが変わりました');
+                emitStoreChange();
+            };
+            state.unsubs.push(room.onValue('move', (v) => { if (v) applyRemoteMove(v); }, lost));
+            state.unsubs.push(room.onValue('presence', (v) => { state.presence = v || {}; renderBar(); window.dispatchEvent(new CustomEvent('gbf-presence', { detail: state.presence })); }, lost));
             state.unsubs.push(room.onValue('meta', (v) => {
-                state.roomName = (v && v.name) || '';
+                if (state.room !== room) return;
+                if (!v) {
+                    // 管理者がルームを削除した
+                    teardown();
+                    clearHash();
+                    removeRecent(roomId);
+                    setStatus('error', 'このルームは削除されました。内容はこのブラウザに残っています');
+                    emitStoreChange();
+                    return;
+                }
+                state.roomName = v.name || '';
+                state.owner = v.owner || null;
+                state.locked = !!v.locked;
                 saveRecent(roomId, state.roomName);
                 renderBar();
                 window.dispatchEvent(new CustomEvent('gbf-room', { detail: { id: roomId, name: state.roomName } }));
-            }));
+            }, lost));
             saveRecent(roomId, name);
             await announce({});
             if (location.hash !== `#room=${roomId}`) history.replaceState(null, '', `#room=${roomId}`);
-            setStatus('ok', create ? 'ルームを作りました。リンクを送ってください' : '');
+            setStatus('ok', seed ? '復元しました。新しいリンクを送ってください' : create ? 'ルームを作りました。リンクを送ってください' : '');
             emitStoreChange();
         } catch (e) {
             console.error(e);
+            if (room && state.room !== room) room.close();
             setStatus('error', 'つながりませんでした: ' + (e && e.message ? e.message : e));
         }
     }
@@ -368,6 +444,8 @@
         state.room = null;
         state.roomId = null;
         state.roomName = '';
+        state.owner = null;
+        state.locked = false;
         state.lastMoveFlat = null;
         state.presence = {};
     }
@@ -386,6 +464,146 @@
         state.room.update('meta', { name: state.roomName }).catch((e) => setStatus('error', '名前を保存できませんでした: ' + e.message));
     }
 
+    // ---------- 鍵・管理者・削除 ----------
+    const isOwner = () => !!(state.room && state.room.uid && state.owner === state.room.uid);
+    function askPassword(roomId, msg) {
+        state.lockPrompt = { roomId, msg };
+        if (location.hash !== `#room=${roomId}`) history.replaceState(null, '', `#room=${roomId}`);
+        setStatus('ok', '');
+    }
+    async function submitPassword(pw) {
+        const roomId = state.lockPrompt && state.lockPrompt.roomId;
+        if (!roomId || !pw) return;
+        setStatus('busy', '確認中…');
+        let room = null;
+        try {
+            room = await remoteAdapter.connect(roomId);
+            if (!room.uid) throw new Error('ログインの準備ができていません');
+            // 正しいパスワードのときだけ、サーバーのルールがこの書き込みを通す
+            await room.update('members', { [room.uid]: await hashPassword(roomId, pw) });
+        } catch (e) {
+            room?.close();
+            setStatus('error', isPermissionError(e) ? 'パスワードが違います' : `入れませんでした: ${e.message || e}`);
+            return;
+        }
+        room.close();
+        state.lockPrompt = null;
+        connect(roomId, { create: false });
+    }
+    async function setLock(pw) {
+        if (!isOwner() || !pw) return;
+        const id = state.roomId;
+        const h = await hashPassword(id, pw);
+        // 鍵・自分の入室・表示用の印を1回で書く（途中で自分が締め出されないように）
+        await state.room.rootUpdate({ [`locks/${id}`]: h, [`rooms/${id}/members/${state.room.uid}`]: h, [`rooms/${id}/meta/locked`]: true });
+        setStatus('ok', state.locked ? 'パスワードを変えました。入っていた人も、新しいパスワードが必要になります' : '鍵をかけました。パスワードを知っている人だけが入れます');
+    }
+    async function removeLock() {
+        if (!isOwner()) return;
+        const id = state.roomId;
+        await state.room.rootUpdate({ [`locks/${id}`]: null, [`rooms/${id}/meta/locked`]: null });
+        setStatus('ok', '鍵を外しました');
+    }
+    async function deleteRoom() {
+        if (!isOwner()) return;
+        const id = state.roomId;
+        await state.room.rootUpdate({ [`rooms/${id}`]: null, [`locks/${id}`]: null });
+    }
+    async function claimOwner() {
+        if (!state.room || !state.room.uid || state.owner) return;
+        await state.room.update('meta', { owner: state.room.uid });
+    }
+
+    // ---------- 保存・復元（ファイル・Googleドライブ） ----------
+    const EXPORT_SUFFIX = '.gbfroom.json';
+    async function exportData() {
+        const src = state.room || currentStore();
+        const [sheets, shots, shotData] = await Promise.all([
+            src.get('sheets'),
+            state.room ? src.get('shots') : null,
+            state.room ? src.get('shotData') : null,
+        ]);
+        return {
+            format: 'gbf-room',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            name: state.roomName || '',
+            move: clone(sharedMove(currentWorkData)),
+            sheets: sheets || {},
+            shots: shots || {},
+            shotData: shotData || {},
+        };
+    }
+    function exportFileName(d) {
+        const t = new Date();
+        const stamp = `${t.getFullYear()}${String(t.getMonth() + 1).padStart(2, '0')}${String(t.getDate()).padStart(2, '0')}-${String(t.getHours()).padStart(2, '0')}${String(t.getMinutes()).padStart(2, '0')}`;
+        return `${(d.name || 'GBFルーム').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40)}_${stamp}${EXPORT_SUFFIX}`;
+    }
+    function parseExport(text) {
+        let d;
+        try { d = JSON.parse(text); } catch { throw new Error('ファイルを読めませんでした'); }
+        if (!d || d.format !== 'gbf-room' || !d.move) throw new Error('共有ムーブ表の保存ファイルではありません');
+        return d;
+    }
+    async function saveToFile() {
+        const d = await exportData();
+        const blob = new Blob([JSON.stringify(d)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = exportFileName(d);
+        document.body.appendChild(a); // ページに付けてから押さないと、ファイル名が効かないブラウザがある
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        setStatus('ok', `ファイルに保存しました（シート${Object.keys(d.sheets).length}枚・スクショ${Object.keys(d.shots).length}枚）`);
+    }
+    function restore(d) {
+        const n = Object.keys(d.shots || {}).length;
+        if (!confirm(`「${d.name || '名前なし'}」を新しいルームとして復元します（シート${Object.keys(d.sheets || {}).length}枚・スクショ${n}枚）。\n新しいリンクになります。よろしいですか？`)) return;
+        connect(newRoomId(), { create: true, seed: d, name: d.name || '' });
+    }
+
+    const G = () => window.GBFGoogle;
+    async function driveFetch(url, opts = {}) {
+        const token = await G().requestToken();
+        const res = await fetch(url, { ...opts, headers: { Authorization: `Bearer ${token}`, ...(opts.headers || {}) } });
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error((body.error && body.error.message) || `HTTP ${res.status}`);
+        }
+        return res;
+    }
+    async function saveToDrive() {
+        setStatus('busy', 'Googleドライブに保存中…');
+        try {
+            const d = await exportData();
+            const boundary = `gbf${Math.random().toString(36).slice(2)}`;
+            const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: exportFileName(d), mimeType: 'application/json', description: 'グラブル 共有ムーブ表のルーム（このツールで復元できます）' })}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(d)}\r\n--${boundary}--`;
+            const res = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name', { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
+            const file = await res.json();
+            setStatus('ok', `Googleドライブに「${file.name}」として保存しました`);
+        } catch (e) { setStatus('error', `ドライブに保存できませんでした: ${e.message || e}`); }
+    }
+    let driveFiles = null;
+    async function listDrive() {
+        setStatus('busy', 'Googleドライブを確認中…');
+        try {
+            const q = encodeURIComponent(`name contains '${EXPORT_SUFFIX}' and trashed = false`);
+            const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=modifiedTime%20desc&pageSize=30&fields=files(id,name,modifiedTime,size)`);
+            driveFiles = (await res.json()).files || [];
+            setStatus('ok', driveFiles.length ? '' : 'このツールで保存したファイルが見つかりません');
+        } catch (e) { setStatus('error', `ドライブを開けませんでした: ${e.message || e}`); }
+    }
+    async function loadFromDrive(id) {
+        setStatus('busy', 'Googleドライブから読み込み中…');
+        try {
+            const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`);
+            const d = parseExport(await res.text());
+            setStatus('ok', '');
+            restore(d);
+        } catch (e) { setStatus('error', `読み込めませんでした: ${e.message || e}`); }
+    }
+
     // 自分の在室情報（extra に今いるセルなどを入れる）
     let lastExtra = {};
     function announce(extra) {
@@ -401,7 +619,9 @@
     const bar = document.getElementById('collab-bar');
     let status = { kind: 'ok', text: '' };
     let formOpen = false;
+    let manageOpen = false;
     let builtMode = '';
+    let builtManage = '';
     function setStatus(kind, text) { status = { kind, text }; renderBar(); }
 
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -418,33 +638,102 @@
             <button class="btn reset-btn" data-act="cancel">やめる</button>
         </div>`;
 
+    // 管理パネル（保存・復元、鍵、削除）
+    function manageHtml() {
+        const google = G() && G().available;
+        const inRoom = !!state.room;
+        const uid = state.room && state.room.uid;
+        let html = `
+            <div class="cm-sec">
+                <strong>保存・復元</strong>
+                <div class="collab-row">
+                    <button class="btn" data-act="save-file">${inRoom ? 'ルームを' : '今の内容を'}ファイルに保存</button>
+                    ${google ? `<button class="btn" data-act="save-drive">Googleドライブに保存</button>` : ''}
+                    <button class="btn" data-act="restore-file">ファイルから復元</button>
+                    ${google ? `<button class="btn" data-act="list-drive">ドライブから復元</button>` : ''}
+                    <input type="file" class="cm-file" accept=".json,application/json" hidden>
+                </div>
+                ${driveFiles && driveFiles.length ? `<div class="cm-drive">${driveFiles.map((f) => `<button class="btn" data-drive="${esc(f.id)}">${esc(f.name.replace(EXPORT_SUFFIX, ''))}<small>${new Date(f.modifiedTime).toLocaleString('ja-JP')}</small></button>`).join('')}</div>` : ''}
+                <p class="cm-note">編成・全シート・スクショをまとめて保存します。復元すると新しいルーム（新しいリンク）になります。${inRoom ? '使わなくなったルームは、保存してから削除するとサーバーを圧迫しません。' : ''}</p>
+            </div>`;
+        if (!inRoom) return html;
+        if (!uid) {
+            return html + '<div class="cm-sec"><p class="cm-note">鍵とルーム削除は、管理人が Firebase の匿名ログインを有効にすると使えるようになります。</p></div>';
+        }
+        if (isOwner()) {
+            html += `
+            <div class="cm-sec">
+                <strong>${state.locked ? '🔒 鍵つき' : '🔓 鍵なし'}</strong>
+                <div class="collab-row">
+                    <input type="password" class="cm-pw" placeholder="パスワード（4文字以上）" autocomplete="new-password">
+                    <button class="btn" data-act="lock">${state.locked ? 'パスワードを変える' : '鍵をかける'}</button>
+                    ${state.locked ? '<button class="btn reset-btn" data-act="unlock">鍵を外す</button>' : ''}
+                </div>
+                <p class="cm-note">鍵をかけると、リンクを知っていてもパスワードを入れた人しか見られません。パスワードを変えると、入っていた人も入れ直しになります。</p>
+            </div>
+            <div class="cm-sec">
+                <strong>ルームの削除</strong>
+                <div class="collab-row"><button class="btn cm-danger" data-act="room-delete">このルームを削除…</button></div>
+                <p class="cm-note">全員のシート・スクショがサーバーから消えます（元に戻せません）。先に保存しておくと、あとで復元できます。</p>
+            </div>
+            <p class="cm-note">あなたはこのルームの管理者です（このブラウザで作成）。別の端末やブラウザからは管理者として操作できません。</p>`;
+        } else {
+            html += `
+            <div class="cm-sec">
+                <strong>${state.locked ? '🔒 鍵つき' : '🔓 鍵なし'}</strong>
+                <p class="cm-note">鍵とルームの削除は、ルームを作った人（管理者）だけが操作できます。</p>
+                ${state.owner ? '' : '<div class="collab-row"><button class="btn" data-act="claim">このルームの管理者になる</button></div><p class="cm-note">このルームにはまだ管理者がいません（以前に作ったルーム）。</p>'}
+            </div>`;
+        }
+        return html;
+    }
+
     function renderBar() {
         if (!bar) return;
         if (!remoteAdapter) { bar.hidden = true; return; }
         bar.hidden = false;
-        const mode = `${state.room ? 'room' : 'idle'}:${formOpen}:${state.roomId || ''}`;
+        const kind = state.room ? 'room' : state.lockPrompt ? 'locked' : 'idle';
+        const mode = `${kind}:${formOpen}:${manageOpen}:${state.roomId || ''}:${state.lockPrompt ? state.lockPrompt.roomId : ''}`;
         if (mode !== builtMode) {
             builtMode = mode;
-            if (state.room) {
+            builtManage = '';
+            const manageBox = manageOpen ? '<div class="collab-manage"></div>' : '';
+            if (kind === 'room') {
                 bar.innerHTML = `
                     <div class="collab-row">
                         <span class="collab-live">● 共同編集中</span>
+                        <span class="collab-lock" title="鍵つき"></span>
                         <input class="collab-room-name" maxlength="40" placeholder="ルーム名をつける" aria-label="ルーム名">
                         <span class="collab-people"></span>
                     </div>
                     <div class="collab-row">
                         <input class="collab-link" readonly value="${esc(roomUrl(state.roomId))}" aria-label="共有リンク">
                         <button class="btn" data-act="copy">リンクをコピー</button>
+                        <button class="btn" data-act="manage">保存・鍵・削除 ${manageOpen ? '▴' : '▾'}</button>
                         <button class="btn" data-act="new">新しいルーム</button>
                         <select class="collab-recent" aria-label="最近のルーム"></select>
                         <button class="btn reset-btn" data-act="leave">ルームを出る</button>
                     </div>
                     ${formOpen ? createForm() : ''}
+                    ${manageBox}
                     <div class="collab-row small">
                         <label>表示名 <input class="collab-name" maxlength="16"></label>
-                        <span class="collab-note">リンクを知っている人は誰でも見て編集できます。</span>
+                        <span class="collab-note"></span>
                         <span class="collab-msg"></span>
                     </div>`;
+            } else if (kind === 'locked') {
+                bar.innerHTML = `
+                    <div class="collab-row">
+                        <strong class="collab-title">🔒 このルームには鍵がかかっています</strong>
+                        <span class="collab-note">${esc(state.lockPrompt.msg || 'パスワードを入れると入れます。')}</span>
+                    </div>
+                    <div class="collab-row">
+                        <input type="password" class="collab-pw" placeholder="パスワード" autocomplete="current-password">
+                        <button class="btn collab-primary" data-act="enter">入る</button>
+                        <button class="btn reset-btn" data-act="cancel-lock">やめる</button>
+                        <span class="collab-msg"></span>
+                    </div>`;
+                bar.querySelector('.collab-pw')?.focus();
             } else {
                 bar.innerHTML = `
                     <div class="collab-row">
@@ -455,15 +744,21 @@
                         <label>表示名 <input class="collab-name" maxlength="16"></label>
                         <button class="btn collab-primary" data-act="new">ルームを作成</button>
                         <select class="collab-recent" aria-label="最近のルーム"></select>
+                        <button class="btn" data-act="manage">保存・復元 ${manageOpen ? '▴' : '▾'}</button>
                         <span class="collab-msg"></span>
                     </div>
-                    ${formOpen ? createForm() : ''}`;
+                    ${formOpen ? createForm() : ''}
+                    ${manageBox}`;
             }
             bar.querySelector('.collab-room-new')?.focus();
         }
         const setVal = (sel, v) => { const el = bar.querySelector(sel); if (el && document.activeElement !== el && el.value !== v) el.value = v; };
         setVal('.collab-name', myName());
         setVal('.collab-room-name', state.roomName || '');
+        const lock = bar.querySelector('.collab-lock');
+        if (lock) lock.textContent = state.locked ? '🔒' : '';
+        const note = bar.querySelector('.collab-note');
+        if (note && kind === 'room') note.textContent = state.locked ? 'パスワードを知っている人だけが見て編集できます。' : 'リンクを知っている人は誰でも見て編集できます。';
         const recent = bar.querySelector('.collab-recent');
         if (recent && document.activeElement !== recent) recent.innerHTML = recentOptions();
         const people = bar.querySelector('.collab-people');
@@ -473,26 +768,70 @@
                 .map(([id, p]) => `<span class="collab-chip" style="--c:${esc(p.color || '#888')}">${esc(p.name)}${id === state.clientId ? '（自分）' : ''}</span>`)
                 .join('');
         }
+        const box = bar.querySelector('.collab-manage');
+        if (box) {
+            const html = manageHtml();
+            // パスワード入力中は作り直さない
+            const typing = box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
+            if (html !== builtManage && !typing) { box.innerHTML = html; builtManage = html; }
+        }
         const msg = bar.querySelector('.collab-msg');
         if (msg) { msg.className = `collab-msg ${status.kind}`; msg.textContent = status.text; }
-        bar.querySelectorAll('[data-act^="create"]').forEach((b) => { b.disabled = status.kind === 'busy'; });
+        bar.querySelectorAll('[data-act^="create"], [data-act="enter"]').forEach((b) => { b.disabled = status.kind === 'busy'; });
     }
 
-    bar?.addEventListener('click', (e) => {
+    bar?.addEventListener('click', async (e) => {
+        const drive = e.target.closest('[data-drive]')?.dataset.drive;
+        if (drive) { loadFromDrive(drive); return; }
         const act = e.target.closest('[data-act]')?.dataset.act;
-        if (act === 'new') { formOpen = true; renderBar(); }
-        else if (act === 'cancel') { formOpen = false; renderBar(); }
-        else if (act === 'create-copy' || act === 'create-blank') {
-            const name = (bar.querySelector('.collab-room-new')?.value || '').trim();
-            const blank = act === 'create-blank';
-            const what = blank ? '空の' : '今の編成・シートを引き継いだ';
-            if (!confirm(`${what}ルーム「${name || '名前なし'}」を作ります。\nリンクを知っている人は誰でも閲覧・編集できます。よろしいですか？`)) return;
-            connect(newRoomId(), { create: true, blank, name });
-        } else if (act === 'copy') {
-            const input = bar.querySelector('.collab-link');
-            navigator.clipboard?.writeText(input.value).then(() => setStatus('ok', 'コピーしました'), () => { input.select(); setStatus('ok', '選択したのでコピーしてください'); });
-        } else if (act === 'leave') {
-            if (confirm('ルームから抜けます。今の内容はこのブラウザに残ります。')) leave();
+        if (!act) return;
+        try {
+            if (act === 'new') { formOpen = true; manageOpen = false; renderBar(); }
+            else if (act === 'cancel') { formOpen = false; renderBar(); }
+            else if (act === 'manage') {
+                manageOpen = !manageOpen;
+                formOpen = false;
+                if (manageOpen && G() && G().available) G().loadGis().catch(() => {});
+                renderBar();
+            } else if (act === 'create-copy' || act === 'create-blank') {
+                const name = (bar.querySelector('.collab-room-new')?.value || '').trim();
+                const blank = act === 'create-blank';
+                const what = blank ? '空の' : '今の編成・シートを引き継いだ';
+                if (!confirm(`${what}ルーム「${name || '名前なし'}」を作ります。\nリンクを知っている人は誰でも閲覧・編集できます（あとで鍵をかけられます）。よろしいですか？`)) return;
+                connect(newRoomId(), { create: true, blank, name });
+            } else if (act === 'copy') {
+                const input = bar.querySelector('.collab-link');
+                navigator.clipboard?.writeText(input.value).then(() => setStatus('ok', 'コピーしました'), () => { input.select(); setStatus('ok', '選択したのでコピーしてください'); });
+            } else if (act === 'leave') {
+                if (confirm('ルームから抜けます。今の内容はこのブラウザに残ります。')) leave();
+            } else if (act === 'enter') {
+                submitPassword(bar.querySelector('.collab-pw')?.value || '');
+            } else if (act === 'cancel-lock') {
+                state.lockPrompt = null;
+                clearHash();
+                setStatus('ok', '');
+            } else if (act === 'save-file') { await saveToFile(); }
+            else if (act === 'save-drive') { await saveToDrive(); }
+            else if (act === 'list-drive') { await listDrive(); }
+            else if (act === 'restore-file') { bar.querySelector('.cm-file')?.click(); }
+            else if (act === 'lock') {
+                const pw = bar.querySelector('.cm-pw')?.value || '';
+                if (pw.length < 4) { setStatus('error', 'パスワードは4文字以上にしてください'); return; }
+                await setLock(pw);
+                const el = bar.querySelector('.cm-pw');
+                if (el) el.value = '';
+            } else if (act === 'unlock') {
+                if (confirm('鍵を外すと、リンクを知っている人は誰でも見られるようになります。よろしいですか？')) await removeLock();
+            } else if (act === 'room-delete') {
+                const typed = prompt(`ルーム「${state.roomName || '名前なし'}」を削除します。全員のシート・スクショがサーバーから消え、元に戻せません。\n\n削除するなら「削除」と入力してください。`);
+                if (typed !== '削除') return;
+                await deleteRoom();
+            } else if (act === 'claim') {
+                await claimOwner();
+            }
+        } catch (err) {
+            console.warn(err);
+            setStatus('error', isPermissionError(err) ? 'この操作は許可されていません' : `できませんでした: ${err.message || err}`);
         }
     });
     bar?.addEventListener('change', (e) => {
@@ -508,10 +847,15 @@
             e.target.value = '';
             if (state.room && !confirm('今のルームを出て、選んだルームに移ります。')) return;
             connect(id, { create: false });
+        } else if (e.target.classList.contains('cm-file') && e.target.files[0]) {
+            const file = e.target.files[0];
+            e.target.value = '';
+            file.text().then((t) => restore(parseExport(t))).catch((err) => setStatus('error', err.message || String(err)));
         }
     });
     bar?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && e.target.classList.contains('collab-room-name')) e.target.blur();
+        if (e.key === 'Enter' && e.target.classList.contains('collab-pw')) bar.querySelector('[data-act="enter"]')?.click();
     });
 
     // ルーム中にスロットのロードやファイル読込をすると全員の内容が置き換わるので確認する
@@ -534,6 +878,8 @@
         get inRoom() { return !!state.room; },
         get myName() { return nameCache; },
         get roomName() { return state.roomName || ''; },
+        get isOwner() { return isOwner(); },
+        get locked() { return state.locked; },
         get clientId() { return state.clientId; },
         get presence() { return state.presence; },
         // テスト・デバッグ用
