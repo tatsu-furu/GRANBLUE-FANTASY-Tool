@@ -17,6 +17,7 @@
     const ACTION_SEP = ' → ';
     // ムーブ表シートの列（役割 → 列番号）
     const MOVE_COLS = { turn: 0, omen: 1, c0: 2, c1: 3, c2: 4, c3: 5, other: 6, memo: 7 };
+    const CHAR_ROLE = /^c\d$/; // c0〜c8：編成の1〜9人目
     const MOVE_TURNS = 30;
 
     const panel = document.getElementById('sheet-panel');
@@ -456,7 +457,7 @@
     const lineCount = (s, kind) => (kind === 'row' ? rowsOf(s) : Math.min(Number(s.cols) || DEFAULT_COLS, MAX_COLS));
     const MAX_OF = { row: MAX_ROWS, col: MAX_COLS };
     // 行（列）番号を map(旧番号) → 新番号 / null（消す）で付け替えて、まとめて書き直す
-    function remapLines(s, kind, map, newCount, { keepTurn = false } = {}) {
+    function remapLines(s, kind, map, newCount, { keepTurn = false, patch = null } = {}) {
         const cells = cellsOf(s);
         const align = s.align || {};
         const keep = keepTurn && kind === 'row' && s.kind === 'move' ? colMapOf(s).turn : -1;
@@ -490,8 +491,10 @@
                 updates.colMap = Object.fromEntries(Object.entries(cm).map(([role, c]) => { const nu = c >= 0 ? map(c) : null; return [role, nu == null ? -1 : nu]; }));
             }
         }
+        if (patch) patch(updates);
         // 画面は先に並べ替えておく（書き込みの反映待ちで一瞬ずれて見えないように）
-        gridEl.querySelectorAll('textarea.cell[data-key]').forEach((el) => { if (el !== document.activeElement) el.value = nc[el.dataset.key] ?? ''; });
+        const shown = updates.cells || {};
+        gridEl.querySelectorAll('textarea.cell[data-key]').forEach((el) => { if (el !== document.activeElement) el.value = shown[el.dataset.key] ?? ''; });
         write(`sheets/${s.id}`, updates);
         return dropped;
     }
@@ -743,7 +746,7 @@
         if (sel && sel.fr > 0 && sel.ar === sel.fr) return sel.fr;
         const cm = colMapOf(s);
         const cells = cellsOf(s);
-        const actionCols = [cm.c0, cm.c1, cm.c2, cm.c3, cm.other];
+        const actionCols = Object.entries(cm).filter(([k, c]) => (CHAR_ROLE.test(k) || k === 'other') && c >= 0).map(([, c]) => c);
         for (let r = 1; r < rowsOf(s); r++) if (actionCols.every((c) => !cells[`${r}_${c}`])) return r;
         return 1;
     }
@@ -755,11 +758,11 @@
     // item = { role: 'c0'..'c8' | 'summon' | 'common', label: 'アビ名', full: '[キャラ] アビ名' }
     function columnFor(s, role) {
         const cm = colMapOf(s);
-        if (/^c[0-3]$/.test(role) && cm[role] != null && cm[role] >= 0) return cm[role];
+        if (CHAR_ROLE.test(role) && cm[role] != null && cm[role] >= 0) return cm[role];
         return cm.other >= 0 ? cm.other : 0;
     }
     // そのキャラ自身の列に入るときだけ名前を省く
-    const textFor = (s, c, item) => (s.kind === 'move' && /^c[0-3]$/.test(item.role) && colMapOf(s)[item.role] === c ? item.label : item.full);
+    const textFor = (s, c, item) => (s.kind === 'move' && CHAR_ROLE.test(item.role) && colMapOf(s)[item.role] === c ? item.label : item.full);
 
     function createSheet(def) {
         const list = sheetList();
@@ -868,12 +871,14 @@
             appendCell(s, r, c, text, ' / ');
         },
 
-        // ムーブ表シートを作る。turns にムーブ表タブの内容を渡すと書き写す
-        createMoveSheet({ names = [], turns = null, name } = {}) {
-            const cm = MOVE_COLS;
+        // ムーブ表シートを作る。count = キャラの人数（前衛4＋サブ）。turns にムーブ表タブの内容を渡すと書き写す
+        createMoveSheet({ names = [], count = 4, turns = null, name } = {}) {
+            const n = Math.max(1, Math.min(9, count));
+            const cm = { turn: 0, omen: 1, other: 2 + n, memo: 3 + n };
+            for (let i = 0; i < n; i++) cm[`c${i}`] = 2 + i;
             const cells = {};
             const align = {};
-            const head = ['ターン', '予兆・HP', names[0] || '主人公', names[1] || 'キャラ2', names[2] || 'キャラ3', names[3] || 'キャラ4', '召喚・その他', 'メモ'];
+            const head = ['ターン', '予兆・HP', ...Array.from({ length: n }, (_, i) => names[i] || (i === 0 ? '主人公' : i < 4 ? `キャラ${i + 1}` : `サブ${i - 3}`)), '召喚・その他', 'メモ'];
             head.forEach((h, c) => { cells[`0_${c}`] = h; align[`0_${c}`] = 'c'; });
             let r = 1;
             const put = (c, v) => { if (v) cells[`${r}_${c}`] = String(v).slice(0, MAX_CELL); };
@@ -883,7 +888,7 @@
                         put(cm.turn, t.branches.length > 1 ? `${t.turnNumber}-${String.fromCharCode(65 + bi)}` : t.turnNumber);
                         align[`${r}_${cm.turn}`] = 'c';
                         const byCol = {};
-                        b.cells.forEach(([role, text]) => { const c = /^c[0-3]$/.test(role) ? cm[role] : cm.other; (byCol[c] ||= []).push(text); });
+                        b.cells.forEach(([role, text]) => { const c = CHAR_ROLE.test(role) && cm[role] != null ? cm[role] : cm.other; (byCol[c] ||= []).push(text); });
                         Object.entries(byCol).forEach(([c, arr]) => put(Number(c), arr.join(ACTION_SEP)));
                         put(cm.memo, b.memo);
                         r++;
@@ -897,15 +902,48 @@
                 cells[`${rr}_${cm.turn}`] = String(lastTurn + (rr - r) + 1);
                 align[`${rr}_${cm.turn}`] = 'c';
             }
-            const widths = { 0: 56, 1: 200, 2: 150, 3: 150, 4: 150, 5: 150, 6: 170, 7: 200 };
-            return createSheet({ name: (name || 'ムーブ表').slice(0, 30), kind: 'move', colMap: cm, rows, cols: 8, cells, align, widths });
+            const widths = { 0: 56, 1: 200, [cm.other]: 170, [cm.memo]: 200 };
+            for (let i = 0; i < n; i++) widths[2 + i] = i < 4 ? 150 : 130;
+            return createSheet({ name: (name || 'ムーブ表').slice(0, 30), kind: 'move', colMap: cm, rows, cols: 4 + n, cells, align, widths });
         },
-        // 見出し行のキャラ名を今の編成に合わせる
-        syncMoveHeader(names) {
+        // キャラ列を今の編成に合わせる：見出しの名前を直し、足りないキャラの列は「召喚・その他」の前に足す
+        syncMoveHeader(names, count = 4) {
             const s = active();
             if (!s || s.kind !== 'move') return;
             const cm = colMapOf(s);
-            setCells(s.id, [0, 1, 2, 3].filter((i) => cm['c' + i] >= 0).map((i) => [`0_${cm['c' + i]}`, names[i] || '']));
+            const n = Math.max(1, Math.min(9, count));
+            const missing = [];
+            for (let i = 0; i < n; i++) if (!(cm[`c${i}`] >= 0)) missing.push(i);
+            const label = (i) => names[i] || (i === 0 ? '主人公' : i < 4 ? `キャラ${i + 1}` : `サブ${i - 3}`);
+            if (!missing.length) {
+                setCells(s.id, Array.from({ length: n }, (_, i) => [`0_${cm[`c${i}`]}`, label(i)]));
+                whereEl.textContent = 'キャラ列の見出しを今の編成に合わせました。';
+                return;
+            }
+            const cols = lineCount(s, 'col');
+            const k = missing.length;
+            if (cols + k > MAX_COLS) { whereEl.textContent = '列がいっぱいで追加できません。'; return; }
+            const at = cm.other >= 0 ? cm.other : cols;
+            remapLines(s, 'col', (i) => (i >= at ? i + k : i), cols + k, {
+                patch: (u) => {
+                    u.cells ||= {};
+                    u.align ||= {};
+                    u.widths ||= {};
+                    u.colMap ||= {};
+                    for (let i = 0; i < n; i++) {
+                        const c = cm[`c${i}`];
+                        if (c >= 0) u.cells[`0_${c >= at ? c + k : c}`] = label(i);
+                    }
+                    missing.forEach((i, j) => {
+                        const c = at + j;
+                        u.colMap[`c${i}`] = c;
+                        u.cells[`0_${c}`] = label(i);
+                        u.align[`0_${c}`] = 'c';
+                        u.widths[c] = 130;
+                    });
+                },
+            });
+            whereEl.textContent = `${missing.map(label).join('・')}の列を追加しました。`;
         },
         // 予兆一覧をまとめてシートにする
         createOmenSheet(raid) {

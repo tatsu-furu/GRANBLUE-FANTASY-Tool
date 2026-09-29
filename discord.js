@@ -15,7 +15,8 @@
         const grid = sh.grid;
         const head = grid[0] || [];
         const at = (row, c) => (c != null && c >= 0 && row[c] ? oneLine(row[c].v) : '');
-        const charCols = [0, 1, 2, 3].map((i) => cm[`c${i}`]).filter((c) => c != null && c >= 0);
+        // キャラ列（c0〜c8）を人数分。消した列（-1）は除く
+        const charCols = Object.keys(cm).filter((k) => /^c\d$/.test(k)).sort((a, b) => a.slice(1) - b.slice(1)).map((k) => cm[k]).filter((c) => c != null && c >= 0);
         const names = charCols.map((c) => at(head, c) || '');
         // ページ側の let 変数なので window 経由では見えない
         const raid = typeof currentRaidTemplate !== 'undefined' && currentRaidTemplate ? currentRaidTemplate.name : '';

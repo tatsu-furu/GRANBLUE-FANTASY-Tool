@@ -17,11 +17,14 @@
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const defaultName = (i) => (i === 0 ? '主人公' : i < 4 ? `キャラ${i + 1}` : `サブ${i - 3}`);
     const nameOf = (setup, i) => (setup.characters?.[i] || '').trim() || defaultName(i);
+    // サブの人数（0〜5）。未設定なら2
+    const subCountOf = (setup) => { const n = Number(setup.subCount); return Number.isFinite(n) ? Math.max(0, Math.min(5, n)) : 2; };
+    const partyCount = () => 4 + subCountOf(currentWorkData.setup);
 
     // いまの編成からチップの一覧を作る
     function partyItems() {
         const setup = currentWorkData.setup;
-        const count = 4 + (Number(setup.subCount) || 2);
+        const count = 4 + subCountOf(setup);
         const chars = [];
         for (let i = 0; i < count; i++) {
             const name = nameOf(setup, i);
@@ -30,6 +33,7 @@
                 ...abis.map((a) => ({ role: `c${i}`, label: a.label, full: `[${name}] ${a.label}`, move: { char: i, abi: a.k } })),
                 { role: `c${i}`, label: 'ガード', full: `[${name}] ガード`, move: { char: i, action: 'ガード' } },
                 { role: `c${i}`, label: 'キュアポ', full: `[${name}] キュアポ`, move: { char: i, action: 'キュアポ' } },
+                { role: `c${i}`, label: i < 4 ? '交代（下がる）' : '交代（出る）', full: `[${name}] ${i < 4 ? '交代で下がる' : '交代で出る'}`, move: { char: i, action: '交代' } },
             ];
             chars.push({ i, name, icon: setup.characterIcons?.[i] || null, sub: i >= 4, items });
         }
@@ -82,7 +86,7 @@
                     <button class="btn pal-next" data-pal="down">次のターン ↓</button>
                 </div>
                 <p>チップをタップ → この行のそのキャラの列へ。セルへドラッグでも置けます。</p>
-                <button class="btn pal-small" data-pal="sync-head">見出しのキャラ名を今の編成に合わせる</button>`;
+                <button class="btn pal-small" data-pal="sync-head">キャラ列を今の編成に合わせる（足りない列を追加）</button>`;
         } else {
             box.innerHTML = `
                 <p>タップで選んでいるセルに追加、またはセルへドラッグ。</p>
@@ -104,7 +108,7 @@
                         if (!m) return ['other', a];
                         if (!m[2]) return ['other', m[1].replace(/^召喚:\s*/, '召喚: ')];
                         const i = names.indexOf(m[1]);
-                        return i >= 0 && i < 4 ? [`c${i}`, m[2]] : ['other', a];
+                        return i >= 0 && i < partyCount() ? [`c${i}`, m[2]] : ['other', a];
                     }),
                 })),
             }))
@@ -115,7 +119,7 @@
     function createMoveSheet() {
         const { names, turns } = turnsFromMoveTab();
         const useTurns = turns.length > 0 && confirm(`ムーブ表タブの内容（${turns.length}ターン分）を書き写しますか？\nキャンセルすると空のムーブ表シートを作ります。`);
-        window.GBFSheet.createMoveSheet({ names, turns: useTurns ? turns : null });
+        window.GBFSheet.createMoveSheet({ names, count: partyCount(), turns: useTurns ? turns : null });
     }
     window.GBFPalette = { createMoveSheet, render };
 
@@ -138,7 +142,7 @@
         if (pal === 'up') window.GBFSheet?.stepRow(-1);
         else if (pal === 'down') window.GBFSheet?.stepRow(1);
         else if (pal === 'new-move') createMoveSheet();
-        else if (pal === 'sync-head') window.GBFSheet?.syncMoveHeader([0, 1, 2, 3].map((i) => nameOf(currentWorkData.setup, i)));
+        else if (pal === 'sync-head') window.GBFSheet?.syncMoveHeader(Array.from({ length: 9 }, (_, i) => nameOf(currentWorkData.setup, i)), partyCount());
         if (pal) return;
 
         const chipEl = e.target.closest('.chip[data-i]');

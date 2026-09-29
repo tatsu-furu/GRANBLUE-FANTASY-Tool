@@ -317,8 +317,12 @@
                     <div>
                         <label>サブ人数</label>
                         <select id="sub-member-count">
-                            <option value="2" selected>2人 (デフォルト)</option>
-                            <option value="5">5人 (その他)</option>
+                            <option value="0">0人</option>
+                            <option value="1">1人</option>
+                            <option value="2" selected>2人（通常）</option>
+                            <option value="3">3人</option>
+                            <option value="4">4人</option>
+                            <option value="5">5人</option>
                         </select>
                     </div>
                 </div>
@@ -1938,10 +1942,10 @@
                 pendingCrops.forEach((src, i) => {
                     currentWorkData.setup.characterIcons[i] = src;
                 });
-                // 取り込んだ人数がサブ枠に収まらないときは、サブを5人にする
+                // 取り込んだ人数がサブ枠に収まらないときは、サブの人数を増やす
                 if (pendingCrops.length > 4 + currentWorkData.setup.subCount) {
-                    currentWorkData.setup.subCount = 5;
-                    subMemberCountSelect.value = '5';
+                    currentWorkData.setup.subCount = Math.min(5, pendingCrops.length - 4);
+                    subMemberCountSelect.value = String(currentWorkData.setup.subCount);
                 }
                 saveCurrentWork();
                 renderCharacterInputs();
