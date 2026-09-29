@@ -282,8 +282,9 @@
     <header class="hero">
         <div class="hero-badge">Fan Tool</div>
         <h1>GRANBLUE FANTASY Tool</h1>
+        <p><strong style="color:var(--text)">スプシと同じ感覚で、みんなで。ちょっとグラブル仕様。</strong><br>団員とリンクひとつで同時編集できる共有ムーブ表。アビをタップすればターン表が埋まり、予兆一覧も横に出しながら書けます。</p>
         <div class="hero-buttons">
-            <a href="beta.html" class="btn-primary" target="_blank" rel="noopener noreferrer">ベータ版を起動 (推奨)</a>
+            <a href="beta.html" class="btn-primary" target="_blank" rel="noopener noreferrer">共有ムーブ表を開く（ベータ）</a>
             <a href="kosenjou.html" class="btn-secondary" target="_blank" rel="noopener noreferrer">古戦場 効率計算</a>
             <a href="tool.html" class="btn-secondary" target="_blank" rel="noopener noreferrer">旧バージョン</a>
         </div>
@@ -294,34 +295,34 @@
         <p class="section-title">主な機能</p>
         <div class="features">
             <div class="feature-card">
-                <div class="feature-icon">MOVE</div>
-                <h3>ターン別ムーブ管理</h3>
-                <p>キャラ・アビリティ・召喚石の行動をターンごとに記録。分岐ルートも複数作成できます。</p>
+                <div class="feature-icon">SHEET</div>
+                <h3>スプシ感覚の共有シート</h3>
+                <p>いつものスプレッドシートと同じ操作で表が作れます。コピペ、揃え、自動折り返し、行・列の挿入やドラッグでの入れ替えもそのまま。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">LIVE</div>
+                <h3>みんなで同時編集</h3>
+                <p>ルームを作ってリンクを送るだけ。アカウント登録は不要で、誰がどのセルを触っているかも色でわかります。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">PARTS</div>
+                <h3>アビをタップでムーブ表</h3>
+                <p>登録したキャラのアビ・召喚石・奥義ON/OFFがボタンになり、タップすると今のターン行のそのキャラの列に入ります。セルへのドラッグもOK。</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">RAID</div>
-                <h3>レイドテンプレート</h3>
-                <p>ルシゼロ・天元・ヴェルサシアのHP推移・トリガー一覧を参照しながら入力できます。</p>
+                <h3>予兆一覧を横に出して書ける</h3>
+                <p>ルシゼロ・天元・ヴェルサシアの予兆と解除条件を右パネルに表示。ワンボタンで「担当・済」の列つきの予兆表シートも作れます。</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">EDIT</div>
-                <h3>アビリティ名カスタマイズ</h3>
-                <p>各キャラのアビリティボタンに固有の名前を設定。「強化のアビ」など自由に変更できます。</p>
+                <div class="feature-icon">SHOTS</div>
+                <h3>スクショ置き場</h3>
+                <p>所持キャラや編成のスクショを何枚でもルームに置けます。「持ってる？」の確認がその場で済みます。</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">SHARE</div>
-                <h3>Discord出力</h3>
-                <p>作成したムーブ表をDiscord向けテキストとしてワンクリックでコピーできます。</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">SAVE</div>
-                <h3>スロット保存・ロード</h3>
-                <p>複数の編成とムーブをブラウザに保存。JSON形式でExport/Importも可能です。</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">PLAY</div>
-                <h3>再生モード（カンペ）</h3>
-                <p>作成済みムーブ表を見やすく表示。ターンごとにハイライトして実戦で使えます。</p>
+                <div class="feature-icon">EXPORT</div>
+                <h3>Googleスプレッドシートへ</h3>
+                <p>見出しや揃え、列幅をそのままにGoogleスプレッドシートへ書き出せます。CSV保存や表のコピーにも対応しています。</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">CALC</div>
@@ -337,6 +338,46 @@
     <div class="section">
         <p class="section-title">アップデート履歴</p>
         <ul class="update-list">
+            <li class="update-item">
+                <span class="update-date">2026-09</span>
+                <span class="update-tag tag-beta">BETA</span>
+                <div class="update-body">
+                    <strong>ベータ版を「共有ムーブ表」にリニューアル</strong><br>
+                    スプレッドシート型の共有シートに作り替え、ルームのリンクでみんなと同時編集できるようにしました。1行=1ターン、キャラごとに列が分かれた「ムーブ表シート」に、右パネルの編成パーツからアビをタップして入れられます。ムーブ表タブは「編成」タブ（キャラ・アビ名・召喚石の登録）になりました。以前のムーブ表の内容は、ムーブ表シートを作るときに書き写せます。
+                </div>
+            </li>
+            <li class="update-item">
+                <span class="update-date">2026-09</span>
+                <span class="update-tag tag-new">NEW</span>
+                <div class="update-body">
+                    <strong>共有シート: スプシ連携・予兆表・スクショ置き場</strong><br>
+                    Googleスプレッドシートへの書き出し（書式つきコピー／Googleに直接作成）、予兆一覧をワンボタンでシート化、所持キャラなどのスクショ置き場を追加。ルームには名前をつけられ、最近のルームから切り替えられます。
+                </div>
+            </li>
+            <li class="update-item">
+                <span class="update-date">2026-09</span>
+                <span class="update-tag tag-improve">IMPROVE</span>
+                <div class="update-body">
+                    <strong>共有シート: 表計算らしい操作</strong><br>
+                    自動折り返しとセル内改行（Alt+Enter）、左・中央・右揃え、範囲選択、行・列の挿入・削除、ドラッグでの並べ替え・入れ替えに対応しました。
+                </div>
+            </li>
+            <li class="update-item">
+                <span class="update-date">2026-09</span>
+                <span class="update-tag tag-fix">FIX</span>
+                <div class="update-body">
+                    <strong>スクショからのキャラアイコン一括取込を修正</strong><br>
+                    ボタンを押しても取込画面が開かなかった不具合を修正しました。
+                </div>
+            </li>
+            <li class="update-item">
+                <span class="update-date">2026-09</span>
+                <span class="update-tag tag-improve">IMPROVE</span>
+                <div class="update-body">
+                    <strong>古戦場ツール: 250HELLとリロ有の計算</strong><br>
+                    250HELLの討伐時間を90分まで入力できるようにしました。目標計算に、リロ有の討伐時間で見た必要回数・所要時間の行を追加しました。
+                </div>
+            </li>
             <li class="update-item">
                 <span class="update-date">2026-09</span>
                 <span class="update-tag tag-improve">IMPROVE</span>
@@ -404,30 +445,30 @@
         <div class="steps">
             <div class="step">
                 <span class="step-num"></span>
-                <div class="step-body"><strong>「ベータ版を起動」</strong>ボタンをクリックしてツールを開く</div>
+                <div class="step-body"><strong>「共有ムーブ表を開く」</strong>でツールを開きます。</div>
             </div>
             <div class="step">
                 <span class="step-num"></span>
-                <div class="step-body"><strong>編成登録</strong>：キャラクター名・召喚石名を入力し、必要なら武器編成画像もアップロード</div>
+                <div class="step-body"><strong>編成タブ</strong>でキャラ名・アビ名・召喚石を登録します。キャラアイコンはスクショから一括で取り込めます。</div>
             </div>
             <div class="step">
                 <span class="step-num"></span>
-                <div class="step-body"><strong>レイドテンプレート（任意）</strong>：使用するレイドを選択するとHPトリガー表を参照しながら入力できます</div>
+                <div class="step-body"><strong>共有シート</strong>で「＋ ムーブ表」を押し、右パネルの<strong>編成パーツ</strong>でアビをタップしてターンを埋めます。「次のターン ↓」で次の行へ進みます。</div>
             </div>
             <div class="step">
                 <span class="step-num"></span>
-                <div class="step-body"><strong>ムーブ入力</strong>：「ムーブ入力画面へ」をクリックしてターンごとにキャラ・アビリティ・召喚石を入力</div>
+                <div class="step-body"><strong>「ルームを作成」</strong>してリンクを団員に送れば、みんなで同時に編集できます。スクショタブで所持キャラの共有もできます。</div>
             </div>
             <div class="step">
                 <span class="step-num"></span>
-                <div class="step-body"><strong>出力・共有</strong>：再生モードで確認、Discordコピー、またはJSON Exportで保存・共有</div>
+                <div class="step-body"><strong>出力</strong>：「Googleスプレッドシートへ」で書き出すか、CSV保存・表のコピーで持ち出せます。</div>
             </div>
         </div>
     </div>
 
     <!-- FOOTER -->
     <footer>
-        <p>グラブルファンツール by <a href="https://ko-fi.com/alt4l" target="_blank" rel="noopener">alt4l</a> &nbsp;|&nbsp; 非公式ツール。GRANBLUE FANTASYはCygames, Inc.の著作物です。</p>
+        <p>グラブルファンツール by <a href="https://ko-fi.com/alt4l" target="_blank" rel="noopener">alt4l</a> &nbsp;|&nbsp; 非公式ツール。GRANBLUE FANTASYはCygames, Inc.の著作物です。 &nbsp;|&nbsp; <a href="privacy.html">プライバシーポリシー</a></p>
     </footer>
 
 <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
