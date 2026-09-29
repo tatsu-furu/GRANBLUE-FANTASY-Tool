@@ -12,13 +12,17 @@
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const isNum = (v) => /^-?\d+(\.\d+)?$/.test(v);
     const ALIGN = { l: 'left', c: 'center', r: 'right' };
+    // セルの色（スプレッドシートでは明るい地の色にする）
+    const BG = { r: [0.96, 0.8, 0.8], y: [1, 0.95, 0.75], g: [0.82, 0.93, 0.82], b: [0.8, 0.88, 0.97], p: [0.9, 0.84, 0.96] };
+    const hex = (rgb) => `#${rgb.map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`;
 
     // ---------- 1) コピーして貼り付け ----------
     function toHtml(sheet) {
         const cols = sheet.widths.map((w) => `<col width="${w}">`).join('');
         const rows = sheet.grid.map((row, r) => `<tr>${row.map((cell) => {
             const bold = r === 0 && sheet.freeze ? 'font-weight:bold;background:#eeeeee;' : '';
-            return `<td style="text-align:${ALIGN[cell.a] || 'left'};vertical-align:top;${sheet.wrap ? 'white-space:pre-wrap;' : ''}${bold}">${esc(cell.v).replace(/\n/g, '<br>')}</td>`;
+            const bgStyle = BG[cell.bg] ? `background:${hex(BG[cell.bg])};` : '';
+            return `<td style="${bgStyle}text-align:${ALIGN[cell.a] || 'left'};vertical-align:top;${sheet.wrap ? 'white-space:pre-wrap;' : ''}${bold}">${esc(cell.v).replace(/\n/g, '<br>')}</td>`;
         }).join('')}</tr>`).join('');
         return `<meta charset="utf-8"><table>${cols}${rows}</table>`;
     }
@@ -109,6 +113,7 @@
                                 const fmt = {};
                                 if (cell.a === 'c') fmt.horizontalAlignment = 'CENTER';
                                 if (cell.a === 'r') fmt.horizontalAlignment = 'RIGHT';
+                                if (BG[cell.bg]) fmt.backgroundColor = { red: BG[cell.bg][0], green: BG[cell.bg][1], blue: BG[cell.bg][2] };
                                 if (sh.wrap && cell.v !== '') { fmt.wrapStrategy = 'WRAP'; fmt.verticalAlignment = 'TOP'; }
                                 if (r === 0 && sh.freeze) {
                                     fmt.textFormat = { bold: true };

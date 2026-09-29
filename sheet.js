@@ -1,6 +1,7 @@
 // 共有シート（簡易スプレッドシート）。
 // データは GBFCollab.currentStore() の sheets/ 以下に置く。ルーム中は全員で同期、ルーム外はこのブラウザ内だけ。
 //   sheets/{id} = { name, order, rows, cols, freeze, widths: {列: px}, cells: { '行_列': 文字列 }, align: { '行_列': 'c' | 'r' },
+//                   bg: { '行_列': 'r' | 'y' | 'g' | 'b' | 'p' }（セルの色）,
 //                   kind: 'move' | 'omen' | なし, colMap: { 役割: 列 }, nowrap: true で折り返さない }
 // セル単位で書き込むので、別々のセルなら同時に編集しても消し合わない。
 // kind: 'move' は「ムーブ表シート」。1行が1ターンで、キャラごとの列がある（colMap で役割→列）。
@@ -15,6 +16,7 @@
     const MAX_CELL = 2000;
     const COL_W = 110;
     const ACTION_SEP = ' → ';
+    const BG_COLORS = ['r', 'y', 'g', 'b', 'p']; // セルの色（赤・黄・緑・青・紫）
     // ムーブ表シートの列（役割 → 列番号）
     const MOVE_COLS = { turn: 0, omen: 1, c0: 2, c1: 3, c2: 4, c3: 5, other: 6, memo: 7 };
     const CHAR_ROLE = /^c\d$/; // c0〜c8：編成の1〜9人目
@@ -45,6 +47,15 @@
             <button class="btn" data-act="al-l" title="左揃え">左揃え</button>
             <button class="btn" data-act="al-c" title="中央揃え">中央</button>
             <button class="btn" data-act="al-r" title="右揃え">右揃え</button>
+            <span class="sep"></span>
+            <span class="sheet-colors" role="group" aria-label="セルの色">
+                <button class="swatch" data-act="bg-r" title="赤" aria-label="赤"></button>
+                <button class="swatch" data-act="bg-y" title="黄" aria-label="黄"></button>
+                <button class="swatch" data-act="bg-g" title="緑" aria-label="緑"></button>
+                <button class="swatch" data-act="bg-b" title="青" aria-label="青"></button>
+                <button class="swatch" data-act="bg-p" title="紫" aria-label="紫"></button>
+                <button class="swatch none" data-act="bg-x" title="色なし" aria-label="色なし">✕</button>
+            </span>
             <span class="sep"></span>
             <button class="btn" data-act="copy">表をコピー</button>
             <button class="btn" data-act="gsheet">Googleスプレッドシートへ</button>
@@ -151,6 +162,7 @@
     function fillValues(s) {
         const cells = cellsOf(s);
         const align = s.align || {};
+        const bg = s.bg || {};
         gridEl.querySelectorAll('textarea.cell[data-key]').forEach((input) => {
             const v = cells[input.dataset.key] ?? '';
             if (input !== document.activeElement && input.value !== v) input.value = v;
@@ -158,6 +170,8 @@
             const td = input.parentElement;
             td.classList.toggle('al-c', a === 'c');
             td.classList.toggle('al-r', a === 'r');
+            const color = BG_COLORS.includes(bg[input.dataset.key]) ? bg[input.dataset.key] : '';
+            if ((td.dataset.bg || '') !== color) { if (color) td.dataset.bg = color; else delete td.dataset.bg; }
         });
     }
 
@@ -475,9 +489,13 @@
         };
         for (const [k, v] of Object.entries(cells)) move(cells, nc, k, v);
         for (const [k, v] of Object.entries(align)) move(align, na, k, v);
+        const bgSrc = s.bg || {};
+        const nb = {};
+        for (const [k, v] of Object.entries(bgSrc)) move(bgSrc, nb, k, v);
         const updates = {
             cells: Object.keys(nc).length ? nc : null,
             align: Object.keys(na).length ? na : null,
+            bg: Object.keys(nb).length ? nb : null,
             [kind === 'row' ? 'rows' : 'cols']: Math.max(1, Math.min(newCount, MAX_OF[kind])),
         };
         if (kind === 'col') {
@@ -622,6 +640,8 @@
             const kb = key(b, i);
             if ((cells[ka] ?? '') !== (cells[kb] ?? '')) { updates[`cells/${ka}`] = cells[kb] ?? null; updates[`cells/${kb}`] = cells[ka] ?? null; }
             if ((align[ka] ?? '') !== (align[kb] ?? '')) { updates[`align/${ka}`] = align[kb] ?? null; updates[`align/${kb}`] = align[ka] ?? null; }
+            const bgm = s.bg || {};
+            if ((bgm[ka] ?? '') !== (bgm[kb] ?? '')) { updates[`bg/${ka}`] = bgm[kb] ?? null; updates[`bg/${kb}`] = bgm[ka] ?? null; }
         }
         if (kind === 'col') {
             const widths = s.widths || {};
@@ -688,6 +708,12 @@
             const keys = selectedKeys();
             if (!keys.length) { whereEl.textContent = '揃えを変えるセルを選んでください。'; return; }
             write(`sheets/${s.id}/align`, Object.fromEntries(keys.map((k) => [k, v])));
+        }
+        else if (act && act.startsWith('bg-')) {
+            const v = act === 'bg-x' ? null : act.slice(3);
+            const keys = selectedKeys();
+            if (!keys.length) { whereEl.textContent = '色を付けるセルを選んでください。'; return; }
+            write(`sheets/${s.id}/bg`, Object.fromEntries(keys.map((k) => [k, v])));
         }
         else if (act === 'rename') {
             const name = prompt('シート名', s.name || '');
@@ -779,16 +805,19 @@
         const cells = cellsOf(s);
         let lastR = -1;
         let lastC = -1;
-        for (const k of Object.keys(cells)) {
+        const bgm = s.bg || {};
+        // 文字のあるセルと、色だけ付いたセルの両方が入る範囲
+        for (const k of [...Object.keys(cells).filter((x) => cells[x] !== ''), ...Object.keys(bgm).filter((x) => BG_COLORS.includes(bgm[x]))]) {
             const [r, c] = k.split('_').map(Number);
-            if (cells[k] !== '') { lastR = Math.max(lastR, r); lastC = Math.max(lastC, c); }
+            lastR = Math.max(lastR, r);
+            lastC = Math.max(lastC, c);
         }
         const align = s.align || {};
         const widths = s.widths || {};
         const grid = [];
         for (let r = 0; r <= lastR; r++) {
             const row = [];
-            for (let c = 0; c <= lastC; c++) row.push({ v: cells[`${r}_${c}`] ?? '', a: align[`${r}_${c}`] || 'l' });
+            for (let c = 0; c <= lastC; c++) row.push({ v: cells[`${r}_${c}`] ?? '', a: align[`${r}_${c}`] || 'l', bg: BG_COLORS.includes(bgm[`${r}_${c}`]) ? bgm[`${r}_${c}`] : '' });
             grid.push(row);
         }
         return {
