@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <style>
+        /* 共有シートを開いているときは、画面の横幅いっぱい近くまで使う（右パネルを開くとその分だけ縮む） */
+        body[data-tab="sheet"] .container { max-width: 1760px; }
+        @media (min-width: 1000px) { body[data-tab="sheet"] { padding-left: 16px; } }
         /* ページ切り替えタブ */
         .page-tabs { display: flex; gap: 4px; margin: 0 0 14px; border-bottom: 1px solid var(--border); }
         .page-tab { background: none; border: 1px solid transparent; border-bottom: none; color: var(--text-muted); padding: 8px 16px; font: inherit; font-weight: 700; cursor: pointer; border-radius: 4px 4px 0 0; }

@@ -623,6 +623,7 @@
         <button class="tab-btn" data-tab="target">目標計算</button>
         <button class="tab-btn" data-tab="meat">肉計算</button>
         <button class="tab-btn" data-tab="border">ボーダー</button>
+        <button class="tab-btn" data-tab="trehun">トレハン</button>
     </nav>
 
     <!-- ===== TAB 1: 討伐効率 ===== -->
@@ -700,6 +701,9 @@
 
     <!-- ===== TAB 4: ボーダー（kosenjou-border.js） ===== -->
     <div id="tab-border" class="tab-content"><div id="border-panel"></div></div>
+
+    <!-- ===== TAB 5: トレハン（kosenjou-trehun.js） ===== -->
+    <div id="tab-trehun" class="tab-content"><div id="trehun-panel"></div></div>
 
     <!-- ===== TAB 3: 肉計算 ===== -->
     <div id="tab-meat" class="tab-content">
@@ -1933,6 +1937,16 @@ const borderPanel = new BorderPanel(document.getElementById('border-panel'), {
     getReloadTimes: () => Object.fromEntries([...reloadEnabled].filter((id) => killTimes2[id]).map((id) => [id, killTimes2[id]])),
 });
 document.querySelector('.tab-btn[data-tab="border"]').addEventListener('click', () => borderPanel.refresh());
+</script>
+<!-- トレハン（ドロップ率）パネル -->
+<script src="kosenjou-trehun.js"></script>
+<script>
+const trehunPanel = new TrehunPanel(document.getElementById('trehun-panel'), {
+    getDiffs: () => DIFFS,
+    getKillTimes: () => killTimes,
+    getReloadTimes: () => Object.fromEntries([...reloadEnabled].filter((id) => killTimes2[id]).map((id) => [id, killTimes2[id]])),
+});
+document.querySelector('.tab-btn[data-tab="trehun"]').addEventListener('click', () => trehunPanel.refresh());
 </script>
 </body>
 </html>
