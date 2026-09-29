@@ -188,5 +188,8 @@
         if (!menu.hidden && !menu.contains(e.target) && !e.target.closest('[data-act="gsheet"]')) menu.hidden = true;
     });
 
+    // ほかの機能（Googleドライブへのルーム保存など）からも同じログインを使う
+    window.GBFGoogle = { available: !!CLIENT_ID, loadGis, requestToken };
+
     window.GBFGSheets = { toggle, _buildRequest: buildRequest, _toHtml: toHtml };
 })();
