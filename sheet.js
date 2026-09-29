@@ -47,6 +47,7 @@
             <span class="sep"></span>
             <button class="btn" data-act="copy">表をコピー</button>
             <button class="btn" data-act="gsheet">Googleスプレッドシートへ</button>
+            <button class="btn" data-act="discord">Discordにコピー</button>
             <button class="btn" data-act="csv">CSVで保存</button>
             <button class="btn" data-act="rename">名前を変更</button>
             <button class="btn reset-btn" data-act="delete">シートを削除</button>
@@ -692,6 +693,8 @@
             if (confirm(`「${s.name}」を削除しますか？${GBFCollab.inRoom ? '\nルームの全員から消えます。' : ''}`)) { activeId = null; write('sheets', { [s.id]: null }); }
         } else if (act === 'copy') {
             navigator.clipboard?.writeText(toText(s, '\t')).then(() => { whereEl.textContent = 'コピーしました。スプレッドシートにそのまま貼り付けられます。'; });
+        } else if (act === 'discord') {
+            window.GBFDiscord?.copy(e.target.closest('[data-act]'));
         } else if (act === 'gsheet') {
             window.GBFGSheets?.toggle(e.target.closest('[data-act]'));
         } else if (act === 'csv') {
@@ -786,6 +789,7 @@
         return {
             name: s.name || 'シート',
             kind: s.kind || '',
+            colMap: s.kind === 'move' ? colMapOf(s) : null,
             freeze: !!s.freeze,
             wrap: !s.nowrap,
             widths: Array.from({ length: lastC + 1 }, (_, c) => Number(widths[c]) || COL_W),

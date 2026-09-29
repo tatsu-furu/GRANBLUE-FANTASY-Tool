@@ -131,6 +131,7 @@
         .gs-msg { color: var(--text); font-size: 0.82em; margin: 0; }
         .gs-msg:empty { display: none; }
         .gs-msg a { color: var(--accent); }
+        .dc-menu .btn.done { border-color: var(--accent); color: var(--accent); }
         .setup-lead { color: var(--text-muted); font-size: 0.85em; margin: -4px 0 12px; }
         /* ルーム名・作成フォーム */
         .collab-room-name { flex: 0 1 16em; min-width: 0; background: var(--bg); color: var(--accent); font-weight: 700; border: 1px solid var(--border); border-radius: 3px; padding: 4px 8px; font-size: 1em; }
@@ -1962,6 +1963,7 @@
 <script src="palette.js"></script>
 <script src="shots.js"></script>
 <script src="gsheets.js"></script>
+<script src="discord.js"></script>
 <script>
   // 共有シート / 編成 / スクショの切り替え（最後に開いたタブを覚える）
   const TAB_KEY = 'gbfPageTab';
