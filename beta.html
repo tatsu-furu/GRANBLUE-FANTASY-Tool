@@ -171,6 +171,9 @@
         .cm-drive .btn { text-align: left; display: flex; justify-content: space-between; gap: 10px; white-space: normal; }
         .cm-drive small { color: var(--text-muted); font-weight: 400; white-space: nowrap; }
         .collab-lock { font-size: 0.95em; }
+        .admin-link { text-align: right; margin: 24px 0 8px; font-size: 0.75em; }
+        .admin-link a { color: var(--text-faint); text-decoration: none; }
+        .admin-link a:hover { color: var(--accent); text-decoration: underline; }
         .cm-show { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; color: var(--text-muted); cursor: pointer; }
         /* 鍵つきルームのパスワード待ち：中身は一切出さない */
         body.room-locked .page-tabs, body.room-locked #move-tool, body.room-locked #sheet-panel,
@@ -534,6 +537,8 @@
         </div>
         </div>
     </div>
+
+    <p class="admin-link"><a href="#admin" data-admin-link>管理人ログイン</a></p>
 
     <!-- 右側の予兆パネル（横にスライド。開いたまま左側を編集できる） -->
     <button id="side-toggle" class="side-toggle" aria-controls="side-panel" aria-expanded="false">予兆・編成パーツ</button>
