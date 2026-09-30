@@ -325,7 +325,7 @@
         <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:8px;">
             <div>
                 <h1>古戦場 効率計算ツール</h1>
-                <p>討伐効率比較 / 目標計算 / 肉計算</p>
+                <p>討伐効率比較 / 目標計算 / 肉計算 / ボーダー / トレハン</p>
             </div>
             <button id="help-open-btn" style="padding:8px 16px;background:var(--accent-lo);border:none;color:var(--on-accent);border-radius:6px;cursor:pointer;font-size:0.85em;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(62,200,223,0.25);transition:background 0.15s,transform 0.12s;" onmouseover="this.style.background='var(--accent)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='var(--accent-lo)';this.style.transform=''">使い方</button>
         </div>
@@ -446,9 +446,44 @@
             </div>
         </details>
 
+        <details style="margin-bottom:16px;">
+            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
+                <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> ボーダータブ
+            </summary>
+            <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
+                <p style="margin-bottom:6px;">ボーダーの推移と最終予想から、目標の順位に届くかを判定します。</p>
+                <ul style="padding-left:14px;display:flex;flex-direction:column;gap:4px;">
+                    <li><strong style="color:var(--text);">最新を取得</strong>: gbfdata.com の各順位の現在値・推移・最終予想（前回の同時刻からの伸び率）を読み込みます。データは毎時5分ごろ更新で、それまでは再取得しません</li>
+                    <li><strong style="color:var(--text);">自分の貢献度</strong>を入れると、残り時間（0〜7時を除く）で必要なペースと、リロ有／リロ無しそれぞれで届くかを表示します</li>
+                    <li>取得できないときは「順位を変える・手で入力する」から値を入れて使えます</li>
+                </ul>
+            </div>
+        </details>
+
+        <details style="margin-bottom:16px;">
+            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
+                <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> トレハンタブ
+            </summary>
+            <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
+                <p style="margin-bottom:6px;">トレハン・雫・団サポ・キャラ武器石の効果から、箱とアイテムのドロップ率を計算します。</p>
+                <ul style="padding-left:14px;display:flex;flex-direction:column;gap:4px;">
+                    <li><strong style="color:var(--text);">倍率</strong> = トレハン × 雫 × 団サポ ×（キャラ＋武器＋召喚石）× 大事なもの。同じ枠の中は足し算、合計の上限は300%</li>
+                    <li><strong style="color:var(--text);">平均周回数</strong>と「90%の確率で1回は落ちる周回数」、討伐効率タブの討伐時間から落ちるまでの時間の目安を出します</li>
+                    <li>計算式・データはリリエルさん「[グラブル]トレハン計算機」より（許可を得て使用）</li>
+                </ul>
+            </div>
+        </details>
+
+
         <div style="background:var(--bg);border-radius:6px;padding:10px 12px;font-size:0.8em;color:var(--text-3);line-height:1.65;">
-            ※ 討伐時間はブラウザに自動保存。同じブラウザ・デバイスなら次回も引き継がれます。
+            ※ 討伐時間・目標・所持数・ボーダー・トレハンの設定はブラウザに自動保存。同じブラウザなら次回も引き継がれます。
         </div>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <button type="button" id="kj-export-btn" class="ext-btn">設定をファイルに保存</button>
+            <label class="ext-btn" style="cursor:pointer;">設定を読み込む<input type="file" id="kj-import-file" accept=".json,application/json" hidden></label>
+            <span id="kj-io-msg" style="font-size:0.78em;color:var(--text-3);"></span>
+        </div>
+        <p style="font-size:0.76em;color:var(--text-3);margin-top:4px;">別の端末・ブラウザへ設定を引っ越すときに使います。</p>
     </div>
 
     <div class="ext-links">
@@ -466,6 +501,7 @@
         <button class="tab-btn" data-tab="target">目標計算</button>
         <button class="tab-btn" data-tab="meat">肉計算</button>
         <button class="tab-btn" data-tab="border">ボーダー</button>
+        <button class="tab-btn" data-tab="trehun">トレハン</button>
     </nav>
 
     <!-- ===== TAB 1: 討伐効率 ===== -->
@@ -543,6 +579,9 @@
 
     <!-- ===== TAB 4: ボーダー（kosenjou-border.js、データは gbfdata.com） ===== -->
     <div id="tab-border" class="tab-content"><div id="border-panel"></div></div>
+
+    <!-- ===== TAB 5: トレハン（kosenjou-trehun.js） ===== -->
+    <div id="tab-trehun" class="tab-content"><div id="trehun-panel"></div></div>
 
     <!-- ===== TAB 3: 肉計算 ===== -->
     <div id="tab-meat" class="tab-content">
@@ -1282,6 +1321,85 @@ const borderPanel = new BorderPanel(document.getElementById('border-panel'), {
     getReloadTimes: () => Object.fromEntries([...reloadEnabled].filter((id) => killTimes2[id]).map((id) => [id, killTimes2[id]])),
 });
 document.querySelector('.tab-btn[data-tab="border"]').addEventListener('click', () => borderPanel.refresh());
+</script>
+<!-- トレハン（ドロップ率）パネル -->
+<script src="kosenjou-trehun.js"></script>
+<script>
+const trehunPanel = new TrehunPanel(document.getElementById('trehun-panel'), {
+    getDiffs: () => DIFFS,
+    getKillTimes: () => killTimes,
+    getReloadTimes: () => Object.fromEntries([...reloadEnabled].filter((id) => killTimes2[id]).map((id) => [id, killTimes2[id]])),
+});
+document.querySelector('.tab-btn[data-tab="trehun"]').addEventListener('click', () => trehunPanel.refresh());
+</script>
+
+<!-- 入力の自動保存・最後に開いたタブ・設定の引っ越し -->
+<script>
+(function () {
+    const INPUT_KEY = 'gbf_kj_inputs';
+    const TAB_KEY = 'gbf_kj_tab';
+    const IDS = ['t-goal', 't-cur', 't-days', 't-hours', 'm-normal', 'm-mat', 'm-250runs'];
+    const read = (k) => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } };
+
+    // 目標計算・肉計算の入力を覚える
+    const saveInputs = () => {
+        const o = {};
+        IDS.forEach((id) => { const el = document.getElementById(id); if (el) o[id] = el.value; });
+        const mf = document.getElementById('meat-fine-chk');
+        if (mf) o.meatFine = mf.checked;
+        try { localStorage.setItem(INPUT_KEY, JSON.stringify(o)); } catch (e) { /* 容量 */ }
+    };
+    document.addEventListener('change', (e) => { if (IDS.includes(e.target.id) || e.target.id === 'meat-fine-chk') saveInputs(); });
+    document.addEventListener('input', (e) => { if (IDS.includes(e.target.id)) saveInputs(); });
+    const saved = read(INPUT_KEY);
+    const mf = document.getElementById('meat-fine-chk');
+    if (saved.meatFine && mf && !mf.checked) { mf.checked = true; mf.dispatchEvent(new Event('change')); }
+    IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el || saved[id] == null || saved[id] === '') return;
+        if (el.tagName === 'SELECT' && ![...el.options].some((o) => o.value === saved[id])) return;
+        el.value = saved[id];
+    });
+    updateTargetView();
+    updateMeatView();
+
+    // 最後に開いたタブ（#border のようにURLでも指定できる）
+    const btnOf = (t) => document.querySelector(`.tab-btn[data-tab="${t}"]`);
+    document.querySelectorAll('.tab-btn').forEach((b) => b.addEventListener('click', () => {
+        try { localStorage.setItem(TAB_KEY, b.dataset.tab); } catch (e) { /* 容量 */ }
+        history.replaceState(null, '', `#${b.dataset.tab}`);
+    }));
+    let tab = location.hash.slice(1);
+    if (!btnOf(tab)) { try { tab = localStorage.getItem(TAB_KEY); } catch (e) { tab = null; } }
+    if (tab && btnOf(tab)) btnOf(tab).click();
+    window.addEventListener('hashchange', () => { const b = btnOf(location.hash.slice(1)); if (b) b.click(); });
+
+    // 設定の引っ越し（gbf_kj_ で始まる保存内容をまとめてファイルに）
+    const msg = (t) => { const el = document.getElementById('kj-io-msg'); if (el) el.textContent = t; };
+    document.getElementById('kj-export-btn')?.addEventListener('click', () => {
+        const data = {};
+        for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('gbf_kj_')) data[k] = localStorage.getItem(k); }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify({ format: 'gbf-kosenjou-settings', version: 1, data })], { type: 'application/json' }));
+        const d = new Date();
+        a.download = `kosenjou-settings_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        msg(`${Object.keys(data).length}件の設定を保存しました`);
+    });
+    document.getElementById('kj-import-file')?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        try {
+            const j = JSON.parse(await file.text());
+            if (!j || j.format !== 'gbf-kosenjou-settings' || typeof j.data !== 'object') throw new Error('このツールの設定ファイルではありません');
+            if (!confirm('今の設定を、ファイルの内容で置き換えます。よろしいですか？')) return;
+            Object.entries(j.data).forEach(([k, v]) => { if (k.startsWith('gbf_kj_') && typeof v === 'string') localStorage.setItem(k, v); });
+            location.reload();
+        } catch (err) { msg(`読み込めませんでした: ${err.message || err}`); }
+    });
+})();
 </script>
 </body>
 </html>
