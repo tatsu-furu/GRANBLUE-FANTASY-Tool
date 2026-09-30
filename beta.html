@@ -162,6 +162,11 @@
         .cm-note { color: var(--text-muted); font-size: 0.85em; margin: 0; }
         .cm-pw, .collab-pw { width: 13em; max-width: 60vw; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 5px 7px; }
         .cm-danger { color: var(--danger-hi); border-color: var(--danger); }
+        .cm-rooms { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+        .cm-rooms th, .cm-rooms td { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: left; }
+        .cm-rooms th { color: var(--text-muted); font-weight: 400; }
+        .cm-rooms td:last-child { white-space: nowrap; text-align: right; }
+        .cm-rooms .btn { padding: 3px 8px; font-size: 0.9em; }
         .cm-drive { display: grid; gap: 4px; max-height: 220px; overflow-y: auto; }
         .cm-drive .btn { text-align: left; display: flex; justify-content: space-between; gap: 10px; white-space: normal; }
         .cm-drive small { color: var(--text-muted); font-weight: 400; white-space: nowrap; }
@@ -173,6 +178,7 @@
         .shots-drop strong { color: var(--accent); font-size: 1.05em; }
         .shots-drop.over, .shots-drop:hover { border-color: var(--accent); background: var(--accent-dim); }
         .shots-drop.off { opacity: 0.5; }
+        .shots-where { color: var(--text-muted); font-size: 0.8em; margin: 8px 0 0; }
         .shots-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; font-size: 0.85em; color: var(--text-muted); }
         .shots-filter { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 4px; }
         .shots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }

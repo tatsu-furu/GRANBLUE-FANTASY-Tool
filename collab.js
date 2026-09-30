@@ -127,20 +127,47 @@
             const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
             // 匿名ログイン：ブラウザごとに見えない ID が付くだけ（管理者・鍵の判定に使う）。
             // Firebase 側で匿名ログインが有効になっていなければ、ID なしで今まで通り動く
+            // サイト管理人は Google でログインする（そのときは匿名ではなく、その Google アカウントで動く）
             let uid = null;
+            let authApi = null;
             try {
                 const authMod = await import(`${base}/firebase-auth.js`);
                 const auth = authMod.getAuth(app);
                 if (config.authEmulatorUrl) authMod.connectAuthEmulator(auth, config.authEmulatorUrl, { disableWarnings: true });
-                uid = (await authMod.signInAnonymously(auth)).user.uid;
+                await auth.authStateReady();
+                if (!auth.currentUser) await authMod.signInAnonymously(auth);
+                uid = auth.currentUser.uid;
+                authApi = {
+                    isGoogle: () => !!(auth.currentUser && !auth.currentUser.isAnonymous),
+                    email: () => (auth.currentUser && auth.currentUser.email) || '',
+                    signInGoogle: () => authMod.signInWithPopup(auth, new authMod.GoogleAuthProvider()),
+                    signOut: () => authMod.signOut(auth),
+                    _auth: auth,
+                    _mod: authMod,
+                };
             } catch (e) {
-                console.warn('anonymous sign-in unavailable', e);
+                console.warn('sign-in unavailable', e);
             }
-            return { db: dbMod.getDatabase(app), m: dbMod, uid };
+            return { db: dbMod.getDatabase(app), m: dbMod, uid, authApi };
         })());
         return {
             kind: 'firebase',
             available: true,
+            async auth() { return (await load()).authApi; },
+            // 管理人かどうか（ルールで管理人だけが admin を読める）
+            async checkAdmin() {
+                const { db, m } = await load();
+                try { await m.get(m.ref(db, 'admin')); return true; } catch { return false; }
+            },
+            // 管理人用：ルームの一覧（roomIndex）とルームの外からの削除
+            async listRooms() {
+                const { db, m } = await load();
+                return (await m.get(m.ref(db, 'roomIndex'))).val() || {};
+            },
+            async rootUpdate(updates) {
+                const { db, m } = await load();
+                return m.update(m.ref(db), updates);
+            },
             async connect(roomId) {
                 const { db, m, uid } = await load();
                 const base = `rooms/${roomId}`;
@@ -239,6 +266,8 @@
         owner: null, // ルームの管理者（作った人）の匿名ID
         locked: false,
         lockPrompt: null, // 鍵つきルームのパスワード入力待ち { roomId, msg }
+        isAdmin: false, // サイト管理人（Google でログインしていて、ルールで認められた人）
+        adminRooms: null, // 管理人メニューのルーム一覧
     };
 
     let nameCache = (() => { try { return (localStorage.getItem(NAME_KEY) || '').trim(); } catch { return ''; } })();
@@ -364,9 +393,10 @@
                 await room.set('meta', meta);
                 await room.set('move', clone(move));
                 await room.set('sheets', sheets && Object.keys(sheets).length ? sheets : defaultSheets());
-                // スクショは1枚ずつ（1回の書き込みを小さくする）
-                for (const [id, shot] of Object.entries((seed && seed.shots) || {})) {
-                    const data = seed.shotData && seed.shotData[id];
+                // スクショは1枚ずつ（1回の書き込みを小さくする）。今の内容で作るときは、ルーム外のスクショも持っていく
+                const carry = seed || (!blank && !state.room && window.GBFShots ? await window.GBFShots.localAll() : null);
+                for (const [id, shot] of Object.entries((carry && carry.shots) || {})) {
+                    const data = carry.shotData && carry.shotData[id];
                     if (shot && data) await room.update('', { [`shots/${id}`]: shot, [`shotData/${id}`]: data });
                 }
             } else {
@@ -425,6 +455,7 @@
                 window.dispatchEvent(new CustomEvent('gbf-room', { detail: { id: roomId, name: state.roomName } }));
             }, lost));
             saveRecent(roomId, name);
+            touchIndex(roomId, create ? { createdAt: Date.now(), name } : null);
             await announce({});
             if (location.hash !== `#room=${roomId}`) history.replaceState(null, '', `#room=${roomId}`);
             setStatus('ok', seed ? '復元しました。新しいリンクを送ってください' : create ? 'ルームを作りました。リンクを送ってください' : '');
@@ -462,10 +493,27 @@
         if (!state.room) return;
         state.roomName = name.slice(0, 40);
         state.room.update('meta', { name: state.roomName }).catch((e) => setStatus('error', '名前を保存できませんでした: ' + e.message));
+        touchIndex(state.roomId, null);
+    }
+
+    // 管理人用のルーム一覧（名前・作成日・最後に開いた日・鍵）を更新する。古いルールだと書けないので失敗は無視
+    async function touchIndex(roomId, init) {
+        const room = state.room;
+        if (!room || !room.rootUpdate || room.kind !== 'firebase') return;
+        try {
+            const meta = init || (await room.get('meta')) || {};
+            await room.rootUpdate({
+                [`roomIndex/${roomId}/createdAt`]: meta.createdAt || Date.now(),
+                [`roomIndex/${roomId}/name`]: String(state.roomName || meta.name || '').slice(0, 40),
+                [`roomIndex/${roomId}/openedAt`]: Date.now(),
+                [`roomIndex/${roomId}/locked`]: !!state.locked,
+            });
+        } catch (e) { /* 一覧は補助なので無視 */ }
     }
 
     // ---------- 鍵・管理者・削除 ----------
     const isOwner = () => !!(state.room && state.room.uid && state.owner === state.room.uid);
+    const canManage = () => !!(state.room && state.room.uid && (isOwner() || state.isAdmin));
     function askPassword(roomId, msg) {
         state.lockPrompt = { roomId, msg };
         if (location.hash !== `#room=${roomId}`) history.replaceState(null, '', `#room=${roomId}`);
@@ -491,23 +539,64 @@
         connect(roomId, { create: false });
     }
     async function setLock(pw) {
-        if (!isOwner() || !pw) return;
+        if (!canManage() || !pw) return;
         const id = state.roomId;
         const h = await hashPassword(id, pw);
         // 鍵・自分の入室・表示用の印を1回で書く（途中で自分が締め出されないように）
         await state.room.rootUpdate({ [`locks/${id}`]: h, [`rooms/${id}/members/${state.room.uid}`]: h, [`rooms/${id}/meta/locked`]: true });
+        state.room.rootUpdate({ [`roomIndex/${id}/locked`]: true }).catch(() => {});
         setStatus('ok', state.locked ? 'パスワードを変えました。入っていた人も、新しいパスワードが必要になります' : '鍵をかけました。パスワードを知っている人だけが入れます');
     }
     async function removeLock() {
-        if (!isOwner()) return;
+        if (!canManage()) return;
         const id = state.roomId;
         await state.room.rootUpdate({ [`locks/${id}`]: null, [`rooms/${id}/meta/locked`]: null });
+        state.room.rootUpdate({ [`roomIndex/${id}/locked`]: false }).catch(() => {});
         setStatus('ok', '鍵を外しました');
     }
     async function deleteRoom() {
-        if (!isOwner()) return;
+        if (!canManage()) return;
         const id = state.roomId;
         await state.room.rootUpdate({ [`rooms/${id}`]: null, [`locks/${id}`]: null });
+        state.room?.rootUpdate({ [`roomIndex/${id}`]: null }).catch(() => {});
+        remoteAdapter.rootUpdate?.({ [`roomIndex/${id}`]: null }).catch(() => {});
+    }
+
+    // ---------- サイト管理人 ----------
+    const adminLoginVisible = () => /(^|[#&])admin\b/.test(location.hash) || state.isAdmin || adminAuth?.isGoogle();
+    let adminAuth = null;
+    async function initAdmin() {
+        if (!remoteAdapter || !remoteAdapter.checkAdmin) return;
+        adminAuth = await remoteAdapter.auth();
+        state.isAdmin = await remoteAdapter.checkAdmin();
+        if (state.isAdmin) loadAdminRooms();
+        renderBar();
+    }
+    async function loadAdminRooms() {
+        try { state.adminRooms = await remoteAdapter.listRooms(); } catch (e) { state.adminRooms = null; setStatus('error', `一覧を読めませんでした: ${e.message || e}`); }
+        renderBar();
+    }
+    async function adminDelete(id) {
+        await remoteAdapter.rootUpdate({ [`rooms/${id}`]: null, [`locks/${id}`]: null, [`roomIndex/${id}`]: null });
+        removeRecent(id);
+        await loadAdminRooms();
+        setStatus('ok', 'ルームを削除しました');
+    }
+    function adminHtml() {
+        if (!adminAuth) return '<p class="cm-note">ログインの準備ができていません。</p>';
+        if (!adminAuth.isGoogle()) {
+            return `<div class="collab-row"><button class="btn collab-primary" data-act="admin-login">Googleで管理人ログイン</button></div>
+                <p class="cm-note">サイト管理人だけが使えます。ログインすると、どのルームでも削除・鍵外し・中身の確認ができます。</p>`;
+        }
+        const who = `<span class="cm-note">${esc(adminAuth.email())} でログイン中</span> <button class="btn reset-btn" data-act="admin-logout">ログアウト</button>`;
+        if (!state.isAdmin) return `<div class="collab-row">${who}</div><p class="cm-note">このアカウントは管理人として登録されていません（Firebase のルールの管理人メールを確認してください）。</p>`;
+        const rooms = Object.entries(state.adminRooms || {}).sort(([, a], [, b]) => (b.openedAt || 0) - (a.openedAt || 0));
+        const d = (t) => (t ? new Date(t).toLocaleDateString('ja-JP') : '—');
+        return `<div class="collab-row">${who}<button class="btn" data-act="admin-refresh">一覧を更新</button></div>
+            <table class="cm-rooms"><thead><tr><th>ルーム</th><th>作成</th><th>最後に開いた</th><th></th></tr></thead><tbody>
+            ${rooms.length ? rooms.map(([id, r]) => `<tr><td>${r.locked ? '🔒 ' : ''}${esc(r.name || '名前なし')}</td><td>${d(r.createdAt)}</td><td>${d(r.openedAt)}</td><td><button class="btn" data-admin-open="${esc(id)}">開く</button> <button class="btn cm-danger" data-admin-del="${esc(id)}">削除</button></td></tr>`).join('') : '<tr><td colspan="4" class="cm-note">一覧に載っているルームはありません（この機能を入れる前に作ったルームは、一度開くと載ります）</td></tr>'}
+            </tbody></table>
+            <p class="cm-note">管理人は鍵つきのルームにもパスワードなしで入れます。</p>`;
     }
     async function claimOwner() {
         if (!state.room || !state.room.uid || state.owner) return;
@@ -518,10 +607,11 @@
     const EXPORT_SUFFIX = '.gbfroom.json';
     async function exportData() {
         const src = state.room || currentStore();
+        const local = !state.room && window.GBFShots ? await window.GBFShots.localAll() : { shots: null, shotData: null };
         const [sheets, shots, shotData] = await Promise.all([
             src.get('sheets'),
-            state.room ? src.get('shots') : null,
-            state.room ? src.get('shotData') : null,
+            state.room ? src.get('shots') : local.shots,
+            state.room ? src.get('shotData') : local.shotData,
         ]);
         return {
             format: 'gbf-room',
@@ -620,6 +710,7 @@
     let status = { kind: 'ok', text: '' };
     let formOpen = false;
     let manageOpen = false;
+    let adminOpen = false;
     let builtMode = '';
     let builtManage = '';
     function setStatus(kind, text) { status = { kind, text }; renderBar(); }
@@ -660,7 +751,7 @@
         if (!uid) {
             return html + '<div class="cm-sec"><p class="cm-note">鍵とルーム削除は、管理人が Firebase の匿名ログインを有効にすると使えるようになります。</p></div>';
         }
-        if (isOwner()) {
+        if (canManage()) {
             html += `
             <div class="cm-sec">
                 <strong>${state.locked ? '🔒 鍵つき' : '🔓 鍵なし'}</strong>
@@ -676,7 +767,7 @@
                 <div class="collab-row"><button class="btn cm-danger" data-act="room-delete">このルームを削除…</button></div>
                 <p class="cm-note">全員のシート・スクショがサーバーから消えます（元に戻せません）。先に保存しておくと、あとで復元できます。</p>
             </div>
-            <p class="cm-note">あなたはこのルームの管理者です（このブラウザで作成）。別の端末やブラウザからは管理者として操作できません。</p>`;
+            <p class="cm-note">${isOwner() ? 'あなたはこのルームの管理者です（このブラウザで作成）。別の端末やブラウザからは管理者として操作できません。' : 'サイト管理人として操作しています。'}</p>`;
         } else {
             html += `
             <div class="cm-sec">
@@ -693,11 +784,12 @@
         if (!remoteAdapter) { bar.hidden = true; return; }
         bar.hidden = false;
         const kind = state.room ? 'room' : state.lockPrompt ? 'locked' : 'idle';
-        const mode = `${kind}:${formOpen}:${manageOpen}:${state.roomId || ''}:${state.lockPrompt ? state.lockPrompt.roomId : ''}`;
+        const mode = `${kind}:${formOpen}:${manageOpen}:${adminOpen}:${adminLoginVisible()}:${state.roomId || ''}:${state.lockPrompt ? state.lockPrompt.roomId : ''}`;
         if (mode !== builtMode) {
             builtMode = mode;
             builtManage = '';
-            const manageBox = manageOpen ? '<div class="collab-manage"></div>' : '';
+            const manageBox = (manageOpen ? '<div class="collab-manage"></div>' : '') + (adminOpen ? '<div class="collab-manage collab-admin"></div>' : '');
+            const adminBtn = adminLoginVisible() ? `<button class="btn" data-act="admin">管理人 ${adminOpen ? '▴' : '▾'}</button>` : '';
             if (kind === 'room') {
                 bar.innerHTML = `
                     <div class="collab-row">
@@ -713,6 +805,7 @@
                         <button class="btn" data-act="new">新しいルーム</button>
                         <select class="collab-recent" aria-label="最近のルーム"></select>
                         <button class="btn reset-btn" data-act="leave">ルームを出る</button>
+                        ${adminBtn}
                     </div>
                     ${formOpen ? createForm() : ''}
                     ${manageBox}
@@ -731,8 +824,10 @@
                         <input type="password" class="collab-pw" placeholder="パスワード" autocomplete="current-password">
                         <button class="btn collab-primary" data-act="enter">入る</button>
                         <button class="btn reset-btn" data-act="cancel-lock">やめる</button>
+                        ${adminBtn}
                         <span class="collab-msg"></span>
-                    </div>`;
+                    </div>
+                    ${adminOpen ? '<div class="collab-manage collab-admin"></div>' : ''}`;
                 bar.querySelector('.collab-pw')?.focus();
             } else {
                 bar.innerHTML = `
@@ -745,6 +840,7 @@
                         <button class="btn collab-primary" data-act="new">ルームを作成</button>
                         <select class="collab-recent" aria-label="最近のルーム"></select>
                         <button class="btn" data-act="manage">保存・復元 ${manageOpen ? '▴' : '▾'}</button>
+                        ${adminBtn}
                         <span class="collab-msg"></span>
                     </div>
                     ${formOpen ? createForm() : ''}
@@ -768,7 +864,12 @@
                 .map(([id, p]) => `<span class="collab-chip" style="--c:${esc(p.color || '#888')}">${esc(p.name)}${id === state.clientId ? '（自分）' : ''}</span>`)
                 .join('');
         }
-        const box = bar.querySelector('.collab-manage');
+        const adminBox = bar.querySelector('.collab-admin');
+        if (adminBox) {
+            const html = adminHtml();
+            if (adminBox.dataset.html !== html) { adminBox.innerHTML = html; adminBox.dataset.html = html; }
+        }
+        const box = bar.querySelector('.collab-manage:not(.collab-admin)');
         if (box) {
             const html = manageHtml();
             // パスワード入力中は作り直さない
@@ -783,12 +884,32 @@
     bar?.addEventListener('click', async (e) => {
         const drive = e.target.closest('[data-drive]')?.dataset.drive;
         if (drive) { loadFromDrive(drive); return; }
+        const openId = e.target.closest('[data-admin-open]')?.dataset.adminOpen;
+        if (openId) { if (!state.room || confirm('今のルームを出て、選んだルームに移ります。')) connect(openId, { create: false }); return; }
+        const delId = e.target.closest('[data-admin-del]')?.dataset.adminDel;
+        if (delId) {
+            const r = (state.adminRooms || {})[delId] || {};
+            if (confirm(`ルーム「${r.name || '名前なし'}」を削除します（元に戻せません）。よろしいですか？`)) adminDelete(delId).catch((err) => setStatus('error', `削除できませんでした: ${err.message || err}`));
+            return;
+        }
         const act = e.target.closest('[data-act]')?.dataset.act;
         if (!act) return;
         try {
             if (act === 'new') { formOpen = true; manageOpen = false; renderBar(); }
             else if (act === 'cancel') { formOpen = false; renderBar(); }
-            else if (act === 'manage') {
+            else if (act === 'admin') {
+                adminOpen = !adminOpen;
+                if (adminOpen && state.isAdmin) loadAdminRooms();
+                renderBar();
+            } else if (act === 'admin-login') {
+                await adminAuth.signInGoogle();
+                location.reload(); // ログインしている人が変わるので、つなぎ直す
+            } else if (act === 'admin-logout') {
+                await adminAuth.signOut();
+                location.reload();
+            } else if (act === 'admin-refresh') {
+                await loadAdminRooms();
+            } else if (act === 'manage') {
                 manageOpen = !manageOpen;
                 formOpen = false;
                 if (manageOpen && G() && G().available) G().loadGis().catch(() => {});
@@ -883,10 +1004,11 @@
         get clientId() { return state.clientId; },
         get presence() { return state.presence; },
         // テスト・デバッグ用
-        _internal: { flatten, diffFlat, normalizeMove, setAt, getAt, createLocalStore, localAdapter },
+        _internal: { adapterAuth: () => remoteAdapter?.auth?.(), flatten, diffFlat, normalizeMove, setAt, getAt, createLocalStore, localAdapter },
     };
 
     renderBar();
+    initAdmin().catch(() => {});
     const initial = roomFromHash();
     if (initial && remoteAdapter) connect(initial, { create: false });
 })();

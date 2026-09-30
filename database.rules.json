@@ -2,23 +2,54 @@
   "rules": {
     ".read": false,
     ".write": false,
+    "admin": {
+      ".read": "(auth != null && auth.token.email_verified === true && auth.token.email === 'ADMIN_EMAIL@example.com')"
+    },
     "locks": {
       "$room": {
         ".read": false,
-        ".write": "auth != null && root.child('rooms').child($room).child('meta/owner').val() === auth.uid",
+        ".write": "(auth != null && root.child('rooms').child($room).child('meta/owner').val() === auth.uid) || (auth != null && auth.token.email_verified === true && auth.token.email === 'ADMIN_EMAIL@example.com')",
         ".validate": "newData.isString() && newData.val().length === 64"
+      }
+    },
+    "roomIndex": {
+      ".read": "(auth != null && auth.token.email_verified === true && auth.token.email === 'ADMIN_EMAIL@example.com')",
+      "$room": {
+        ".write": "(auth != null && $room.matches(/^[A-Za-z0-9]{20}$/) && (!root.child('locks').child($room).exists() || root.child('rooms').child($room).child('members').child(auth.uid).val() === root.child('locks').child($room).val())) || (auth != null && auth.token.email_verified === true && auth.token.email === 'ADMIN_EMAIL@example.com')",
+        ".validate": "newData.hasChild('createdAt')",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length <= 40"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "openedAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "locked": {
+          ".validate": "newData.isBoolean()"
+        },
+        "$other": {
+          ".validate": false
+        }
       }
     },
     "rooms": {
       "$room": {
-        ".read": "auth != null && $room.matches(/^[A-Za-z0-9]{20}$/) && (!root.child('locks').child($room).exists() || data.child('members').child(auth.uid).val() === root.child('locks').child($room).val())",
-        ".write": "auth != null && $room.matches(/^[A-Za-z0-9]{20}$/) && (!root.child('locks').child($room).exists() || data.child('members').child(auth.uid).val() === root.child('locks').child($room).val()) && (newData.exists() || data.child('meta/owner').val() === auth.uid)",
+        ".read": "(auth != null && $room.matches(/^[A-Za-z0-9]{20}$/) && (!root.child('locks').child($room).exists() || data.child('members').child(auth.uid).val() === root.child('locks').child($room).val())) || (auth != null && auth.token.email_verified === true && auth.token.email === 'ADMIN_EMAIL@example.com')",
+        ".write": "((auth != null && $room.matches(/^[A-Za-z0-9]{20}$/) && (!root.child('locks').child($room).exists() || data.child('members').child(auth.uid).val() === root.child('locks').child($room).val())) && (newData.exists() || data.child('meta/owner').val() === auth.uid)) || (auth != null && auth.token.email_verified === true && auth.token.email === 'ADMIN_EMAIL@example.com')",
         ".validate": "newData.child('meta/createdAt').exists()",
         "meta": {
           ".validate": "newData.hasChild('createdAt') && (!data.child('owner').exists() || newData.child('owner').val() === data.child('owner').val())",
-          "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
-          "owner": { ".validate": "(!data.exists() && newData.val() === auth.uid) || data.val() === newData.val()" },
-          "locked": { ".validate": "newData.isBoolean()" }
+          "name": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "owner": {
+            ".validate": "(!data.exists() && newData.val() === auth.uid) || data.val() === newData.val()"
+          },
+          "locked": {
+            ".validate": "newData.isBoolean()"
+          }
         },
         "members": {
           "$uid": {
@@ -28,34 +59,58 @@
         },
         "move": {
           "setup": {
-            "weaponImageBase64": { ".validate": "newData.isString() && newData.val().length < 1500000" },
-            "characterIcons": { "$i": { ".validate": "newData.isString() && newData.val().length < 60000" } }
+            "weaponImageBase64": {
+              ".validate": "newData.isString() && newData.val().length < 1500000"
+            },
+            "characterIcons": {
+              "$i": {
+                ".validate": "newData.isString() && newData.val().length < 60000"
+              }
+            }
           }
         },
         "sheets": {
           "$sheet": {
-            "name": { ".validate": "newData.isString() && newData.val().length <= 30" },
-            "rows": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 500" },
-            "cols": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 52" },
+            "name": {
+              ".validate": "newData.isString() && newData.val().length <= 30"
+            },
+            "rows": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 500"
+            },
+            "cols": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 52"
+            },
             "cells": {
-              "$cell": { ".validate": "$cell.matches(/^[0-9]{1,3}_[0-9]{1,2}$/) && newData.isString() && newData.val().length <= 2000" }
+              "$cell": {
+                ".validate": "$cell.matches(/^[0-9]{1,3}_[0-9]{1,2}$/) && newData.isString() && newData.val().length <= 2000"
+              }
             }
           }
         },
         "shots": {
           "$shot": {
             ".validate": "newData.hasChildren(['title', 'at'])",
-            "title": { ".validate": "newData.isString() && newData.val().length <= 40" },
-            "thumb": { ".validate": "newData.isString() && newData.val().length < 100000" }
+            "title": {
+              ".validate": "newData.isString() && newData.val().length <= 40"
+            },
+            "thumb": {
+              ".validate": "newData.isString() && newData.val().length < 100000"
+            }
           }
         },
         "shotData": {
-          "$shot": { ".validate": "newData.isString() && newData.val().length < 1500000" }
+          "$shot": {
+            ".validate": "newData.isString() && newData.val().length < 1500000"
+          }
         },
         "presence": {
-          "$client": { ".validate": "newData.hasChild('name') && newData.child('name').isString() && newData.child('name').val().length <= 32" }
+          "$client": {
+            ".validate": "newData.hasChild('name') && newData.child('name').isString() && newData.child('name').val().length <= 32"
+          }
         },
-        "$other": { ".validate": false }
+        "$other": {
+          ".validate": false
+        }
       }
     }
   }

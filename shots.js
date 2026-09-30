@@ -13,6 +13,58 @@
     const THUMB_W = 360;
     const THUMB_MAX_CHARS = 80000; // rules の上限（10万文字）より下
 
+    // ルームの外では、このブラウザの IndexedDB に置く（サーバーは使わない）。
+    // ルームと同じ形（onValue / update / get）で使えるようにしておく
+    function createLocalShotStore() {
+        let dbp = null;
+        const open = () => (dbp ||= new Promise((resolve, reject) => {
+            const req = indexedDB.open('gbfLocalShots', 1);
+            req.onupgradeneeded = () => { req.result.createObjectStore('shots'); req.result.createObjectStore('shotData'); };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        }));
+        const tx = async (names, mode, fn) => {
+            const db = await open();
+            return new Promise((resolve, reject) => {
+                const t = db.transaction(names, mode);
+                const out = fn(t);
+                t.oncomplete = () => resolve(out && 'result' in out ? out.result : undefined);
+                t.onerror = () => reject(t.error);
+            });
+        };
+        const readAll = (name) => tx([name], 'readonly', (t) => {
+            const res = { result: {} };
+            const req = t.objectStore(name).openCursor();
+            req.onsuccess = () => { const c = req.result; if (c) { res.result[c.key] = c.value; c.continue(); } };
+            return res;
+        });
+        const listeners = new Set();
+        const notify = async () => { const v = await readAll('shots'); listeners.forEach((cb) => cb(v)); };
+        return {
+            kind: 'local-shots',
+            onValue(path, cb) { listeners.add(cb); readAll('shots').then(cb).catch(() => cb({})); return () => listeners.delete(cb); },
+            async update(path, updates) {
+                await tx(['shots', 'shotData'], 'readwrite', (t) => {
+                    for (const [k, v] of Object.entries(updates)) {
+                        const [name, id, field] = (path ? `${path}/${k}` : k).split('/');
+                        const os = t.objectStore(name);
+                        if (field) { const g = os.get(id); g.onsuccess = () => { if (g.result) os.put({ ...g.result, [field]: v }, id); }; }
+                        else if (v == null) os.delete(id);
+                        else os.put(v, id);
+                    }
+                });
+                notify();
+            },
+            async get(path) {
+                const [name, id] = path.split('/');
+                if (!id) return readAll(name);
+                return tx([name], 'readonly', (t) => { const res = { result: null }; const g = t.objectStore(name).get(id); g.onsuccess = () => { res.result = g.result ?? null; }; return res; });
+            },
+        };
+    }
+    let localShots = null;
+    const shotStore = () => (GBFCollab.inRoom ? GBFCollab.currentStore() : (localShots ||= createLocalShotStore()));
+
     let store = null;
     let unsub = null;
     let shots = {};
@@ -25,6 +77,7 @@
             <strong>スクショを追加</strong>
             <span>クリックで選択（複数可）・ドラッグ＆ドロップ・このタブで Ctrl+V</span>
         </div>
+        <p class="shots-where"></p>
         <div class="shots-bar">
             <label>表示 <select class="shots-filter"></select></label>
             <span class="shots-msg"></span>
@@ -46,6 +99,7 @@
     const fileEl = dropEl.querySelector('input[type=file]');
     const gridEl = panel.querySelector('.shots-grid');
     const msgEl = panel.querySelector('.shots-msg');
+    const whereEl = panel.querySelector('.shots-where');
     const filterEl = panel.querySelector('.shots-filter');
     const viewEl = panel.querySelector('.shots-view');
     const viewImg = viewEl.querySelector('img');
@@ -84,7 +138,6 @@
     }
 
     async function addFiles(files) {
-        if (!GBFCollab.inRoom) { say('スクショ置き場はルームの中で使えます。上の「ルームを作成」からどうぞ。'); return; }
         const images = [...files].filter((f) => f.type.startsWith('image/'));
         if (!images.length) return;
         let done = 0;
@@ -123,14 +176,10 @@
     // ---------- 一覧 ----------
     function render() {
         const inRoom = GBFCollab.inRoom;
-        dropEl.classList.toggle('off', !inRoom);
         const names = [...new Set(list().map((s) => s.by).filter(Boolean))];
         if (filter && !names.includes(filter)) filter = '';
         filterEl.innerHTML = `<option value="">全員（${list().length}枚）</option>` + names.map((n) => `<option value="${esc(n)}"${n === filter ? ' selected' : ''}>${esc(n)}（${list().filter((s) => s.by === n).length}枚）</option>`).join('');
-        if (!inRoom) {
-            gridEl.innerHTML = '<p class="shots-empty">スクショ置き場はルームの中で使えます。上の「ルームを作成」でルームを作ると、所持キャラや編成のスクショを何枚でも置いて、みんなで見られます。</p>';
-            return;
-        }
+        whereEl.textContent = inRoom ? 'ルームの全員と共有しています。' : 'いまはこのブラウザの中だけに保存されます（サーバーは使いません）。ルームを作ると、みんなと共有できます。';
         const items = visible();
         if (!items.length) { gridEl.innerHTML = '<p class="shots-empty">まだスクショがありません。上の枠から追加してください。</p>'; return; }
         // タイトル入力中のカードは作り直さない
@@ -189,7 +238,7 @@
     const closeView = () => { viewEl.hidden = true; viewing = null; viewImg.removeAttribute('src'); };
 
     // ---------- 操作 ----------
-    dropEl.addEventListener('click', () => { if (GBFCollab.inRoom) fileEl.click(); else say('スクショ置き場はルームの中で使えます。'); });
+    dropEl.addEventListener('click', () => fileEl.click());
     dropEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dropEl.click(); } });
     fileEl.addEventListener('change', () => { addFiles(fileEl.files); fileEl.value = ''; });
     dropEl.addEventListener('dragover', (e) => { e.preventDefault(); dropEl.classList.add('over'); });
@@ -232,15 +281,23 @@
     });
 
     // ---------- 置き場の切り替え ----------
-    function attach(newStore) {
+    function attach() {
         if (unsub) unsub();
-        store = newStore;
+        store = shotStore();
         shots = {};
         fullCache.clear();
         closeView();
-        unsub = GBFCollab.inRoom ? store.onValue('shots', (v) => { shots = v || {}; render(); }) : null;
+        unsub = store.onValue('shots', (v) => { shots = v || {}; render(); });
         render();
     }
     GBFCollab.onStoreChange(attach);
-    attach(GBFCollab.currentStore());
+    attach();
+
+    // ルームの保存ファイルや「今の内容で作成」に、ルーム外のスクショも入れる
+    window.GBFShots = {
+        async localAll() {
+            const s = localShots || (localShots = createLocalShotStore());
+            try { return { shots: (await s.get('shots')) || {}, shotData: (await s.get('shotData')) || {} }; } catch { return { shots: {}, shotData: {} }; }
+        },
+    };
 })();
