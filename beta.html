@@ -790,7 +790,7 @@
                     triggers: [
                         { condition: "G50 or HP51%", name: "浄土", clear: "アビダメ3000万＋奥義ダメ3000万＋アビ12回", note: "未解除だと創世の一翼（敵強化）が付かない。予兆が出たらスタンプ、全員押すまで解除しない" },
                         { condition: "浄土の解除後", name: "光背", clear: "—", note: "最初の1人が解除したとき弱体リセット、敵に破壊の光背／6属性の光背（試練）付与。T終了時に四王天/忉利天/夜摩天/兜率天/化楽天のどれかが付与（Lv2以上で被ダメ不足だと他化自在）" },
-                        { condition: "試練", name: "6属性の光背", clear: "CT特殊技の予兆を解除", note: "自属性の光背を解除。全員解除まで待機" },
+                        { condition: "試練", name: "6属性の光背", clear: "CT予兆（光背：天蓋・無常・浄土の3種）を解除", note: "自属性の光背を解除。全員解除まで待機。3種の解除条件は下の「光背（CT予兆）」" },
                         { condition: "GゲージMAX", name: "浄土", clear: "なし（受ける）", note: "全体にランダム属性4倍ダメ×16回。敵の無敵/忉利天/夜摩天/兜率天/化楽天/他化自在を解除、創世の一翼を付与" },
                         { condition: "次T以降 神撃1周目", name: "神撃", clear: "120hit", note: "5T連続・ランダム順" },
                         { condition: "神撃1周目", name: "神撃", clear: "600万ダメ×5hit", note: "" },
@@ -803,10 +803,12 @@
                         { condition: "神撃2周目", name: "神撃", clear: "ディスペル12回", note: "" },
                         { condition: "神撃2周目", name: "神撃", clear: "弱体30個", note: "" }
                     ],
+                    ctTitle: "光背（CT予兆）G50〜G100区間 ※3種のどれか",
+                    ctLabel: "光背（G50〜G100）",
                     ctSpecials: [
-                        { name: "天蓋", clear: "800万ダメ×3hit＋弱体アビ2回（他化自在：5hit＋3回）", note: "" },
-                        { name: "無常", clear: "300万ダメ×8hit＋弱体15個（他化自在：10hit＋18個）", note: "" },
-                        { name: "輪廻", clear: "ディスペル5回＋FC発動（他化自在：6回＋FC）", note: "" }
+                        { name: "天蓋", clear: "800万ダメ×3hit＋弱体アビ2回（他化自在中：800万×5hit＋弱体アビ3回）", note: "" },
+                        { name: "無常", clear: "300万ダメ×8hit＋弱体15個（他化自在中：300万×10hit＋弱体18個）", note: "" },
+                        { name: "浄土", clear: "ディスペル5回＋FC発動（他化自在中：ディスペル6回＋FC）", note: "" }
                     ]
                 },
                 {
@@ -911,7 +913,7 @@
             });
 
             if (phase.ctSpecials && phase.ctSpecials.length > 0) {
-                html += '<div style="margin-top:10px; margin-bottom:2px; color:#c06060; font-size:0.82em; font-weight:bold; letter-spacing:0.04em;">CT特殊技</div>';
+                html += '<div style="margin-top:10px; margin-bottom:2px; color:#c06060; font-size:0.82em; font-weight:bold; letter-spacing:0.04em;">' + (phase.ctTitle || 'CT特殊技') + '</div>';
                 html += '<div style="' + headerStyle.replace('#c9a24a','#a84040').replace('#8f6b24','#a84040') + '"><span>予兆名</span><span>解除条件</span><span>備考</span></div>';
                 phase.ctSpecials.forEach(ct => {
                     const memo = '[CT:' + ct.name + '] 解除: ' + ct.clear + (ct.note ? ' / ' + ct.note : '');
