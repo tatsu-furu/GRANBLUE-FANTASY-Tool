@@ -579,7 +579,7 @@
     }
 
     // ---------- サイト管理人 ----------
-    const adminLoginVisible = () => /(^|[#&])admin\b/.test(location.hash) || state.isAdmin || adminAuth?.isGoogle();
+    const adminLoginVisible = () => adminOpen || /(^|[#&])admin\b/.test(location.hash) || state.isAdmin || adminAuth?.isGoogle();
     let adminAuth = null;
     async function initAdmin() {
         if (!remoteAdapter || !remoteAdapter.checkAdmin) return;
@@ -1013,6 +1013,16 @@
     window.addEventListener('hashchange', () => {
         const id = roomFromHash();
         if (id && id !== state.roomId) connect(id, { create: false });
+    });
+    // ページ下の「管理人ログイン」：管理人メニューを開いて、上のバーまで戻る
+    document.querySelector('[data-admin-link]')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!remoteAdapter) return;
+        if (!state.room && !state.lockPrompt && !/(^|[#&])admin\b/.test(location.hash)) history.replaceState(null, '', '#admin');
+        adminOpen = true;
+        if (state.isAdmin) loadAdminRooms();
+        renderBar();
+        bar?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
     window.GBFCollab = {
