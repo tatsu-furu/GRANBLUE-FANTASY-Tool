@@ -742,70 +742,102 @@
             name: "ヴェルサシア",
             hp: "約165億", timeLimit: "30分", ct: "CT2（G100到達後消滅）",
             notes: [
-                "通常攻撃: ランダム属性4hit（対象ランダム）",
-                "Gゲージ(ジェネシスゲージ): T経過毎に一定量増加。G50でフォームチェンジ、G100で神撃フェーズへ",
-                "破壊の力増幅量↑ = Gゲージ増加量UP。試練中・特殊技を受けると増加量UP",
-                "DCゲージ: 予兆解除で蓄積。100%でレギンレイヴ(FCゲージ100%回収) or ファランクス(被ダメ無効1T)",
-                "他化自在付与中: 予兆解除条件が増加",
-                "シエテ等による予兆中断NG（法灯・破壊の試練に注意）"
+                "HP80%で「神意」によりルートが2つに分かれる：再生の神意（青）／破壊の神意（赤）。それぞれ80%以降のCT予兆・70%の予兆が違う",
+                "神意の条件を満たせないとT終了時に「他化自在」が付き、予兆の解除条件が（）内の数値に上がる",
+                "90% 3T目（黄泉）：1ターンのダメージがあまり出ない属性は、原則ここで70%を踏む",
+                "70% 3T目（黄泉）：原則ここで51% or Gゲージ50%を踏む",
+                "G50 or HP51%の『浄土』：予兆が出たらスタンプ。全員が押すまで解除しない（解除は主に風＝シエテ か トリゼロ裏）",
+                "浄土の後は自属性の光背を解除。全員の光背を解除するまで待機し、以後GゲージMAXまでは天バフとCT予兆のみ",
+                "Gゲージ：T経過で増加。G50でフォームチェンジ、G100で神撃フェーズ。シエテ等による予兆中断はNG"
             ],
             phases: [
                 {
-                    range: "100%〜81%",
+                    range: "100%〜91%",
                     triggers: [
-                        { condition: "開幕", name: "浄土", clear: "なし（受ける）", note: "全体最大HP50%破壊ダメ、法灯6種(被ダメ制限)、神意付与、HP50%制限" },
-                        { condition: "試練1回目", name: "破壊の試練", clear: "150hit＋奥義10回 or 10T経過", note: "T終了時に最大HP10%ダメ＋ランダム弱体×2を10T継続。シエテ等中断NG" },
-                        { condition: "HP90%", name: "身光（連続予兆）", clear: "9999万9999ダメ ★", note: "30倍ダメ、FCゲージ30%DOWN、アビ/奥義ダメカ。解除でDCゲージ+4%" },
-                        { condition: "次T", name: "輪廻", clear: "奥義6回", note: "40倍×10回、強化5T短縮、裂傷/強圧。解除でDCゲージ+6%" },
-                        { condition: "次T", name: "黄泉", clear: "FC発動+80hit", note: "40倍×10回、強化5T短縮、裂傷/強圧。解除でDCゲージ+6%" }
+                        { condition: "開幕", name: "浄土（破壊の試練）", clear: "150hit＋奥義10回 or 10T経過", note: "100% 破壊の試練" }
                     ],
                     ctSpecials: [
-                        { name: "身光", clear: "弱体10回", note: "30倍ダメ、FCゲージ30%DOWN、アビ/奥義ダメカ。解除でDCゲージ+3%" },
-                        { name: "輪廻", clear: "50hit", note: "被弾対象に攻防DOWN、弱点属性追撃付与。解除でDCゲージ+3%" }
+                        { name: "身光（CT A）", clear: "弱体効果10回", note: "" },
+                        { name: "輪廻（CT B）", clear: "50hit", note: "" }
                     ]
                 },
                 {
-                    range: "80%〜G50 (青/再生ルート)",
+                    range: "90%〜81%",
                     triggers: [
-                        { condition: "HP80%", name: "再生の神意（青）", clear: "なし", note: "1Tに50hit未満or奥義6回未満＋被ダメ不足でT終了時に他化自在付与" },
-                        { condition: "HP70%", name: "身光（連続予兆）", clear: "アビ6回（他化自在中7回）", note: "30倍ダメ。解除でDCゲージ+4%" },
-                        { condition: "次T", name: "無常", clear: "ディスペル5回+攻撃5回（他化自在中+1ずつ）", note: "60倍×4回、連続攻撃/回復DOWN。解除でDCゲージ+4%" },
-                        { condition: "次T", name: "黄泉", clear: "50hit+300万5hit（他化自在中70hit+7hit）", note: "" },
-                        { condition: "G50 or HP51%", name: "浄土（形態変化）", clear: "アビダメ3000万+奥義3000万+アビ12回", note: "主人公以外全員戦闘不能、無敵付与。解除でDCゲージ+4%" }
+                        { condition: "90% 1T目", name: "身光", clear: "9999万9999ダメ ★", note: "" },
+                        { condition: "90% 2T目", name: "輪廻", clear: "奥義6回", note: "" },
+                        { condition: "90% 3T目", name: "黄泉", clear: "FC＋80hit", note: "ダメージが出にくい属性は原則ここで70%を踏む" }
                     ],
                     ctSpecials: [
-                        { name: "身光", clear: "弱体15回+TA4回（他化自在中+1ずつ）", note: "" },
-                        { name: "無常", clear: "ディスペル5回+200万7hit（他化自在中+1ずつ）", note: "60倍×4回、連続攻撃/回復DOWN" }
+                        { name: "身光（CT A）", clear: "弱体効果10回", note: "" },
+                        { name: "輪廻（CT B）", clear: "50hit", note: "" }
                     ]
                 },
                 {
-                    range: "80%〜G50 (赤/破壊ルート)",
+                    range: "80% 神意（ルート分岐）",
                     triggers: [
-                        { condition: "HP80%", name: "破壊の神意（赤）", clear: "なし", note: "1Tに攻撃6回未満orアビ5回未満＋被ダメ不足でT終了時に他化自在付与" },
-                        { condition: "HP70%", name: "天蓋（連続予兆）", clear: "奥義5回（他化自在中6回）", note: "解除でDCゲージ+4%" },
-                        { condition: "次T", name: "輪廻", clear: "TA4回+ディスペル3回（他化自在中+1ずつ）", note: "60倍×6回、攻防DOWN。解除でDCゲージ+4%" },
-                        { condition: "次T", name: "黄泉", clear: "800万3hit+FC発動（他化自在中800万5hit）", note: "" },
-                        { condition: "G50 or HP51%", name: "浄土（形態変化）", clear: "アビダメ3000万+奥義3000万+アビ12回", note: "主人公以外全員戦闘不能、無敵付与。解除でDCゲージ+4%" }
+                        { condition: "HP80%", name: "再生の神意（青）", clear: "1T中に50hit以上＋奥義6回以上＋一定ダメージ", note: "満たせないとT終了時に他化自在→解除条件が上がる。以降は「再生（青）ルート」" },
+                        { condition: "HP80%", name: "破壊の神意（赤）", clear: "1T中に攻撃行動6回以上＋アビ5回以上＋一定ダメージ", note: "満たせないとT終了時に他化自在→解除条件が上がる。以降は「破壊（赤）ルート」" }
+                    ],
+                    ctSpecials: []
+                },
+                {
+                    range: "再生（青）ルート 80%〜51%",
+                    triggers: [
+                        { condition: "70% 1T目", name: "身光", clear: "アビ6回", note: "" },
+                        { condition: "70% 2T目", name: "無常", clear: "ディスペル5回＋攻撃行動5回", note: "" },
+                        { condition: "70% 3T目", name: "黄泉", clear: "50(70)hit＋300万ダメ×5(7)hit", note: "原則ここで51% or Gゲージ50%を踏む" }
                     ],
                     ctSpecials: [
-                        { name: "輪廻", clear: "弱体12回+50hit（他化自在中15回+60hit）", note: "60倍×6回、攻防DOWN、弱点属性追撃" },
-                        { name: "天蓋", clear: "奥義5回+ダメアビ3回（他化自在中+1ずつ）", note: "" }
+                        { name: "身光（CT A）", clear: "弱体効果15(18)回＋TA4(5)回", note: "（）は他化自在中" },
+                        { name: "無常（CT B）", clear: "ディスペル5回＋200万ダメ×7hit", note: "" }
                     ]
                 },
                 {
-                    range: "Gゲージ50〜100（形態変化後）",
+                    range: "破壊（赤）ルート 80%〜51%",
                     triggers: [
-                        { condition: "浄土解除後", name: "光背試練（全属性）付与", clear: "各属性担当で解除", note: "創世の一翼が付与。四王天ループ開始（毎T五種が順次付与）" },
-                        { condition: "Gゲージ100%", name: "浄土（ゲージ満タン）", clear: "なし", note: "全体16倍×4回、五王天系解除、創世の一翼付与" },
-                        { condition: "G100後×5T", name: "神撃（1周目）⚠️全滅", clear: "ランダム順: 120hit / 600万5hit / 1億ダメ / ディスペル6 / 弱体15", note: "毎T1条件ずつ出現。解除でDCゲージ+3%" },
-                        { condition: "2周目×5T", name: "神撃（2周目）⚠️全滅", clear: "240hit / 600万10hit / 2億ダメ / ディスペル12 / 弱体30", note: "" },
-                        { condition: "3周目×5T", name: "神撃（3周目）⚠️全滅", clear: "360hit / 600万15hit / 3億ダメ / ディスペル18 / 弱体45", note: "" }
+                        { condition: "70% 1T目", name: "天蓋", clear: "奥義6回", note: "他化自在なしでは奥義5回" },
+                        { condition: "70% 2T目", name: "輪廻", clear: "TA5回＋ディスペル4回", note: "他化自在なしではTA4回＋ディスペル3回" },
+                        { condition: "70% 3T目", name: "黄泉", clear: "800万ダメ×3(5)hit＋FC", note: "原則ここで51% or Gゲージ50%を踏む" }
                     ],
                     ctSpecials: [
-                        { name: "天蓋", clear: "800万3hit+弱体アビ2回（他化自在中5hit+3回）", note: "" },
-                        { name: "無常", clear: "300万8hit+弱体15個（他化自在中10hit+18個）", note: "" },
-                        { name: "浄土", clear: "ディスペル5回+FC発動（他化自在中6回）", note: "" }
+                        { name: "天蓋（CT A）", clear: "奥義6回＋ダメアビ4回", note: "他化自在なしでは奥義5回＋ダメアビ3回" },
+                        { name: "輪廻（CT B）", clear: "弱体効果15(18)回＋60hit", note: "他化自在なしでは50hit＋弱体12回" }
                     ]
+                },
+                {
+                    range: "G50 or 51%〜（浄土・光背）",
+                    triggers: [
+                        { condition: "G50 or HP51%", name: "浄土", clear: "アビダメ3000万＋奥義ダメ3000万＋アビ12回", note: "予兆が出たらスタンプ。全員押すまで解除しない（解除は主に風＝シエテ か トリゼロ裏）" },
+                        { condition: "浄土の後", name: "光背（自属性）", clear: "自属性の光背を解除", note: "全員の光背を解除するまで待機。以後GゲージMAXまで天バフとCT予兆のみ" },
+                        { condition: "光背", name: "四王天（しおうてん）", clear: "攻撃行動5(6)(7)回", note: "" },
+                        { condition: "光背", name: "忉利天（とうりてん）", clear: "奥義4(5)(6)回", note: "" },
+                        { condition: "光背", name: "夜摩天（やまてん）", clear: "アビダメ3000(3500)(4000)万", note: "" },
+                        { condition: "光背", name: "兜率天（とそつてん）", clear: "TA3(4)(5)回", note: "" },
+                        { condition: "光背", name: "化楽天（けらくてん）", clear: "40(60)(80)hit", note: "" },
+                        { condition: "GゲージMAX", name: "浄土（ゲージMAX）", clear: "なし（受ける）", note: "全体にランダム属性4倍ダメ×16回。敵の無敵/忉利天/夜摩天/兜率天/化楽天/他化自在を解除、創世の一翼（被ダメ30%カット）付与" }
+                    ],
+                    ctSpecials: [
+                        { name: "天蓋（CT A）", clear: "800万ダメ×3or5hit＋弱体アビ2or3回", note: "" },
+                        { name: "無常（CT B）", clear: "300万ダメ×8or10hit＋弱体15or18個", note: "" },
+                        { name: "浄土（CT C）", clear: "ディスペル5or6回＋FC", note: "" }
+                    ]
+                },
+                {
+                    range: "神撃（5連続）",
+                    triggers: [
+                        { condition: "1周目", name: "神撃", clear: "120hit", note: "5種からランダムで1つずつ" },
+                        { condition: "1周目", name: "神撃", clear: "600万ダメ×5hit", note: "" },
+                        { condition: "1周目", name: "神撃", clear: "1億ダメ", note: "" },
+                        { condition: "1周目", name: "神撃", clear: "ディスペル6回", note: "" },
+                        { condition: "1周目", name: "神撃", clear: "弱体15個", note: "" },
+                        { condition: "2周目", name: "神撃", clear: "240hit", note: "5種からランダムで1つずつ" },
+                        { condition: "2周目", name: "神撃", clear: "600万ダメ×10hit", note: "" },
+                        { condition: "2周目", name: "神撃", clear: "2億ダメ", note: "" },
+                        { condition: "2周目", name: "神撃", clear: "ディスペル12回", note: "" },
+                        { condition: "2周目", name: "神撃", clear: "弱体30個", note: "" }
+                    ],
+                    ctSpecials: []
                 },
                 {
                     range: "【参考】四王天一覧",
