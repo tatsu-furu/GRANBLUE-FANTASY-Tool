@@ -978,17 +978,17 @@
         createOmenSheet(raid) {
             const cells = {};
             const align = {};
-            const head = ['条件', '予兆名', '解除条件', '備考', '担当', '済'];
+            const head = ['条件', '予兆名', '解除条件', '備考', '動き方', '担当', '済'];
             head.forEach((h, c) => { cells[`0_${c}`] = h; align[`0_${c}`] = 'c'; });
             let r = 1;
-            const row = (vals) => { vals.forEach((v, c) => { if (v) cells[`${r}_${c}`] = String(v).slice(0, MAX_CELL); }); align[`${r}_5`] = 'c'; r++; };
+            const row = (vals) => { vals.forEach((v, c) => { if (v) cells[`${r}_${c}`] = String(v).slice(0, MAX_CELL); }); align[`${r}_6`] = 'c'; r++; };
             // シートでは HP ごとの見出し行を入れず、上から順に続けて並べる（CT 特殊技はどの HP 帯かを条件に書く）
             raid.phases.forEach((p) => {
                 p.triggers.forEach((t) => row([t.condition, t.name, t.clear, t.note || '']));
-                (p.ctSpecials || []).forEach((ct) => row([`CT（${p.range}）`, ct.name, ct.clear, ct.note || '']));
+                (p.ctSpecials || []).forEach((ct) => row([p.ctLabel || `CT（${p.range}）`, ct.name, ct.clear, ct.note || '']));
             });
-            const widths = { 0: 90, 1: 150, 2: 170, 3: 300, 4: 90, 5: 44 };
-            return createSheet({ name: `予兆: ${raid.name}`.slice(0, 30), kind: 'omen', rows: Math.max(r + 5, 20), cols: 6, cells, align, widths });
+            const widths = { 0: 110, 1: 150, 2: 200, 3: 260, 4: 260, 5: 90, 6: 44 };
+            return createSheet({ name: `予兆: ${raid.name}`.slice(0, 30), kind: 'omen', rows: Math.max(r + 5, 20), cols: 7, cells, align, widths });
         },
     };
 
