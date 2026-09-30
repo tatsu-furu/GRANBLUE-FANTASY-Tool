@@ -17,6 +17,15 @@
     const STORAGE_KEY = 'gbf_kj_trehun';
     const TOTAL_RATE_MAX = 300;
     const SOURCE_URL = 'http://liliel.web.fc2.com/gbf/index.html';
+    // 参考（リリエルさんの「トレハン計算機」の「参考：」と同じ。本人の許可を得て掲載）
+    const REFS = [
+        ['ゆゆたんさん', 'yuyutan_gb', ['https://twitter.com/yuyutan_gb/status/1073937306103382017', 'https://twitter.com/yuyutan_gb/status/1872848722159386707', 'https://twitter.com/yuyutan_gb/status/1873248957335519410']],
+        ['音黒くろさん', 'otokuro2', ['https://twitter.com/otokuro2/status/1746075817858527250', 'https://twitter.com/otokuro2/status/1835680834705314137', 'https://x.com/otokuro2/status/2044406289942634571']],
+        ['田楽さん', 'dengakusub', ['https://www.youtube.com/watch?v=JS98jzLb5NA']],
+        ['れもんさん', 'lemon_pad', ['https://www.youtube.com/watch?v=s_aq2aHSAIo']],
+        ['GameWith', null, ['https://xn--bck3aza1a2if6kra4ee0hf.gamewith.jp/article/show/485745']],
+        ['リリエル', 'siruastoday', ['https://x.com/siruastoday/status/1881140330114040243', 'https://x.com/siruastoday/status/1880532710810390870', 'https://x.com/siruastoday/status/1880576014537073116']],
+    ];
 
     // 選択肢（[値(%), 表示]）
     const OPT = {
@@ -137,6 +146,11 @@
 .th-table th { color:var(--text-2); font-weight:400; }
 .th-credit { font-size:0.76em; color:var(--text-2); margin-top:8px; }
 .th-credit a { color:var(--accent); }
+.th-refs { margin-top:6px; font-size:0.76em; color:var(--text-2); }
+.th-refs summary { cursor:pointer; color:var(--accent); display:inline-block; }
+.th-refs a { color:var(--accent); word-break:break-all; }
+.th-ref-name { margin-top:6px; color:var(--text); }
+.th-ref-link { padding-left:4px; }
 `;
             document.head.appendChild(style);
         }
@@ -195,7 +209,11 @@
 <div class="card">
   <div class="card-title">結果</div>
   <div data-out></div>
-  <div class="th-credit">計算式はリリエルさんの「<a href="${SOURCE_URL}" target="_blank" rel="noopener noreferrer">[グラブル]トレハン計算機</a>」を参考にしています。</div>
+  <div class="th-credit">計算式・データ：リリエルさん（<a href="https://twitter.com/siruastoday" target="_blank" rel="noopener noreferrer">@siruastoday</a>）「<a href="${SOURCE_URL}" target="_blank" rel="noopener noreferrer">[グラブル]トレハン計算機</a>」（許可を得て使用しています）</div>
+  <details class="th-refs">
+    <summary>参考</summary>
+    ${REFS.map(([name, id, links]) => `<div class="th-ref-name">${esc(name)}${id ? `(<a href="https://twitter.com/${id}" target="_blank" rel="noopener noreferrer">@${esc(id)}</a>)` : ''}</div>${links.map((u) => `<div class="th-ref-link">・<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a></div>`).join('')}`).join('')}
+  </details>
 </div>`;
             this.bind();
             this.update();
