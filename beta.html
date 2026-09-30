@@ -171,6 +171,10 @@
         .cm-drive .btn { text-align: left; display: flex; justify-content: space-between; gap: 10px; white-space: normal; }
         .cm-drive small { color: var(--text-muted); font-weight: 400; white-space: nowrap; }
         .collab-lock { font-size: 0.95em; }
+        .cm-show { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; color: var(--text-muted); cursor: pointer; }
+        /* 鍵つきルームのパスワード待ち：中身は一切出さない */
+        body.room-locked .page-tabs, body.room-locked #move-tool, body.room-locked #sheet-panel,
+        body.room-locked #shots-panel, body.room-locked #side-panel, body.room-locked .side-toggle { display: none !important; }
         .collab-room-new { width: 14em; max-width: 60vw; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 5px 7px; }
         /* スクショ置き場 */
         #shots-panel[hidden] { display: none; }
@@ -246,9 +250,19 @@
                     <li><strong>上書き保存</strong>: ムーブ入力中でも簡単に保存</li>
                 </ul>
 
+                <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">個人モードとルーム（大事）</h3>
+                <ul style="padding-left: 25px;">
+                    <li><strong>ふだんは個人モード（ルームなし）で使ってください。</strong>シート・編成・スクショはこのブラウザの中だけに保存され、サーバーには送られません</li>
+                    <li><strong>ルームはインターネットに公開されます。</strong>リンク（URL）を知っている人は誰でも見て編集できます</li>
+                    <li>ルームに<strong>パスワード（鍵）</strong>をかけると、パスワードを知らない人は中身を見られなくなります</li>
+                    <li>ただし<strong>サイト管理人は、鍵つきのルームも含めて中身を見たり削除したりできます</strong>（サーバーの保守のため）</li>
+                    <li><strong>ルーム名や表示名に、本名などの個人情報は入れないでください。</strong>ルーム名は管理人の一覧にも表示されます</li>
+                    <li>使い終わったルームは「保存・鍵・削除」からファイルに保存して削除すると、サーバーを圧迫しません。保存したファイルからいつでも復元できます</li>
+                </ul>
+
                 <h3 style="color: #c9a24a; border-bottom: 1px solid #363a44; padding-bottom: 5px; margin-top: 18px;">共同編集・共有シート（ベータ）</h3>
                 <ul style="padding-left: 25px;">
-                    <li><strong>ルームを作成</strong>: 上の「ルームを作成」を押してリンクを送ると、編成・ムーブ表・共有シートを同時に編集できます</li>
+                    <li><strong>ルームを作成</strong>: 上の「ルームを作成」を押してリンクを送ると、編成・共有シート・スクショをみんなで同時に編集できます</li>
                     <li>今いるターンや選択中のキャラは人ごとに別々です。同じターンに同時に行動を入れると片方が消えることがあります</li>
                     <li>他の人の編集が入ると、Undo の履歴はそこで区切られます</li>
                     <li><strong>共有シート</strong>: スプレッドシートからコピーした範囲をそのまま貼り付けられます。「表をコピー」で逆に持ち出せます。Shift+クリックや列・行番号のクリックで範囲を選んで、左・中央・右揃えを変えられます</li>
@@ -256,7 +270,7 @@
                     <li><strong>右パネル</strong>: 画面右端のつまみで開きます。開いたまま編集でき、左端をドラッグで幅を変えられます</li>
                     <li><strong>ムーブ表シート</strong>: 共有シートの「＋ ムーブ表」で、1行=1ターン・キャラごとの列があるシートを作れます（ムーブ表タブの内容も書き写せます）。右パネルの「編成パーツ」でアビをタップすると置き先の行のそのキャラの列に入り、「次のターン ↓」で次の行へ。セルへドラッグでも置けます</li>
                     <li><strong>予兆</strong>: 「📋 予兆表をシートにする」でレイドの予兆一覧を担当・済の列つきでシートにします。行クリックで、ムーブ表シートなら置き先の行の「予兆・HP」に入ります</li>
-                    <li>リンクを知っている人は誰でも閲覧・編集できます</li>
+                    <li>リンクを知っている人は誰でも閲覧・編集できます（鍵をかけるとパスワードを知っている人だけ）</li>
                 </ul>
 
                 <div style="background-color: rgba(90,138,184,0.1); padding: 12px; border-radius: 4px; margin-top: 16px; border-left: 3px solid #5a8ab8;">
