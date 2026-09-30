@@ -424,6 +424,7 @@
             state.owner = create ? room.uid : null;
             state.locked = false;
             state.lockPrompt = null;
+            setLockedView(false);
             formOpen = false;
             manageOpen = false;
             state.lastMoveFlat = create && !blank && !seed ? flatten(clone(sharedMove(currentWorkData))) : null;
@@ -431,6 +432,7 @@
             const lost = (err) => {
                 if (state.room !== room || !isPermissionError(err)) return;
                 teardown();
+                restoreBackup();
                 askPassword(roomId, 'このルームに鍵がかかったか、パスワードが変わりました');
                 emitStoreChange();
             };
@@ -514,8 +516,22 @@
     // ---------- 鍵・管理者・削除 ----------
     const isOwner = () => !!(state.room && state.room.uid && state.owner === state.room.uid);
     const canManage = () => !!(state.room && state.room.uid && (isOwner() || state.isAdmin));
+    // 鍵つきルームのパスワード待ちの間は、シート・編成・スクショを全部隠す
+    const setLockedView = (on) => document.body.classList.toggle('room-locked', !!on);
+    // ルームに入る前の自分のデータ（参加時に退避したもの）に戻す
+    function restoreBackup() {
+        try {
+            const b = localStorage.getItem(BACKUP_KEY);
+            localStorage.setItem(STORAGE_KEY_CURRENT, b || JSON.stringify(getDefaultWorkData()));
+            localStorage.removeItem(BACKUP_KEY);
+        } catch { /* 容量 */ }
+        loadCurrentWork();
+        loadSetupDataToDOM();
+        window.dispatchEvent(new Event('gbf-work-changed'));
+    }
     function askPassword(roomId, msg) {
         state.lockPrompt = { roomId, msg };
+        setLockedView(true);
         if (location.hash !== `#room=${roomId}`) history.replaceState(null, '', `#room=${roomId}`);
         setStatus('ok', '');
     }
@@ -757,6 +773,7 @@
                 <strong>${state.locked ? '🔒 鍵つき' : '🔓 鍵なし'}</strong>
                 <div class="collab-row">
                     <input type="password" class="cm-pw" placeholder="パスワード（4文字以上）" autocomplete="new-password">
+                    <label class="cm-show"><input type="checkbox" data-show-pw> 文字を表示</label>
                     <button class="btn" data-act="lock">${state.locked ? 'パスワードを変える' : '鍵をかける'}</button>
                     ${state.locked ? '<button class="btn reset-btn" data-act="unlock">鍵を外す</button>' : ''}
                 </div>
@@ -822,6 +839,7 @@
                     </div>
                     <div class="collab-row">
                         <input type="password" class="collab-pw" placeholder="パスワード" autocomplete="current-password">
+                        <label class="cm-show"><input type="checkbox" data-show-pw> 文字を表示</label>
                         <button class="btn collab-primary" data-act="enter">入る</button>
                         <button class="btn reset-btn" data-act="cancel-lock">やめる</button>
                         ${adminBtn}
@@ -873,7 +891,7 @@
         if (box) {
             const html = manageHtml();
             // パスワード入力中は作り直さない
-            const typing = box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
+            const typing = box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT' && document.activeElement.type !== 'checkbox';
             if (html !== builtManage && !typing) { box.innerHTML = html; builtManage = html; }
         }
         const msg = bar.querySelector('.collab-msg');
@@ -929,6 +947,7 @@
                 submitPassword(bar.querySelector('.collab-pw')?.value || '');
             } else if (act === 'cancel-lock') {
                 state.lockPrompt = null;
+                setLockedView(false);
                 clearHash();
                 setStatus('ok', '');
             } else if (act === 'save-file') { await saveToFile(); }
@@ -956,6 +975,11 @@
         }
     });
     bar?.addEventListener('change', (e) => {
+        if (e.target.matches('[data-show-pw]')) {
+            const pw = e.target.closest('.collab-row')?.querySelector('input.collab-pw, input.cm-pw');
+            if (pw) pw.type = e.target.checked ? 'text' : 'password';
+            return;
+        }
         if (e.target.classList.contains('collab-name')) {
             nameCache = e.target.value.trim().slice(0, 16);
             try { localStorage.setItem(NAME_KEY, nameCache); } catch { /* 容量 */ }

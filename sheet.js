@@ -982,11 +982,10 @@
             head.forEach((h, c) => { cells[`0_${c}`] = h; align[`0_${c}`] = 'c'; });
             let r = 1;
             const row = (vals) => { vals.forEach((v, c) => { if (v) cells[`${r}_${c}`] = String(v).slice(0, MAX_CELL); }); align[`${r}_5`] = 'c'; r++; };
-            if (raid.notes?.length) row([`■ ${raid.name}`, `HP ${raid.hp} / ${raid.timeLimit} / ${raid.ct}`, '', raid.notes.join(' / ')]);
+            // シートでは HP ごとの見出し行を入れず、上から順に続けて並べる（CT 特殊技はどの HP 帯かを条件に書く）
             raid.phases.forEach((p) => {
-                row([`■ ${p.range}`]);
                 p.triggers.forEach((t) => row([t.condition, t.name, t.clear, t.note || '']));
-                (p.ctSpecials || []).forEach((ct) => row(['CT', ct.name, ct.clear, ct.note || '']));
+                (p.ctSpecials || []).forEach((ct) => row([`CT（${p.range}）`, ct.name, ct.clear, ct.note || '']));
             });
             const widths = { 0: 90, 1: 150, 2: 170, 3: 300, 4: 90, 5: 44 };
             return createSheet({ name: `予兆: ${raid.name}`.slice(0, 30), kind: 'omen', rows: Math.max(r + 5, 20), cols: 6, cells, align, widths });
