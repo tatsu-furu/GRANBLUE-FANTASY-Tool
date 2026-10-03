@@ -6,7 +6,9 @@
 // Netlify の環境変数（Site configuration → Environment variables）:
 //   FIREBASE_DB_URL            例: https://gbf-tool-3a205-default-rtdb.asia-southeast1.firebasedatabase.app
 //   FIREBASE_SERVICE_ACCOUNT   Firebase のサービスアカウントの JSON（そのまま、または base64）
-//   （どちらかが無ければ何もしない）
+//   または
+//   FIREBASE_DB_SECRET         Realtime Database のシークレット（組織のポリシーでサービスアカウントの鍵を作れない場合）
+//   （URL と、どちらかの認証情報が無ければ何もしない）
 import { createSign } from 'node:crypto';
 import { LIMITS, buildPayload, nextOccurrence, renderContent, validateReminder } from '../../remind-core.js';
 
@@ -30,6 +32,7 @@ function fromEnv() {
     return {
         dbUrl: env.FIREBASE_DB_URL,
         serviceAccount: env.FIREBASE_SERVICE_ACCOUNT,
+        dbSecret: env.FIREBASE_DB_SECRET,
         // テスト用：エミュレーターと、Discord の代わりのサーバー
         emulatorNs: env.FIREBASE_EMULATOR_NS,
         discordBase: env.DISCORD_TEST_BASE,
@@ -59,14 +62,15 @@ async function accessToken(serviceAccount) {
     return (await res.json()).access_token;
 }
 
-function makeDb({ dbUrl, token, emulatorNs }) {
+function makeDb({ dbUrl, token, secret, emulatorNs }) {
     const base = dbUrl.replace(/\/$/, '');
     const url = (path, query = {}) => {
         const q = new URLSearchParams(query);
         if (emulatorNs) q.set('ns', emulatorNs);
+        if (secret) q.set('auth', secret);
         return `${base}/${path}.json${q.toString() ? `?${q}` : ''}`;
     };
-    const headers = { Authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const headers = token ? { Authorization: `Bearer ${token}`, 'content-type': 'application/json' } : { 'content-type': 'application/json' };
     const call = async (method, path, body, query) => {
         const res = await fetch(url(path, query), { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
         if (!res.ok) throw new Error(`firebase ${method} ${path}: ${res.status} ${await res.text()}`);
@@ -99,9 +103,9 @@ async function send(r, at, discordBase) {
 }
 
 export async function dispatch(opts, now = Date.now()) {
-    if (!opts.dbUrl || !(opts.serviceAccount || opts.emulatorNs)) return { skipped: 'not configured' };
-    const token = opts.emulatorNs ? 'owner' : await accessToken(opts.serviceAccount);
-    const db = makeDb({ dbUrl: opts.dbUrl, token, emulatorNs: opts.emulatorNs });
+    if (!opts.dbUrl || !(opts.serviceAccount || opts.dbSecret || opts.emulatorNs)) return { skipped: 'not configured' };
+    const token = opts.emulatorNs ? 'owner' : opts.serviceAccount ? await accessToken(opts.serviceAccount) : null;
+    const db = makeDb({ dbUrl: opts.dbUrl, token, secret: token ? null : opts.dbSecret.trim(), emulatorNs: opts.emulatorNs });
     const due = (await db.get('reminderQueue', { orderBy: '"nextAt"', endAt: String(now), limitToFirst: String(BATCH) })) || {};
     const perUser = new Map();
     let sent = 0;
