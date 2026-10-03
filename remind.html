@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord リマインド（ベータ） | GRANBLUE FANTASY Tool</title>
+    <meta name="description" content="団の Discord に、マルチの募集や古戦場の納品リマインドを送るツール。日時を決めて予約もできます。">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        :root {
+            --bg: #111115; --surface: #18181e; --surface-2: #202028; --border: #2c2c38; --border-hi: #3c3c50;
+            --text: #d8d5cc; --text-2: #9a968f; --text-3: #5c5850; --accent: #c09030; --accent-hi: #d8a840;
+            --on-accent: #0c0800; --ok: #5fb87f; --warn: #d8a840; --ng: #e0705f; --discord: #5865f2;
+        }
+        body {
+            margin: 0; background: var(--bg); color: var(--text); line-height: 1.7; -webkit-font-smoothing: antialiased;
+            font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+        }
+        a { color: var(--accent); }
+        header.top { background: var(--surface); border-bottom: 1px solid var(--border); padding: 22px 16px 18px; }
+        header.top .inner, main { max-width: 860px; margin: 0 auto; }
+        header.top h1 { margin: 0; font-size: 1.35em; }
+        header.top h1 .beta { font-size: 0.55em; vertical-align: middle; padding: 2px 6px; border: 1px solid #6898d8; color: #6898d8; border-radius: 2px; margin-left: 6px; }
+        header.top p { margin: 6px 0 0; color: var(--text-2); font-size: 0.9em; }
+        .back { font-size: 0.85em; text-decoration: none; color: var(--text-2); }
+        main { padding: 16px 16px 60px; }
+        section.card { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 14px 16px; margin: 14px 0; }
+        section.card h2 { margin: 0 0 8px; font-size: 1.05em; color: var(--accent); }
+        .muted { color: var(--text-2); }
+        .small { font-size: 0.85em; }
+        .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 12px; }
+        label.f { display: flex; flex-direction: column; gap: 2px; font-size: 0.85em; color: var(--text-2); }
+        input, select, textarea {
+            font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border-hi);
+            border-radius: 3px; padding: 6px 8px; width: 100%;
+        }
+        textarea { min-height: 6em; resize: vertical; }
+        input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+        button {
+            font: inherit; font-size: 0.9em; font-weight: 700; padding: 6px 14px; border-radius: 3px; cursor: pointer;
+            color: var(--text); background: transparent; border: 1px solid var(--border-hi);
+        }
+        button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+        button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+        button.primary:hover:not(:disabled) { background: var(--accent-hi); color: var(--on-accent); }
+        button.discord { background: var(--discord); border-color: var(--discord); color: #fff; }
+        button.discord:hover:not(:disabled) { color: #fff; filter: brightness(1.1); }
+        button.small { padding: 2px 8px; font-size: 0.8em; }
+        button:disabled { opacity: 0.45; cursor: default; }
+        .tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+        .tabs button[aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
+        .preview {
+            white-space: pre-wrap; background: #2b2d31; color: #dbdee1; border-radius: 4px; padding: 10px 12px; font-size: 0.9em;
+            border-left: 3px solid var(--discord); min-height: 2.5em;
+        }
+        .preview .mention { background: rgba(88,101,242,0.3); color: #c9cdfb; border-radius: 3px; padding: 0 2px; }
+        .list { list-style: none; margin: 0; padding: 0; }
+        .list li { border-top: 1px solid var(--border); padding: 8px 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
+        .list li:first-child { border-top: none; }
+        .list .title { font-weight: 700; }
+        .list .actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; align-items: start; }
+        .tag { font-size: 0.75em; padding: 1px 6px; border-radius: 2px; border: 1px solid var(--border-hi); color: var(--text-2); margin-left: 4px; }
+        .tag.on { color: var(--ok); border-color: var(--ok); }
+        .tag.off { color: var(--text-3); }
+        .tag.err { color: var(--ng); border-color: var(--ng); }
+        .status { padding: 8px 12px; border-radius: 3px; font-size: 0.88em; border: 1px solid var(--border-hi); }
+        .status.ok { border-color: var(--ok); color: var(--ok); }
+        .status.ng { border-color: var(--warn); color: var(--warn); }
+        .msg { min-height: 1.4em; font-size: 0.88em; }
+        .msg.ok { color: var(--ok); }
+        .msg.ng { color: var(--ng); }
+        details summary { cursor: pointer; color: var(--text-2); font-size: 0.9em; }
+        ol.howto { margin: 6px 0; padding-left: 1.4em; font-size: 0.88em; color: var(--text-2); }
+        .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        footer { text-align: center; padding: 18px 16px; font-size: 0.76em; color: var(--text-3); border-top: 1px solid var(--border); }
+        footer a { color: var(--text-2); }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <header class="top">
+        <div class="inner">
+            <a class="back" href="./">← GRANBLUE FANTASY Tool</a>
+            <h1>Discord リマインド<span class="beta">BETA</span></h1>
+            <p>団の Discord に、マルチの募集や古戦場の納品リマインドを送ります。今すぐ送るほか、日時を決めて予約もできます（毎日・毎週の繰り返しも）。</p>
+        </div>
+    </header>
+
+    <main>
+        <section class="card" id="hooks">
+            <h2>1. 送り先（Webhook）</h2>
+            <p class="small muted">送りたいチャンネルの Webhook の URL を登録します。URL はこのブラウザに保存され、「今すぐ送る」ではこのブラウザから Discord に直接送ります。</p>
+            <details>
+                <summary>Webhook の URL の出し方</summary>
+                <ol class="howto">
+                    <li>Discord で、送りたいチャンネルの ⚙（チャンネルの編集）を開く（サーバーの「ウェブフックの管理」権限が必要です）</li>
+                    <li>「連携サービス」→「ウェブフック」→「新しいウェブフック」</li>
+                    <li>名前とアイコンを決めて「ウェブフック URL をコピー」</li>
+                </ol>
+                <p class="small muted">URL を知っている人は誰でもそのチャンネルに投稿できるので、人に見せないでください。使わなくなったら Discord 側でウェブフックを削除すれば、予約していたものも止まります。</p>
+            </details>
+            <ul class="list" id="hook-list"></ul>
+            <div class="grid" style="margin-top:8px">
+                <label class="f">名前（自分用）<input id="hook-name" placeholder="例: 団の古戦場チャンネル" maxlength="30"></label>
+                <label class="f" style="grid-column: span 2">Webhook の URL<input id="hook-url" placeholder="https://discord.com/api/webhooks/..." autocomplete="off"></label>
+            </div>
+            <div class="row" style="margin-top:8px">
+                <button type="button" class="primary" id="hook-add">登録する</button>
+                <span class="msg" id="hook-msg"></span>
+            </div>
+        </section>
+
+        <section class="card" id="now">
+            <h2>2. 今すぐ送る</h2>
+            <div class="tabs" role="tablist">
+                <button type="button" role="tab" data-tab="multi" aria-selected="true">マルチ募集</button>
+                <button type="button" role="tab" data-tab="free" aria-selected="false">自由に書く</button>
+            </div>
+            <div class="grid">
+                <label class="f">送り先<select class="hook-select" id="now-hook"></select></label>
+                <label class="f">メンション<select id="now-mention" class="mention-select"></select></label>
+                <label class="f hidden role-field">ロールの ID<input id="now-role" placeholder="例: 123456789012345678" inputmode="numeric"></label>
+            </div>
+            <div data-pane="multi" class="grid" style="margin-top:8px">
+                <label class="f">クエスト・バトル<input id="multi-quest" placeholder="例: ルシファーHL" maxlength="60"></label>
+                <label class="f">参戦ID<input id="multi-id" placeholder="例: 1A2B3C4D" maxlength="8" autocomplete="off"></label>
+                <label class="f" style="grid-column: 1 / -1">ひとこと（任意）<input id="multi-note" placeholder="例: 光パ、ムーブ表どおりで！" maxlength="200"></label>
+            </div>
+            <div data-pane="free" class="hidden" style="margin-top:8px">
+                <label class="f">本文<textarea id="free-text" maxlength="1800" placeholder="送る文章"></textarea></label>
+            </div>
+            <p class="small muted" style="margin:10px 0 4px">プレビュー</p>
+            <div class="preview" id="now-preview"></div>
+            <div class="row" style="margin-top:8px">
+                <button type="button" class="discord" id="now-send">Discord に送る</button>
+                <span class="msg" id="now-msg"></span>
+            </div>
+        </section>
+
+        <section class="card" id="schedule">
+            <h2>3. 予約して送る</h2>
+            <div class="status" id="server-status">送信サーバーの状態を確認しています…</div>
+            <p class="small muted">予約は 5 分ごとにまとめて送るので、指定した時刻から最大 5 分ほど遅れます。予約した内容（送り先の URL を含む）は送信のためにサーバーに保存されます。予約の一覧はこのブラウザからだけ見られます。</p>
+            <div class="presets">
+                <button type="button" class="small" data-preset="kosen">古戦場：本戦の朝に納品リマインド</button>
+                <button type="button" class="small" data-preset="weekly">毎週の団イベント</button>
+                <button type="button" class="small" data-preset="once">1回だけ</button>
+            </div>
+            <div class="grid">
+                <label class="f">タイトル（自分用）<input id="sch-title" maxlength="40" placeholder="例: 古戦場 納品"></label>
+                <label class="f">送り先<select class="hook-select" id="sch-hook"></select></label>
+                <label class="f">メンション<select id="sch-mention" class="mention-select"></select></label>
+                <label class="f hidden role-field">ロールの ID<input id="sch-role" placeholder="例: 123456789012345678" inputmode="numeric"></label>
+                <label class="f">日付（最初に送る日）<input type="date" id="sch-date"></label>
+                <label class="f">時刻（日本時間）<input type="time" id="sch-time" value="07:00" step="300"></label>
+                <label class="f">繰り返し
+                    <select id="sch-repeat">
+                        <option value="none">1回だけ</option>
+                        <option value="daily">毎日</option>
+                        <option value="weekly">毎週</option>
+                    </select>
+                </label>
+                <label class="f" id="sch-end-wrap">最後の日（この日まで）<input type="date" id="sch-end"></label>
+                <label class="f" style="grid-column: 1 / -1">本文
+                    <textarea id="sch-content" maxlength="1800" placeholder="送る文章"></textarea>
+                    <span class="small">{day} は「何日目」（最初の日が 1）、{date} は「月/日」に置き換わります。</span>
+                </label>
+            </div>
+            <p class="small muted" style="margin:10px 0 4px">プレビュー（最初の回）</p>
+            <div class="preview" id="sch-preview"></div>
+            <div class="row" style="margin-top:8px">
+                <button type="button" class="primary" id="sch-save">予約する</button>
+                <span class="msg" id="sch-msg"></span>
+            </div>
+            <h2 style="margin-top:18px">予約の一覧</h2>
+            <ul class="list" id="sch-list"><li class="muted small">読み込んでいます…</li></ul>
+        </section>
+
+        <section class="card">
+            <h2>注意</h2>
+            <ul class="small muted">
+                <li>ベータ版です。送信のタイミングや見た目は変わることがあります。</li>
+                <li>メンションは「なし」にすると、本文に @everyone と書いても通知は飛びません。</li>
+                <li>予約は、このブラウザの見えない ID に結びついています。ブラウザのデータを消すと一覧から管理できなくなるので、その場合は Discord 側でウェブフックを削除して止めてください（削除されたウェブフックへの予約は自動で止まります）。</li>
+                <li>1つのブラウザで予約できるのは <span id="limit">20</span> 件までです。</li>
+                <li>サイト管理人は、迷惑な使われ方をしている予約を止める・削除することがあります。</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer>
+        <p>グラブルファンツール by <a href="https://ko-fi.com/alt4l" target="_blank" rel="noopener">alt4l</a> &nbsp;|&nbsp; 非公式ツール。GRANBLUE FANTASYはCygames, Inc.の著作物です。 &nbsp;|&nbsp; <a href="privacy.html">プライバシーポリシー</a></p>
+    </footer>
+
+    <script src="collab-config.js"></script>
+    <script type="module" src="remind.js"></script>
+</body>
+</html>

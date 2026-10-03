@@ -112,6 +112,81 @@
           ".validate": false
         }
       }
+    },
+    "reminders": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "(auth != null && auth.uid === $uid) || (auth != null && auth.token.email_verified === true && auth.token.email === 'ADMIN_EMAIL@example.com')",
+        "$id": {
+          ".validate": "$id.matches(/^[A-Za-z0-9_-]{6,30}$/) && newData.hasChildren(['webhook', 'content', 'repeat', 'nextAt', 'enabled', 'createdAt'])",
+          "webhook": {
+            ".validate": "newData.isString() && newData.val().matches(/^https:\\/\\/(ptb\\.|canary\\.)?(discord|discordapp)\\.com\\/api\\/webhooks\\/[0-9]{17,20}\\/[A-Za-z0-9_-]{20,}$/)"
+          },
+          "content": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 1800"
+          },
+          "title": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "username": {
+            ".validate": "newData.isString() && newData.val().length <= 80"
+          },
+          "mention": {
+            ".validate": "newData.isString() && newData.val().matches(/^(none|everyone|here|role:[0-9]{17,20})$/)"
+          },
+          "repeat": {
+            ".validate": "newData.isString() && newData.val().matches(/^(none|daily|weekly)$/)"
+          },
+          "nextAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "startAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "endAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "enabled": {
+            ".validate": "newData.isBoolean()"
+          },
+          "done": {
+            ".validate": "newData.isBoolean()"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "lastSentAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "lastError": {
+            ".validate": "newData.isString() && newData.val().length <= 200"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "reminderQueue": {
+      ".indexOn": [
+        "nextAt"
+      ],
+      "$id": {
+        ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid) && (!newData.exists() || (newData.child('uid').val() === auth.uid && newData.parent().parent().child('reminders').child(auth.uid).child($id).exists()))",
+        ".validate": "newData.hasChildren(['uid', 'nextAt'])",
+        "uid": {
+          ".validate": "newData.isString()"
+        },
+        "nextAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "reminderStatus": {
+      ".read": true
     }
   }
 }
