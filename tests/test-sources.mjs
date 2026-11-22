@@ -16,7 +16,7 @@ const count = (re, only) => files.filter((f) => !only || only.includes(f)).map((
 {
   const defs = count(/\bitemRate\s*:\s*\d/g);
   ok(defs.length === 1 && defs[0][0] === 'kosenjou-trehun.js' && defs[0][1] === 1, 'ドロップ率: アイテム率の既定値（itemRate: 数）は、kosenjou-trehun.js の1か所だけで定義されている', JSON.stringify(defs));
-  const box = count(/\bBOX_BASE_BY_DIFF\s*=/g);
+  const box = count(/\bconst\s+BOX_BASE_BY_DIFF\s*=/g);
   ok(box.length === 1 && box[0][0] === 'kosenjou-trehun.js' && box[0][1] === 1, 'ドロップ率: 難易度ごとの箱の基本率（BOX_BASE_BY_DIFF）は、kosenjou-trehun.js の1か所だけで定義されている', JSON.stringify(box));
   const boxBase = count(/\bboxBase\s*:\s*\d/g);
   ok(boxBase.length === 1 && boxBase[0][0] === 'kosenjou-trehun.js' && boxBase[0][1] === 1, 'ドロップ率: 箱の基本率の既定値（boxBase: 数）は、kosenjou-trehun.js の1か所だけで定義されている', JSON.stringify(boxBase));

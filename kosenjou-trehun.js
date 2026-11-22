@@ -81,6 +81,24 @@
         return { frames, total, capped, box, item };
     }
 
+    /**
+     * 難易度ごとの、1周で箱・アイテム（極星器など）が落ちる確率（%）。ids … 難易度の id の一覧。
+     * 倍率とアイテム率は、渡した設定 s（トレハンタブの設定）のもの。箱の基本率は、難易度ごとの表（BOX_BASE_BY_DIFF）から
+     * （選んでいる難易度 s.diff は、設定の値。手で直していれば、それ）。表にない難易度は、{ known: false }（確率不明。勝手に補わない）。
+     * トレハンタブで、その難易度を選んだときの表示と、同じ値になる
+     */
+    function perDiff(s, ids) {
+        const r = calc(s);
+        const out = {};
+        ids.forEach((id) => {
+            if (!(id in BOX_BASE_BY_DIFF)) { out[id] = { known: false }; return; }
+            const base = id === s.diff ? (Number(s.boxBase) || 0) : BOX_BASE_BY_DIFF[id];
+            const box = base * r.capped / 100;
+            out[id] = { known: true, box, item: Math.min(box, 100) * (Number(s.itemRate) || 0) / 100 };
+        });
+        return out;
+    }
+
     /** 1回以上落ちる確率が p になるまでの周回数（1回あたり rate%） */
     function runsFor(ratePct, p) {
         const q = Math.min(ratePct, 100) / 100;
@@ -284,6 +302,7 @@
     }
 
     TrehunPanel.calc = calc;
+    TrehunPanel.perDiff = perDiff;
     TrehunPanel.runsFor = runsFor;
     global.TrehunPanel = TrehunPanel;
 })(window);

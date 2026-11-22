@@ -78,14 +78,13 @@ for (const file of ['kosenjou.html', 'kosenjou-beta.html']) {
 
   // ---- A1：極星器の計算に使った、難易度と確率を出す ----
   {
-    const a = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'number', goalText: '60億', meatText: '40000', starText: '3' }, errors });
+    const a = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'number', goalText: '60億', meatText: '40000' }, errors });
     const res = await T(a.page, '[data-resbody]');
-    ok(res.includes('200HELL・1周 0.384% で計算'), 'A1: 結果に、使った難易度と確率（「200HELL・1周 0.384% で計算」）が出る', res.slice(0, 600));
-    ok(res.includes('箱 4.8% × アイテム 8%'), 'A1: 内訳（箱 × アイテム）も出る');
+    ok(res.includes('200HELL・1周 0.384% で計算') && res.includes('150HELL・1周 0.336%'), 'A1: 結果に、使った難易度と確率（「200HELL・1周 0.384% で計算」）が出る', res.slice(0, 700));
     await a.ctx.close();
-    const b = await openPlan(file, { seed: { gbf_kj_times: FULL, gbf_kj_trehun: { diff: 'h100', boxBase: 3, itemRate: 4 } }, plan: { goalKind: 'number', goalText: '60億', meatText: '40000', starText: '3' }, errors });
+    const b = await openPlan(file, { seed: { gbf_kj_times: FULL, gbf_kj_trehun: { diff: 'h100', boxBase: 3, itemRate: 4 } }, plan: { goalKind: 'number', goalText: '60億', meatText: '40000' }, errors });
     const res2 = await T(b.page, '[data-resbody]');
-    ok(res2.includes('100HELL・1周 0.144% で計算') && res2.includes('箱 3.6% × アイテム 4%'), 'A1: トレハンタブの設定を変えると、使った難易度と確率も変わる（100HELL・箱 3% × 倍率 120% × アイテム 4% → 0.144%）', res2.slice(0, 600));
+    ok(res2.includes('200HELL・1周 0.192% で計算') && res2.includes('150HELL・1周 0.168%'), 'A1: トレハンタブの設定を変えると（アイテム率 4%）、使った難易度と確率も変わる（200HELL → 0.192%）', res2.slice(0, 700));
     await b.ctx.close();
   }
 
@@ -211,28 +210,73 @@ for (const file of ['kosenjou.html', 'kosenjou-beta.html']) {
     await ctx.close();
   }
 
-  // ---- 極星器 ----
+  // ---- 極星器（B1〜B3） ----
   {
-    const { ctx, page } = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'number', goalText: '150億', meatText: '40000', starText: '1', open: 'star' }, errors });
-    const info = await T(page, '[data-starinfo]');
-    const brute = await page.evaluate(() => {   // 90%で1本以上落ちる周回数を、別のやり方（1周ずつ確率を足す）で数える
-      const q = TrehunPanel.calc(trehunPanel.state).item / 100; let r = 0, none = 1; while (1 - none < 0.9) { none *= 1 - q; r++; }
-      return { q, avg: Math.ceil(1 / q), p90: r };
+    const a = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'number', goalText: '60億', meatText: '40000', open: 'star' }, errors });
+    // B1：③に、難易度ごとの確率が出る。トレハンタブで同じ難易度を選んだときの表示と、一致する
+    const info = await T(a.page, '[data-starinfo]');
+    ok(info.includes('90HELL 0.192%') && info.includes('150HELL 0.336%') && info.includes('200HELL 0.384%') && info.includes('250HELL は、確率がわからない'), 'B1: ③に、難易度ごとの1周の確率（トレハンタブの設定）が出る。250HELL は確率不明', info);
+    const cmp = await a.page.evaluate(() => {
+      const ids = ['h90', 'h95', 'h100', 'h150', 'h200'], out = [];
+      for (const id of ids) {
+        const sel = document.querySelector('#trehun-panel [data-diff]');
+        sel.value = id; sel.dispatchEvent(new Event('change', { bubbles: true }));                           // トレハンタブで、難易度を選ぶ
+        const shown = parseFloat(document.querySelector('#trehun-panel .th-big').innerText.match(/アイテム\s*([\d.]+)%/)[1]);
+        const mine = TrehunPanel.perDiff(trehunPanel.state, HELL_DIFFS.map((d) => d.id))[id].item;
+        out.push({ id, shown, mine: Math.round(mine * 10000) / 10000 });
+      }
+      return out;
     });
-    ok(info.includes('周回する難易度：200HELL') && info.includes('0.384%（箱 4.8% × アイテム 8%') && info.includes(`平均で 約 ${brute.avg.toLocaleString()}周`) && info.includes(`90%の確率で届くのは ${brute.p90.toLocaleString()}周`), `極星器: トレハンの設定（200HELL・0.384%）から、1本の周回数（平均 ${brute.avg}周・90%で ${brute.p90}周）`, info);
-    const R = await page.evaluate(() => { const r = planPanel.R; return { star: r.star.runs, contrib: r.star.contrib, meat: r.star.meat, need0: r.need0, needLeft: r.needLeft, sec: r.star.sec, days: r.placement.days, perDay: r.placement.perDay }; });
-    ok(R.star === brute.avg && R.contrib === brute.avg * 20000000 && R.meat === brute.avg * 20 && R.needLeft === R.need0 - R.contrib && R.days.join() === 'd2,d3,d4' && Math.abs(R.perDay - R.sec / 3) < 1e-6, '極星器: 目標から周回ぶんの貢献度を引いて計画する。周回は、200HELL が使える 2〜4日目に、均等に入れる', JSON.stringify(R));
-    const res = await T(page, '[data-resbody]');
-    ok(res.includes('極星器 1本：200HELL を 約') && res.includes('本戦2日目・本戦3日目・本戦4日目に、1日 約') && res.includes('＋極星器の周回'), '極星器: 結果に、周回・時間・肉・貢献度と、入れる日が出る', res);
-    await page.fill('[data-f="starText"]', '5');
-    ok((await T(page, '[data-resbody]')).includes('1日 17時間（本戦の1日に遊べる上限）を超えます') || (await T(page, '[data-resbody]')).includes('1日 17時間を超えます'), '極星器: 1日の上限（17時間）を超えるときは、知らせる', await T(page, '[data-resbody]'));
-    await page.fill('[data-f="starText"]', '2'); await page.fill('#pl-goal', '60億').catch(() => {});
-    await ctx.close();
-    const c = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'number', goalText: '60億', meatText: '40000', starText: '2' }, errors });
-    ok((await T(c.page, '[data-sum]')).includes('極星器の周回だけで、目標に届きます'), '極星器: 周回だけで目標に届くときは、そう伝える');
-    await c.ctx.close();
-    const z = await openPlan(file, { seed: {}, plan: { goalKind: 'number', goalText: '150億', starText: '1', open: 'star' }, errors });
-    ok((await T(z.page, '[data-starinfo]')).includes('④で、この難易度の討伐タイムを入れると、時間も出ます'), '極星器: 討伐タイムがなければ、周回数だけ出して、時間は案内');
+    ok(cmp.every((c) => c.shown === c.mine), 'B1: 各難易度の確率が、トレハンタブで同じ難易度を選んだときの表示と一致する', JSON.stringify(cmp));
+    await a.page.evaluate(() => { const sel = document.querySelector('#trehun-panel [data-diff]'); sel.value = 'h200'; sel.dispatchEvent(new Event('change', { bubbles: true })); });
+    // 「集めない」（既定）：本数の目安だけ
+    await a.page.click('.tab-btn[data-tab="plan"]');
+    ok(await a.page.evaluate(() => document.querySelector('[data-box="star-yes"]').hidden) && (await T(a.page, '[data-state="star"]')) === '初期値', 'B3: ③は「たくさん集める？」で始まり、既定は「集めない」（本数の入力は出ない）');
+    const r0 = await T(a.page, '[data-resbody]');
+    ok(/極星器：この計画の周回で、期待 約 [\d.]+本（90%の確率で \d+本以上）落ちます/.test(r0) && !r0.includes('追加で'), 'B2: 欲しい本数を入れなくても、結果に、期待本数と「90%で ◯本以上」が出る', r0.slice(0, 700));
+    // 「集める」
+    await a.page.click('[data-seg="starCollect"] [data-v="yes"]');
+    ok(!(await a.page.evaluate(() => document.querySelector('[data-box="star-yes"]').hidden)), 'B3: 「集める」を選ぶと、欲しい本数・見積り・追加で回す難易度が出る');
+    await a.page.fill('[data-f="starText"]', '3');
+    const r3 = await T(a.page, '[data-resbody]');
+    ok(r3.includes('計画どおりだと期待 約') && r3.includes('3本</b>欲しいなら') || /3本欲しいなら、追加で/.test(r3), 'B3: 「計画どおりだと期待 ◯本 → ◯本欲しいなら、追加で ◯HELL を ◯回（毎日 +◯分、肉 +◯個）」の形で出る', r3.slice(0, 900));
+    ok(/毎日 \+\d/.test(r3) && /肉 \+\d/.test(r3), 'B3: 追加の周回で増える時間（毎日 +◯分）と肉（+◯個）が出る', r3.slice(0, 900));
+    const v3 = await a.page.evaluate(() => { const v = planPanel.R.views.time; return { mean: v.stars.mean, hours: v.autoHours, days: v.days.map((d) => d.hours), base: v.base.autoHours }; });
+    ok(v3.mean >= 3 - 1e-9 && v3.days.every((h) => h <= 17 + 1e-9) && v3.hours > v3.base, `B3: 計画の期待本数は 3本以上（${v3.mean.toFixed(2)}）。どの日も 17時間を超えない。時間は、極星器なしより増える（${v3.base}h → ${v3.hours}h）`, JSON.stringify(v3));
+    ok(!r3.includes('1日 17時間を超えます') && !r3.includes('1日 17時間（本戦の1日に遊べる上限）を超えます') && !r3.includes('＋極星器の周回'), 'B3: 周回の別枠（starPlacement）と、17時間を超える警告は、なくなった');
+    // 追加で回す難易度を指定
+    await a.page.selectOption('[data-f="starDiff"]', 'h90');
+    const r90 = await T(a.page, '[data-resbody]');
+    ok(/追加で 90HELL を [\d,]+回/.test(r90), 'B3: 追加で回す難易度に 90HELL を選ぶと、「追加で 90HELL を ◯回」と出る', r90.slice(0, 900));
+    ok(await a.page.evaluate(() => [...document.querySelector('[data-f="starDiff"]').options].find((o) => o.value === 'h250').disabled), 'B3: 確率不明の難易度（250HELL）は、追加で回す難易度に選べない');
+    // 90% の確率で届くように
+    await a.page.fill('[data-f="starText"]', '1');
+    await a.page.selectOption('[data-f="starMode"]', 'p90');
+    const r1 = await T(a.page, '[data-resbody]');
+    ok(r1.includes('90%以上になるように、平均の目標を上げて解き直しています'), 'B3: 90%の確率で届くように見積もると、確率を計算して、平均の目標を上げて解き直す', r1.slice(0, 900));
+    ok(await a.page.evaluate(() => planPanel.R.views.time.stars.pAtLeast >= 0.9 - 1e-9), 'B3: そのとき、1本以上になる確率は 90% 以上');
+    // 集められない本数
+    await a.page.selectOption('[data-f="starMode"]', 'avg');
+    await a.page.fill('[data-f="starText"]', '40');
+    ok((await T(a.page, '[data-resbody]')).includes('集められません'), 'B3: 1日 17時間でも集められない本数は、そう伝える');
+    // 保存：開き直しても、残る
+    await a.page.fill('[data-f="starText"]', '2');
+    await a.page.reload();
+    ok(await a.page.evaluate(() => planPanel.state.starCollect === 'yes' && planPanel.state.starText === '2' && planPanel.state.starDiff === 'h90' && planPanel.state.starMode === 'avg'), 'B3: 「集める」・本数・追加で回す難易度は、保存されて、開き直しても残る');
+    await a.ctx.close();
+    // 古い保存（欲しい本数が入っていた）は、「集める」にする
+    const old = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'number', goalText: '60億', meatText: '40000', starText: '2' }, errors });
+    ok(await old.page.evaluate(() => planPanel.state.starCollect === 'yes'), 'B3: 古い保存（欲しい本数が入っている）は、「集める」として読み込む');
+    await old.ctx.close();
+    // 目標を決めないとき
+    const f = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'none', meatText: '40000', normalHours: '17', starCollect: 'yes', starText: '2' }, errors });
+    const rf = await T(f.page, '[data-resbody]');
+    ok(/極星器：この計画の周回で、期待 約 [\d.]+本/.test(rf), 'B2: 目標を決めないときも、極星器の見込みが出る', rf.slice(0, 600));
+    await f.ctx.close();
+    // 討伐タイムがないとき（回数の表）
+    const z = await openPlan(file, { seed: {}, plan: { goalKind: 'number', goalText: '150億' }, errors });
+    const rz = await T(z.page, '[data-resbody]');
+    ok(rz.includes('極星器（期待）') && rz.includes('250HELL 200回') && rz.includes('200HELL 750回') && rz.includes('約 2.88本') && rz.includes('確率不明'), 'B2: 討伐タイムがないとき、回数の表に、各難易度だけで回したときの極星器の本数の列が出る（250HELL は確率不明）', rz.slice(0, 600));
     await z.ctx.close();
   }
 
@@ -267,7 +311,7 @@ for (const file of ['kosenjou.html', 'kosenjou-beta.html']) {
     await page.fill('[data-f="meatText"]', '40000');
     await page.click('[data-seg="where"] [data-v="d3"]');
     await page.click('[data-skip="now"]');
-    ok(!(await page.evaluate(() => document.querySelector('[data-body="star"]').hidden)) && (await T(page, '[data-state="star"]')) === '未入力', '「スキップ」で、次へ進む（飛ばした所は、そのまま）');
+    ok(!(await page.evaluate(() => document.querySelector('[data-body="star"]').hidden)) && (await T(page, '[data-state="star"]')) === '初期値', '「スキップ」で、次へ進む（飛ばした所は、そのまま）');
     await page.click('[data-skip="star"]');
     ok((await T(page, '[data-state="star"]')) === 'スキップ', 'スキップした所は「スキップ」と表示される');
     await page.click('[data-res] [data-mark="t"][data-day="d4"]');
@@ -304,10 +348,10 @@ for (const file of ['kosenjou.html', 'kosenjou-beta.html']) {
 
   // ---- 保存された値が、おかしくても（書き換えられても）壊れない ----
   {
-    const bad = { goalKind: 'zzz', where: 'd9', timeMode: 'x', tab: 'y', starMode: 'q', oneId: 'nope', goalRank: 'a', open: 'ほげ', goalText: '60億', meatText: '300', gatherMin: '10', gatherMeat: '<img src=x onerror=window.__xss=1>70', marks: { d1: 'z', d2: 't' }, hours: { d1: 5 }, rough: { h150: 3 }, skipped: { goal: 'yes' } };
+    const bad = { goalKind: 'zzz', where: 'd9', timeMode: 'x', tab: 'y', starMode: 'q', starCollect: 'zzz', starDiff: 'nope', oneId: 'nope', goalRank: 'a', open: 'ほげ', goalText: '60億', meatText: '300', gatherMin: '10', gatherMeat: '<img src=x onerror=window.__xss=1>70', marks: { d1: 'z', d2: 't' }, hours: { d1: 5 }, rough: { h150: 3 }, skipped: { goal: 'yes' } };
     const { ctx, page } = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: bad, errors });
-    const st = await page.evaluate(() => ({ kind: planPanel.state.goalKind, where: planPanel.state.where, mode: planPanel.state.timeMode, tab: planPanel.state.tab, star: planPanel.state.starMode, one: planPanel.state.oneId, rank: planPanel.state.goalRank, open: planPanel.state.open, d1: planPanel.state.marks.d1, d2: planPanel.state.marks.d2, skip: planPanel.state.skipped.goal }));
-    ok(st.kind === 'number' && st.where === 'pre' && st.mode === 'full' && st.tab === 'time' && st.star === 'avg' && st.one === 'h150' && st.rank === 0 && st.open === 'goal' && st.d1 === 'o' && st.d2 === 't' && st.skip === undefined, '壊れた保存: おかしな値は、初期値に戻る', JSON.stringify(st));
+    const st = await page.evaluate(() => ({ kind: planPanel.state.goalKind, where: planPanel.state.where, mode: planPanel.state.timeMode, tab: planPanel.state.tab, star: planPanel.state.starMode, collect: planPanel.state.starCollect, sdiff: planPanel.state.starDiff, one: planPanel.state.oneId, rank: planPanel.state.goalRank, open: planPanel.state.open, d1: planPanel.state.marks.d1, d2: planPanel.state.marks.d2, skip: planPanel.state.skipped.goal }));
+    ok(st.kind === 'number' && st.where === 'pre' && st.mode === 'full' && st.tab === 'time' && st.star === 'avg' && st.collect === 'no' && st.sdiff === '' && st.one === 'h150' && st.rank === 0 && st.open === 'goal' && st.d1 === 'o' && st.d2 === 't' && st.skip === undefined, '壊れた保存: おかしな値は、初期値に戻る', JSON.stringify(st));
     const res = await T(page, '[data-resbody]');
     ok(res.includes('毎日 約') && !(await page.evaluate(() => document.querySelector('[data-res] img') || window.__xss)), '壊れた保存: 結果は出て、入れた文字列は HTML として動かない', res.slice(0, 200));
     await ctx.close();

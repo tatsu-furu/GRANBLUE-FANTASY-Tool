@@ -2435,7 +2435,7 @@ document.querySelector('.tab-btn[data-tab="trehun"]').addEventListener('click', 
 <script>
 const planPanel = new PlanPanel(document.getElementById('plan-panel'), KJ_CORE, {
     getBorderRows: () => borderPanel.state.rows.map((r) => ({ label: r.label, rank: BorderPanel.rankOf(r.label), current: r.current, final: r.final })),
-    getTrehun: () => { const c = TrehunPanel.calc(trehunPanel.state); return { diff: trehunPanel.state.diff, item: c.item, box: c.box, itemRate: trehunPanel.state.itemRate }; },
+    getTrehun: () => { const c = TrehunPanel.calc(trehunPanel.state); return { diff: trehunPanel.state.diff, item: c.item, box: c.box, itemRate: trehunPanel.state.itemRate, perDiff: TrehunPanel.perDiff(trehunPanel.state, HELL_DIFFS.map(d => d.id)) }; },
 });
 document.querySelector('.tab-btn[data-tab="plan"]').addEventListener('click', () => planPanel.refresh());
 </script>

@@ -97,31 +97,141 @@
         return { includeQ: false, hours };
     }
 
-    /** 極星器：欲しい本数 → 周回する難易度（トレハンの設定）の周回数・時間・肉・貢献度 */
-    function starInfo(W, core, trehun, times) {
-        const n = Math.floor(num(W.starText) || 0);
-        if (n <= 0) return null;
-        const d = trehun ? core.HELL_DIFFS.find((x) => x.id === trehun.diff) : null;
-        const p = trehun ? trehun.item : 0;
-        if (!d) return { n, error: '周回する難易度が決まっていません（トレハンタブで選べます）' };
-        if (!(p > 0)) return { n, diff: d, p, error: 'ドロップ率が 0% です（トレハンタブの設定を確かめてください）' };
-        const q = Math.min(p, 100) / 100;
-        const runsAvg = Math.ceil(n / q), runs90 = runsForCount(q, n, 0.9);
-        const runs = W.starMode === 'p90' ? runs90 : runsAvg;
-        const secPer = times[d.id] > 0 ? times[d.id] : null;
-        return { n, diff: d, p, box: trehun.box, itemRate: trehun.itemRate, runsAvg, runs90, runs, secPer, sec: secPer ? runs * secPer : null,
-                 meat: d.is250 ? 0 : runs * d.chunks, mat: d.is250 ? runs * d.chunks : 0, contrib: runs * d.contrib };
+    // ───────────── 極星器 ─────────────
+    // 計画の周回で自然に落ちる本数を出し、欲しい本数があるときは、そのぶんの追加の周回を、計画（整数計画）の中で決める。
+
+    /** log Γ(x)（ランチョスの近似） */
+    function lgamma(x) {
+        const g = 7, c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+        if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - lgamma(1 - x);
+        x -= 1;
+        let a = c[0]; const t = x + g + 0.5;
+        for (let i = 1; i < g + 2; i++) a += c[i] / (x + i);
+        return 0.5 * Math.log(2 * Math.PI) + (x + 0.5) * Math.log(t) - t + Math.log(a);
     }
 
-    /** 極星器の周回を入れる日：使える日（終わっていない・×でない・解放済み）のうち、自動の○の日。なければ、使える日 */
-    function starPlacement(star, days, hoursOpt, core) {
-        if (!star || star.error || !(star.sec > 0)) return null;
-        const maxTier = (id) => core.PHASES.find((p) => p.id === id).maxTier;
-        const ok = days.filter((d) => !d.past && hoursOpt.hours[d.id] !== 0 && core.tierOf(star.diff) <= maxTier(d.id));
-        const autos = ok.filter((d) => hoursOpt.hours[d.id] == null);
-        const target = autos.length ? autos : ok;
-        if (!target.length) return { days: [], perDay: 0, perDayContrib: 0 };
-        return { days: target.map((d) => d.id), perDay: star.sec / target.length, perDayContrib: star.contrib / target.length };
+    /** 二項分布 Bin(n, q) の確率の並び。{ lo, pmf }：lo 本のときの確率から（無視できる両端は、切る。合計が 1 になるようにそろえる） */
+    function binomialPmf(n, q) {
+        if (!(n > 0) || !(q > 0)) return { lo: 0, pmf: [1] };
+        if (q >= 1) return { lo: n, pmf: [1] };
+        const mode = Math.min(n, Math.floor((n + 1) * q));                  // いちばん確率の高い本数から、上と下へ広げる（周回数が多くても、桁あふれしない）
+        const logp = lgamma(n + 1) - lgamma(mode + 1) - lgamma(n - mode + 1) + mode * Math.log(q) + (n - mode) * Math.log(1 - q);
+        const up = [Math.exp(logp)];
+        for (let k = mode; k < n; k++) { const v = up[up.length - 1] * (n - k) / (k + 1) * q / (1 - q); if (v < 1e-18) break; up.push(v); }
+        const down = [];
+        for (let k = mode; k > 0; k--) { const v = (down.length ? down[down.length - 1] : up[0]) * k / (n - k + 1) * (1 - q) / q; if (v < 1e-18) break; down.push(v); }
+        const pmf = down.slice().reverse().concat(up);
+        const sum = pmf.reduce((a, b) => a + b, 0);
+        return { lo: mode - down.length, pmf: pmf.map((v) => v / sum) };
+    }
+
+    /** 極星器の本数の分布（ポアソン二項分布）：難易度ごとに確率が違うので、難易度ごとの二項分布を、動的計画法（たたみ込み）で足し合わせる。groups: [{ n: 周回数, q: 1周の確率 }] */
+    function starPmf(groups) {
+        let acc = { lo: 0, pmf: [1] };
+        for (const g of groups) {
+            const b = binomialPmf(g.n, g.q);
+            const out = new Array(acc.pmf.length + b.pmf.length - 1).fill(0);
+            for (let i = 0; i < acc.pmf.length; i++) { const a = acc.pmf[i]; if (a === 0) continue; for (let j = 0; j < b.pmf.length; j++) out[i + j] += a * b.pmf[j]; }
+            acc = { lo: acc.lo + b.lo, pmf: out };
+        }
+        return acc;
+    }
+
+    /**
+     * 極星器の本数：期待値 mean・「90%の確率で ◯本以上」n90（下から 10% の点。n90 本以上になる確率が 90% 以上で、n90 + 1 本以上では 90% 未満）・k 本以上になる確率 pAtLeast。
+     * runsById: { 難易度の id: 周回数 }　q: { 難易度の id: 1周の確率（0〜1） }（確率不明の難易度は、入れない = 数えない）
+     */
+    function starStats(runsById, q, k) {
+        const groups = Object.keys(runsById).filter((id) => q[id] > 0 && runsById[id] > 0).map((id) => ({ n: runsById[id], q: q[id] }));
+        const mean = groups.reduce((a, g) => a + g.n * g.q, 0);
+        const { lo, pmf } = starPmf(groups);
+        let cdf = 0, n90 = lo + pmf.length - 1;
+        for (let i = 0; i < pmf.length; i++) { cdf += pmf[i]; if (cdf > 0.1) { n90 = lo + i; break; } }
+        let pAtLeast = null;
+        if (k != null) { let below = 0; for (let i = 0; i < pmf.length && lo + i < k; i++) below += pmf[i]; pAtLeast = Math.max(0, 1 - below); }
+        return { mean, n90, pAtLeast };
+    }
+
+    /** 平均 λ のポアソン分布で、n 本以上になる確率が 90% になる λ（二分探索）。ポアソン二項分布より、ばらつきが大きいので、必要な平均の「多めの目安」 */
+    function poissonMean90(n) {
+        const tail = (lam) => { let term = Math.exp(-lam), cdf = 0; for (let k = 0; k < n; k++) { cdf += term; term *= lam / (k + 1); } return 1 - cdf; };
+        let lo = n, hi = n + 10 * Math.sqrt(n) + 10;
+        for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (tail(mid) >= 0.9) hi = mid; else lo = mid; }
+        return hi;
+    }
+
+    /** トレハンタブの設定（env.trehun）から、難易度ごとの、1周で極星器が落ちる確率 q（0〜1）。確率不明の難易度（箱の基本率のデータがない）は、q に入れず、unknown に入れる */
+    function starProbs(trehun, HELL) {
+        const per = (trehun && trehun.perDiff) || {};
+        const q = {}, rates = {}, unknown = [];
+        HELL.forEach((d) => {
+            const r = per[d.id];
+            if (r && r.known) { q[d.id] = Math.min(r.item, 100) / 100; rates[d.id] = { box: r.box, item: r.item }; } else unknown.push({ id: d.id, name: d.name });
+        });
+        return { q, rates, unknown };
+    }
+
+    /** 計画（plan）で、難易度ごとに何周するか（全日の合計）と、極星器の本数の見込み */
+    function starViewOf(plan, diffsP, sp, core, nWant) {
+        const runsById = {};
+        core.PHASES.forEach((ph) => diffsP.forEach((d) => { runsById[d.id] = (runsById[d.id] || 0) + ((plan.runs[ph.id] && plan.runs[ph.id][d.id]) || 0); }));
+        const st = starStats(runsById, sp.q, nWant > 0 ? Math.ceil(nWant - 1e-9) : null);
+        const byDiff = diffsP.filter((d) => runsById[d.id] > 0).map((d) => ({ id: d.id, name: d.name, runs: runsById[d.id], q: sp.q[d.id] != null ? sp.q[d.id] : null, mean: sp.q[d.id] != null ? runsById[d.id] * sp.q[d.id] : null }));
+        return { mean: st.mean, n90: st.n90, pAtLeast: st.pAtLeast, byDiff, unknownUsed: byDiff.filter((x) => x.q == null).map((x) => x.name), runsById };
+    }
+
+    /** 日ごとのカードに出す計画：いまの肉・素材で足りるとき、必要な肉を求めたときの計画（目標に届く中で、肉が最小）。足りないときは、取れるだけ取る計画 */
+    function displayChoice(sc, ctx) {
+        const req = sc.req, A = sc.solved.actual;
+        const matKnown = ctx.mat250 != null;
+        const affordable = !!(req && req.plan && req.meat <= ctx.stock + (matKnown ? 2 * Math.max(0, Math.min(500, ctx.mat250 - req.mat)) : 0) && (!matKnown || req.mat <= ctx.mat250));
+        return { affordable, plan: affordable ? req.plan : A.plan, autoHours: affordable ? req.hours : A.hours };
+    }
+
+    /** 追加の周回に使う難易度を指定したとき：ほかの難易度の周回は、極星器のない計画（base）の回数を超えないようにする（増やせるのは、指定した難易度だけ） */
+    function capsFrom(base, ctx, extraId) {
+        const ch = displayChoice(base, ctx);
+        const caps = {};
+        ctx.core.PHASES.forEach((ph) => base.diffsP.forEach((d) => { if (d.id !== extraId) caps[`${ph.id}|${d.id}`] = (ch.plan.runs[ph.id] && ch.plan.runs[ph.id][d.id]) || 0; }));
+        return caps;
+    }
+
+    /** 平均の制約 μ を、n から少しずつ上げて解き直し、n 本以上になる確率が 90% 以上になる、最小に近い μ の結果を返す（分布は線形でないので、平均の制約で解く → 確率を計算 → 足りなければ上げる） */
+    function raiseUntil90(n, solve, okOf, probOf) {
+        const first = solve(n);
+        if (!okOf(first) || probOf(first) >= 0.9) return first;
+        let lo = n, hi = Math.max(n + 0.5, poissonMean90(n)), resHi = solve(hi);
+        for (let g = 0; g < 6 && okOf(resHi) && probOf(resHi) < 0.9; g++) { lo = hi; hi *= 1.25; resHi = solve(hi); }
+        if (!okOf(resHi) || probOf(resHi) < 0.9) return Object.assign(first, { p90Unmet: true });       // 90% にできる平均には、上限の時間では届かない：平均で n 本の結果を見せる
+        for (let it = 0; it < 4; it++) {
+            const mid = (lo + hi) / 2, rm = solve(mid);
+            if (okOf(rm) && probOf(rm) >= 0.9) { hi = mid; resHi = rm; } else lo = mid;
+        }
+        return resHi;
+    }
+
+    /** 極星器をたくさん集めたいとき：極星器の本数の制約つきで、計画を解き直す（目標がある）。base は、制約のない試算 */
+    function starScenario(core, pr, a) {
+        const { diffs, stock, mat250, need, hoursOpt, base, ctx, sp, n, mode } = a;
+        const extra = a.extra && a.extra !== 'auto' && sp.q[a.extra] > 0 ? a.extra : null;
+        const caps = extra ? capsFrom(base, ctx, extra) : null;
+        const solve = (mu) => core.scheduleScenario(pr, { diffs, stock, mat250, need, hoursOpt, star: { n: mu, q: sp.q }, caps, extra });
+        if (mode !== 'p90') return solve(n);
+        const ok = (sc) => sc.solved.actual.reachable;
+        const prob = (sc) => starViewOf(displayChoice(sc, ctx).plan, sc.diffsP, sp, core, n).pAtLeast;
+        return raiseUntil90(n, solve, ok, prob);
+    }
+
+    /** 目標を決めないとき（時間が決まっている）：極星器の本数の制約つきで、貢献度が最大の計画。starUnmet は、制約を守る計画がないこと */
+    function starForwardPlan(core, a) {
+        const { diffsP, spec, stock, mat250, sp, n, mode, base, ctx } = a;
+        const extra = a.extra && a.extra !== 'auto' && sp.q[a.extra] > 0 ? a.extra : null;
+        const caps = extra ? (() => { const c = {}; core.PHASES.forEach((ph) => diffsP.forEach((d) => { if (d.id !== extra) c[`${ph.id}|${d.id}`] = (base.runs[ph.id] && base.runs[ph.id][d.id]) || 0; })); return c; })() : null;
+        const phases = core.PHASES.map((ph, i) => ({ id: ph.id, maxTier: ph.maxTier, hours: spec[i].fixed ? spec[i].hours : 0 }));
+        const solve = (mu) => core.planSchedule({ stock, mat250, phases, diffs: diffsP, star: { n: mu, q: sp.q }, caps });
+        if (mode !== 'p90') return solve(n);
+        const prob = (plan) => starViewOf(plan, diffsP, sp, core, n).pAtLeast;
+        return raiseUntil90(n, solve, (plan) => !plan.starUnmet, prob);
     }
 
     /** 肉を集める速さ（個/時間）。「◯分で肉◯個」から */
@@ -131,10 +241,11 @@
     }
 
     /** 時間がなくてもできる逆算：目標までに、各難易度だけで回すと何回・肉（素材）いくつか */
-    function countsTable(core, need, times) {
+    function countsTable(core, need, times, q) {
         return core.HELL_DIFFS.map((d) => {
             const runs = Math.ceil(need / d.contrib);
-            return { id: d.id, name: d.name, runs, meat: d.is250 ? 0 : runs * d.chunks, mat: d.is250 ? runs * d.chunks : 0, sec: times[d.id] > 0 ? runs * times[d.id] : null };
+            return { id: d.id, name: d.name, runs, meat: d.is250 ? 0 : runs * d.chunks, mat: d.is250 ? runs * d.chunks : 0, sec: times[d.id] > 0 ? runs * times[d.id] : null,
+                     stars: q && q[d.id] != null ? runs * q[d.id] : null };                       // その難易度だけで回したときの、極星器の期待本数（確率不明は null）
         });
     }
 
@@ -168,11 +279,7 @@
         const core = ctx.core;
         const solved = sc.solved, A = solved.actual, U = solved.unlimited;
         const spec = sc.spec;
-        const req = sc.req;
-        const matKnown0 = ctx.mat250 != null;
-        const affordable = !!(req && req.plan && req.meat <= ctx.stock + (matKnown0 ? 2 * Math.max(0, Math.min(500, ctx.mat250 - req.mat)) : 0) && (!matKnown0 || req.mat <= ctx.mat250));
-        const plan = affordable ? req.plan : A.plan;
-        const autoHours = affordable ? req.hours : A.hours;
+        const { affordable, plan, autoHours } = displayChoice(sc, ctx);
         const hours = spec.map((s) => (s.fixed ? s.hours : (solved.hasAuto ? autoHours : 0)));
         const days = [];
         let cum = 0;
@@ -190,8 +297,8 @@
                 usedSec += n * d.time;
                 if (d.is250) mat += n * d.chunks; else meat += n * d.chunks;
             });
-            cum += gain + (ctx.extra[ph.id] || 0);
-            if (hours[i] > 0 || (ctx.extra[ph.id] || 0) > 0) checkpoints.push({ id: ph.id, name: ph.name, total: ctx.cur + cum });
+            cum += gain;
+            if (hours[i] > 0) checkpoints.push({ id: ph.id, name: ph.name, total: ctx.cur + cum });
             days.push({ id: ph.id, name: ph.name, hours: hours[i], fixed: spec[i].fixed, off: !!spec[i].off, noTier: !!spec[i].noTier, parts, gain, meat, mat, idleSec: hours[i] > 0 ? Math.max(0, hours[i] * 3600 - usedSec) : 0 });
         });
         const finalTotal = ctx.cur + cum;
@@ -199,12 +306,14 @@
         if (sc.req && ctx.meatKnown) {
             const matKnown = ctx.mat250 != null;
             const haveMeat = ctx.stock + (matKnown ? 2 * Math.max(0, Math.min(500, ctx.mat250 - sc.req.mat)) : 0);
-            shortage = { meat: Math.max(0, sc.req.meat - haveMeat) + ctx.starDeficit, mat: matKnown ? Math.max(0, sc.req.mat - ctx.mat250) : 0 };
+            shortage = { meat: Math.max(0, sc.req.meat - haveMeat), mat: matKnown ? Math.max(0, sc.req.mat - ctx.mat250) : 0 };
         }
         return {
             priority: sc.priority, reachable: A.reachable, hasAuto: solved.hasAuto, autoHours: solved.hasAuto ? autoHours : null, minMeat: affordable, showIdle: !!ctx.goalView,
             idealReach: U.reachable, idealHours: solved.hasAuto && U.reachable ? U.hours : null,
             days, checkpoints, finalTotal, bd: core.hoursByDiff(plan, sc.diffsP), req: sc.req, shortage,
+            stars: ctx.sp ? starViewOf(plan, sc.diffsP, ctx.sp, core, ctx.nStar) : null,
+            starBlocked: !!A.starBlocked, p90Unmet: !!sc.p90Unmet,
         };
     }
 
@@ -222,41 +331,57 @@
         const mat250 = matKnown ? int0(W.matText) : null;
         const days = dayStates(W);
         const hoursOpt = hoursOptFrom(W, goal.value > 0, days);
-        const star = starInfo(W, core, env.trehun, ti.times);
-        const starOk = star && !star.error ? star : null;
-        const placement = starPlacement(starOk, days, hoursOpt, core);
-        const extra = {};
-        if (placement) placement.days.forEach((id) => { extra[id] = placement.perDayContrib; });
-        Object.assign(R, { goal, cur, meatKnown, matKnown, meat: meat0, collect, mat250, days, hoursOpt, star, placement, gatherPerHour: gatherRate(W), views: null, forward: null });
+        // 極星器：難易度ごとの確率（トレハンタブの設定）と、欲しい本数（「集める」を選んだとき）
+        const sp = starProbs(env.trehun, core.HELL_DIFFS);
+        const nStar = W.starCollect === 'yes' ? Math.floor(num(W.starText) || 0) : 0;
+        const star = { collect: W.starCollect === 'yes', n: nStar, mode: W.starMode === 'p90' ? 'p90' : 'avg', extra: W.starDiff || '', rates: sp.rates, unknown: sp.unknown, anyKnown: Object.keys(sp.q).length > 0 };
+        const wantStar = nStar > 0 && star.anyKnown;
+        Object.assign(R, { goal, cur, meatKnown, matKnown, meat: meat0, collect, mat250, days, hoursOpt, star, gatherPerHour: gatherRate(W), views: null, forward: null });
+        const have = meat0 + collect;
+        const stock = meatKnown ? Math.max(0, have) : Infinity;        // 肉が未入力のときは、足りる前提（無制限）で、必要な数を出す
 
         if (goal.value > 0) {
             R.need0 = Math.max(0, goal.value - cur);
-            R.counts = countsTable(core, R.need0, ti.times);
+            R.counts = countsTable(core, R.need0, ti.times, sp.q);
             if (R.need0 <= 0) { R.done = true; return R; }
-            R.needLeft = R.need0 - (starOk ? starOk.contrib : 0);
-            if (R.needLeft <= 0) { R.starCovers = true; return R; }
             if (!R.hasTime) return R;
-            const have = meat0 + collect;
-            const stock = meatKnown ? Math.max(0, have - (starOk ? starOk.meat : 0)) : Infinity;     // 肉が未入力のときは、足りる前提（無制限）で、必要な数を出す
-            const ctx = { core, stock, mat250, cur, extra, meatKnown, starDeficit: meatKnown && starOk ? Math.max(0, starOk.meat - have) : 0, goalView: true };
+            const ctx = { core, stock, mat250, cur, meatKnown, goalView: true, sp, nStar };
             R.views = {};
             ['time', 'meat'].forEach((pr) => {
-                R.views[pr] = planView(core.scheduleScenario(pr, { diffs, stock, mat250, need: R.needLeft, hoursOpt }), ctx);
+                const base = core.scheduleScenario(pr, { diffs, stock, mat250, need: R.need0, hoursOpt });
+                const baseView = planView(base, ctx);
+                if (!wantStar) { R.views[pr] = baseView; return; }
+                const sc = starScenario(core, pr, { diffs, stock, mat250, need: R.need0, hoursOpt, base, ctx, sp, n: nStar, mode: star.mode, extra: star.extra });
+                const v = planView(sc, ctx);
+                v.base = { reachable: baseView.reachable, autoHours: baseView.autoHours, reqMeat: baseView.req ? baseView.req.meat : null, reqMat: baseView.req ? baseView.req.mat : null, stars: baseView.stars, bd: baseView.bd };
+                R.views[pr] = v;
             });
         } else if (goal.kind === 'none' && R.hasTime) {
-            const have = meat0 + collect;
-            const stock = meatKnown ? Math.max(0, have - (starOk ? starOk.meat : 0)) : Infinity;
-            const ctx = { core, stock, mat250, cur, extra, meatKnown, starDeficit: 0 };
+            const ctx = { core, stock, mat250, cur, meatKnown, sp, nStar };
             R.forward = {};
             ['time', 'meat'].forEach((pr) => {
-                const diffsP = core.allowedDiffs(diffs, pr);
-                const spec = core.scheduleHoursSpec(diffsP, hoursOpt);
-                const phases = core.PHASES.map((ph, i) => ({ id: ph.id, maxTier: ph.maxTier, hours: spec[i].fixed ? spec[i].hours : 0 }));
-                const plan = core.planSchedule({ stock, mat250, phases, diffs: diffsP });
+                const diffsP0 = core.allowedDiffs(diffs, pr);
+                const extra = star.extra && star.extra !== 'auto' && sp.q[star.extra] > 0 ? star.extra : null;
+                const exDiff = extra && !diffsP0.some((d) => d.id === extra) ? diffs.find((d) => d.id === extra && d.time > 0) : null;
+                const planOf = (diffsP, withStar) => {
+                    const spec = core.scheduleHoursSpec(diffsP, hoursOpt);
+                    const phases = core.PHASES.map((ph, i) => ({ id: ph.id, maxTier: ph.maxTier, hours: spec[i].fixed ? spec[i].hours : 0 }));
+                    return { spec, phases, plan: core.planSchedule({ stock, mat250, phases, diffs: diffsP }) };
+                };
+                const base = planOf(diffsP0);
+                let diffsP = diffsP0, spec = base.spec, plan = base.plan, starUnmet = false;
+                if (wantStar) {
+                    diffsP = exDiff ? [...diffsP0, { ...exDiff, extra: true }] : diffsP0;
+                    spec = core.scheduleHoursSpec(diffsP, hoursOpt);
+                    const sp2 = starForwardPlan(core, { diffsP, spec, stock, mat250, sp, n: nStar, mode: star.mode, extra: star.extra, base: base.plan, ctx });
+                    if (sp2.starUnmet) starUnmet = true; else plan = sp2;
+                    if (starUnmet) { diffsP = diffsP0; spec = base.spec; }
+                }
                 const sc = { priority: pr, diffsP, spec, req: null, solved: { hasAuto: false, actual: { reachable: true, hours: 0, plan }, unlimited: { reachable: true, hours: 0, plan } } };
                 const v = planView(sc, ctx);
                 const use = core.scheduleUsage(plan, diffsP, stock, mat250);
-                v.use = { meat: use.meat + (starOk ? starOk.meat : 0), mat: use.mat };
+                v.use = { meat: use.meat, mat: use.mat };
+                v.starUnmet = starUnmet;
                 v.rank = rankEstimate(v.finalTotal, env.points);
                 R.forward[pr] = v;
             });
@@ -264,5 +389,5 @@
         return R;
     }
 
-    global.PlanCore = { DAYS, num, int0, blank, runsForCount, effectiveTimes, resolveGoal, dayStates, hoursOptFrom, starInfo, starPlacement, gatherRate, countsTable, rankEstimate, planView, compute };
+    global.PlanCore = { DAYS, num, int0, blank, runsForCount, effectiveTimes, resolveGoal, dayStates, hoursOptFrom, starProbs, starStats, starPmf, binomialPmf, poissonMean90, starViewOf, displayChoice, capsFrom, starScenario, gatherRate, countsTable, rankEstimate, planView, compute };
 })(typeof self !== 'undefined' ? self : globalThis);
