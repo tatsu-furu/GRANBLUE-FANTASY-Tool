@@ -301,6 +301,11 @@ function verifyPlan(plan, { stock, mat250, phases, diffs }) {
     return { ok: errors.length === 0, errors, usage: { meat, mat, total } };
 }
 
+// 難易度ごとの、計画用の入力（時間は秒。入れていない難易度は null。estimatedIds は、推定した難易度の id）
+function planDiffsFrom(times, estimatedIds = []) {
+    return HELL_DIFFS.map(d => ({ id: d.id, name: d.name, tier: tierOf(d), contrib: d.contrib, chunks: d.chunks, is250: d.is250, time: times[d.id] || null, estimated: estimatedIds.includes(d.id) }));
+}
+
 // 優先するもの：「時間」は、すべての難易度が候補（討伐時間から決まる、時間あたりの貢献度が高いものを使う）。
 // 「肉」は、肉1個あたりの貢献度が高い難易度（最良の半分以上。いまは 200HELL）と、肉を使わない 250HELL を使う。
 // ただし、それらがまだ使えない日（本戦1日目。予選・インターバルも）は、遊ばない日にしないように、その日に使える、いちばん上の難易度だけを使う（本戦1日目は 150HELL）。

@@ -5,6 +5,7 @@ let fails = 0;
 const ok = (cond, msg, extra = '') => { if (!cond) fails++; console.log(`${cond ? 'OK  ' : 'NG  '} ${msg}${!cond && extra ? '\n      ' + extra : ''}`); };
 
 async function open(page, file, seed = {}) {
+  await page.addInitScript(() => { window.KJ_NO_WORKER = true; });          // かんたん計画の計算は、ページの中で（ほかのタブのテストに、計算の待ちが混ざらないように）
   await page.addInitScript((seed) => { for (const [k, v] of Object.entries(seed)) if (!sessionStorage.getItem('seeded:' + k)) { localStorage.setItem(k, v); sessionStorage.setItem('seeded:' + k, '1'); } }, seed);
   await page.goto(`${base}/${file}`);
 }

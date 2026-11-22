@@ -834,19 +834,9 @@
 </div>
 </div><!-- /split-root -->
 
+<script src="kosenjou-data.js"></script>
 <script src="kosenjou-schedule.js"></script>
 <script>
-const DIFFS = [
-    { id:'vh',   name:'VH',      contrib:21400,    isMeat:false, is250:false, chunks:0  },
-    { id:'ex',   name:'EX',      contrib:64000,    isMeat:false, is250:false, chunks:0  },
-    { id:'exp',  name:'EX+',     contrib:126000,   isMeat:false, is250:false, chunks:0  },
-    { id:'h90',  name:'90HELL',  contrib:305000,   isMeat:true,  is250:false, chunks:5  },
-    { id:'h95',  name:'95HELL',  contrib:910000,   isMeat:true,  is250:false, chunks:10 },
-    { id:'h100', name:'100HELL', contrib:2680000,  isMeat:true,  is250:false, chunks:20 },
-    { id:'h150', name:'150HELL', contrib:4100000,  isMeat:true,  is250:false, chunks:20 },
-    { id:'h200', name:'200HELL', contrib:20000000, isMeat:true,  is250:false, chunks:20 },
-    { id:'h250', name:'250HELL', contrib:75000000, isMeat:false, is250:true,  chunks:20 },
-];
 
 // ── 状態 ──
 let killTimes = {};
@@ -927,25 +917,6 @@ function parseC(s) {
     if (s.endsWith('万')) return parseFloat(s) * 10000;
     const n = parseFloat(s);
     return isNaN(n) ? null : n;
-}
-
-// 手入力の貢献度：「50億」「1億5000万」「3500万」「5,000,000,000」を数に直す（読めなければ null）
-function parseGoal(text) {
-    const s = String(text == null ? '' : text).normalize('NFKC').replace(/[,\s]/g, '');
-    if (!s) return null;
-    const m = s.match(/^(?:(\d+(?:\.\d+)?)億)?(?:(\d+(?:\.\d+)?)万)?(\d+(?:\.\d+)?)?(?:pt|ポイント)?$/i);
-    if (!m || (m[1] == null && m[2] == null && m[3] == null)) return null;
-    const n = (m[1] ? parseFloat(m[1]) * 1e8 : 0) + (m[2] ? parseFloat(m[2]) * 1e4 : 0) + (m[3] ? parseFloat(m[3]) : 0);
-    return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
-}
-
-// 貢献度を、入力欄に入れる形に直す（万で割り切れるときは「98億7650万」、そうでなければ桁区切りの数）
-function fmtGoal(n) {
-    if (n >= 1e4 && n % 1e4 === 0) {
-        const oku = Math.floor(n / 1e8), man = (n % 1e8) / 1e4;
-        return (oku ? `${oku}億` : '') + (man ? `${man}万` : '');
-    }
-    return n.toLocaleString();
 }
 
 function diffClass(d) {
@@ -1477,8 +1448,6 @@ function updateMeatView() {
 
 // ── スケジュール：目標から逆算した、日ごとの時間・肉・目安 ──
 // 計算（回数の割り振り・必要な時間・必要な肉）は kosenjou-schedule.js。ここには、画面と、討伐時間の入力から計画の入力を作る部分を置く
-const HELL_DIFFS   = DIFFS.filter(d => d.isMeat || d.is250);
-const tierOf       = d => parseInt(d.name, 10);                       // '150HELL' → 150
 const SCHEDULE_IDS = [...PHASES.map(ph => `s-hrs-${ph.id}`), 's-collect', 's-scope', 's-matmode', 's-mat', 's-priority', 's-est'];   // 保存する入力
 
 // 討伐時間（秒）：入れた時間。「未入力の討伐時間」で、基準の難易度を選んでいれば、未入力の難易度のうち、基準より上のものは、基準と同じ貢献度/時間で推定する。
@@ -1493,11 +1462,6 @@ function scheduleTimes() {
         else if (base && tierOf(d) > tierOf(base)) { times[d.id] = d.contrib / perSec; estimated.push(d); }
     });
     return { times, estimated, base };
-}
-
-// 難易度ごとの、計画用の入力（時間は秒。入れていない難易度は null。estimatedIds は、推定した難易度の id）
-function planDiffsFrom(times, estimatedIds) {
-    return HELL_DIFFS.map(d => ({ id: d.id, name: d.name, tier: tierOf(d), contrib: d.contrib, chunks: d.chunks, is250: d.is250, time: times[d.id] || null, estimated: estimatedIds.includes(d.id) }));
 }
 
 // 予定の計算に使う入力（所持の肉 + 集める予定の肉、250専用素材、難易度ごとの討伐時間）。
@@ -1547,9 +1511,14 @@ function setupScheduleInputs() {
     updateScheduleView();
 }
 
+// スケジュールタブが見えていない間は、計算しない（ほかのタブでの入力中に、重い計算で画面が止まらないように）。開いたときに、計算する
+let scheduleDirty = false;
+const scheduleTabVisible = () => { const el = document.getElementById('tab-schedule'); return !el || el.classList.contains('active'); };
 function updateScheduleView() {
     const $ = (id) => document.getElementById(id);
     if (!$('s-table') || !$('s-table').rows.length) return;
+    if (!scheduleTabVisible()) { scheduleDirty = true; return; }
+    scheduleDirty = false;
     const { stock, mat250, diffs, timeInfo } = schedulePlanInput();
     const matKnown = mat250 != null;
     // 設定の欄の状態
@@ -1718,6 +1687,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'schedule' && scheduleDirty) updateScheduleView();     // 見えていない間に変わった入力を、反映する
     });
 });
 
@@ -1809,6 +1779,7 @@ const trehunPanel = new TrehunPanel(document.getElementById('trehun-panel'), {
 document.querySelector('.tab-btn[data-tab="trehun"]').addEventListener('click', () => trehunPanel.refresh());
 </script>
 <!-- かんたん計画（順番に入れる） -->
+<script src="kosenjou-plan-core.js"></script>
 <script src="kosenjou-plan.js"></script>
 <script>
 const planPanel = new PlanPanel(document.getElementById('plan-panel'), KJ_CORE, {

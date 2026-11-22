@@ -7,9 +7,13 @@
 ```
 npm ci                              # 初回だけ（playwright を入れる）
 npx playwright install chromium     # 初回だけ（ブラウザを入れる）
-npm test                            # すべて（古戦場ツール → かんたん計画 の順）
+npm test                            # すべて（下の順に走る）
+npm run test:sources                # ソースの決まりごと（ドロップ率の定義が1か所、など）（ブラウザなし）
+npm run test:engine                 # 計算（kosenjou-schedule.js）：同じ入力は同じ答え・整数の検算（ブラウザなし）
+npm run test:worker                 # かんたん計画の計算を Web Worker で行う仕組み（結果の一致・CPU 4倍遅くしても一致・入力中に止まらない・Worker が使えないとき）
 npm run test:kosenjou               # 古戦場ツール本体（kosenjou.html・kosenjou-beta.html の2つ）
-npm run test:plan                   # かんたん計画タブ（同じく2つ）
+npm run test:plan                   # かんたん計画タブ（同じく2つ。計算はページの中）
+npm run test:plan:worker            # 同じテストを、計算を Worker にして通す
 ```
 
 - 失敗があると、終了コードが 1 になります。
@@ -40,6 +44,8 @@ npm run verify                      # PYTHON=… で Python を指定できま�
 ## ファイル
 
 - `tests/lib.mjs` … 静的サーバー・ブラウザの起動・スクリーンショット（テストと検証が共有）
+- `tests/engine.mjs` … 計算を、ブラウザなしで読み込む部品（Node の vm）
+- `tests/test-sources.mjs`・`tests/test-engine.mjs`・`tests/test-worker.mjs` … 上のとおり
 - `tests/test-kosenjou.mjs` … 古戦場ツール本体（肉計算・目標・スケジュールなど）
-- `tests/test-plan.mjs` … かんたん計画タブ
+- `tests/test-plan.mjs` … かんたん計画タブ（`--worker` で、Worker 計算のまま通す）
 - `verification/run.mjs` … 照合の入口

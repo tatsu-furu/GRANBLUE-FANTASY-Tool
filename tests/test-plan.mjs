@@ -18,9 +18,23 @@ async function openPlan(file, { w = 1100, seed = {}, plan = null, errors, hash =
     for (const [k, v] of Object.entries(s)) localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
     if (p) localStorage.setItem('gbf_kj_plan', JSON.stringify(p));
   }, [seed, plan]);
+  if (WORKER) {                                                                // Worker のときは、操作のたびに、計算が終わるのを待つ
+    for (const m of ['fill', 'click', 'check', 'uncheck', 'selectOption', 'press', 'type', 'dispatchEvent', 'reload']) {
+      const orig = page[m].bind(page);
+      page[m] = async (...a) => { const r = await orig(...a); await settle(page); return r; };
+    }
+  }
   await page.goto(`${base}/${file}${hash}`);
+  if (WORKER) await settle(page);
   return { ctx, page };
 }
+// 計算の場所：既定は、ページの中（Worker なし）。--worker（または KJ_WORKER=1）を付けると、Worker で計算する（同じテストを、Worker で通す）
+const WORKER = process.env.KJ_WORKER === '1' || process.argv.includes('--worker');
+if (!WORKER) {                                                               // どの画面（コンテキスト）でも、Worker を使わない
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (...a) => { const c = await newContext(...a); await c.addInitScript(() => { window.KJ_NO_WORKER = true; }); return c; };
+}
+const settle = (page) => page.evaluate(() => (typeof planPanel !== 'undefined' ? planPanel.whenIdle() : 0));      // planPanel は const なので、window の持ち物ではない
 const T = (page, sel) => page.innerText(sel).then((t) => t.replace(/\s+/g, ' ').trim());
 const openStep = async (page, id) => { if (await page.evaluate((id) => document.querySelector(`[data-body="${id}"]`).hidden, id)) await page.click(`[data-head="${id}"]`); };
 
@@ -301,6 +315,7 @@ for (const file of ['kosenjou.html', 'kosenjou-beta.html']) {
     await jp.addInitScript(() => { localStorage.setItem('gbf_kj_plan', '{こわれた'); });
     jp.on('pageerror', (e) => errors.push(String(e.message || e)));
     await jp.goto(`${base}/${file}#plan`);
+    if (WORKER) await settle(jp);
     ok((await jp.evaluate(() => planPanel.state.goalKind)) === 'number' && (await jp.innerText('[data-resbody]')).includes('①で目標を入れてください'), '壊れた保存（JSON として読めない）: 初期の状態で開く');
     await j.close();
   }
