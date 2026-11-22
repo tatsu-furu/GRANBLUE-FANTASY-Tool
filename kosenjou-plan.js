@@ -133,7 +133,7 @@
         const runsAvg = Math.ceil(n / q), runs90 = runsForCount(q, n, 0.9);
         const runs = W.starMode === 'p90' ? runs90 : runsAvg;
         const secPer = times[d.id] > 0 ? times[d.id] : null;
-        return { n, diff: d, p, runsAvg, runs90, runs, secPer, sec: secPer ? runs * secPer : null,
+        return { n, diff: d, p, box: trehun.box, itemRate: trehun.itemRate, runsAvg, runs90, runs, secPer, sec: secPer ? runs * secPer : null,
                  meat: d.is250 ? 0 : runs * d.chunks, mat: d.is250 ? runs * d.chunks : 0, contrib: runs * d.contrib };
     }
 
@@ -183,13 +183,21 @@
         return null;
     }
 
-    /** 1つの優先の試算（scheduleScenario の結果）を、画面に出す形にまとめる */
+    /**
+     * 1つの優先の試算（scheduleScenario の結果）を、画面に出す形にまとめる。
+     * 日ごとのカード（days）は、いまの肉・素材で足りるとき、「目標に届く中で、肉が最小の計画」（必要な肉を求めたときの解 req.plan）を出す。
+     * 足りないときは、いまの肉・素材で取れるだけ取る計画（actual.plan）。日ごとに、使わなかった時間（余裕）も出す
+     */
     function planView(sc, ctx) {
         const core = ctx.core;
         const solved = sc.solved, A = solved.actual, U = solved.unlimited;
         const spec = sc.spec;
-        const hours = spec.map((s) => (s.fixed ? s.hours : (solved.hasAuto ? A.hours : 0)));
-        const plan = A.plan;
+        const req = sc.req;
+        const matKnown0 = ctx.mat250 != null;
+        const affordable = !!(req && req.plan && req.meat <= ctx.stock + (matKnown0 ? 2 * Math.max(0, Math.min(500, ctx.mat250 - req.mat)) : 0) && (!matKnown0 || req.mat <= ctx.mat250));
+        const plan = affordable ? req.plan : A.plan;
+        const autoHours = affordable ? req.hours : A.hours;
+        const hours = spec.map((s) => (s.fixed ? s.hours : (solved.hasAuto ? autoHours : 0)));
         const days = [];
         let cum = 0;
         const checkpoints = [];
@@ -197,16 +205,18 @@
             if (ph.id === 'q') return;
             const parts = [];
             let meat = 0, mat = 0, gain = 0;
+            let usedSec = 0;
             sc.diffsP.forEach((d) => {
                 const n = plan.runs[ph.id][d.id] || 0;
                 if (!n) return;
                 parts.push({ name: d.name, runs: n });
                 gain += n * d.contrib;
+                usedSec += n * d.time;
                 if (d.is250) mat += n * d.chunks; else meat += n * d.chunks;
             });
             cum += gain + (ctx.extra[ph.id] || 0);
             if (hours[i] > 0 || (ctx.extra[ph.id] || 0) > 0) checkpoints.push({ id: ph.id, name: ph.name, total: ctx.cur + cum });
-            days.push({ id: ph.id, name: ph.name, hours: hours[i], fixed: spec[i].fixed, off: !!spec[i].off, noTier: !!spec[i].noTier, parts, gain, meat, mat });
+            days.push({ id: ph.id, name: ph.name, hours: hours[i], fixed: spec[i].fixed, off: !!spec[i].off, noTier: !!spec[i].noTier, parts, gain, meat, mat, idleSec: hours[i] > 0 ? Math.max(0, hours[i] * 3600 - usedSec) : 0 });
         });
         const finalTotal = ctx.cur + cum;
         let shortage = null;
@@ -216,7 +226,7 @@
             shortage = { meat: Math.max(0, sc.req.meat - haveMeat) + ctx.starDeficit, mat: matKnown ? Math.max(0, sc.req.mat - ctx.mat250) : 0 };
         }
         return {
-            priority: sc.priority, reachable: A.reachable, hasAuto: solved.hasAuto, autoHours: solved.hasAuto ? A.hours : null,
+            priority: sc.priority, reachable: A.reachable, hasAuto: solved.hasAuto, autoHours: solved.hasAuto ? autoHours : null, minMeat: affordable, showIdle: !!ctx.goalView,
             idealReach: U.reachable, idealHours: solved.hasAuto && U.reachable ? U.hours : null,
             days, checkpoints, finalTotal, bd: core.hoursByDiff(plan, sc.diffsP), req: sc.req, shortage,
         };
@@ -251,15 +261,15 @@
             if (R.needLeft <= 0) { R.starCovers = true; return R; }
             if (!R.hasTime) return R;
             const have = meat0 + collect;
-            const stock = meatKnown ? Math.max(0, have - (starOk ? starOk.meat : 0)) : 1e9;     // 肉が未入力のときは、足りる前提で、必要な数を出す
-            const ctx = { core, stock, mat250, cur, extra, meatKnown, starDeficit: meatKnown && starOk ? Math.max(0, starOk.meat - have) : 0 };
+            const stock = meatKnown ? Math.max(0, have - (starOk ? starOk.meat : 0)) : Infinity;     // 肉が未入力のときは、足りる前提（無制限）で、必要な数を出す
+            const ctx = { core, stock, mat250, cur, extra, meatKnown, starDeficit: meatKnown && starOk ? Math.max(0, starOk.meat - have) : 0, goalView: true };
             R.views = {};
             ['time', 'meat'].forEach((pr) => {
                 R.views[pr] = planView(core.scheduleScenario(pr, { diffs, stock, mat250, need: R.needLeft, hoursOpt }), ctx);
             });
         } else if (goal.kind === 'none' && R.hasTime) {
             const have = meat0 + collect;
-            const stock = meatKnown ? Math.max(0, have - (starOk ? starOk.meat : 0)) : 1e9;
+            const stock = meatKnown ? Math.max(0, have - (starOk ? starOk.meat : 0)) : Infinity;
             const ctx = { core, stock, mat250, cur, extra, meatKnown, starDeficit: 0 };
             R.forward = {};
             ['time', 'meat'].forEach((pr) => {
@@ -837,6 +847,7 @@ ${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<di
             const pl = R.placement;
             return `<div class="pl-star"><div class="pl-line"><b>極星器 ${s.n}本</b>：${esc(s.diff.name)} を <b>約 ${s.runs.toLocaleString()}周</b>（${this.state.starMode === 'p90' ? '90%の確率で届く周回数' : '平均'}。平均 ${s.runsAvg.toLocaleString()}周・90%で ${s.runs90.toLocaleString()}周）</div>
 <div class="pl-line">${s.secPer ? `時間 約 <b>${core.fmtHM(s.sec)}</b>・` : ''}${s.diff.is250 ? '' : `肉 <b>${s.meat.toLocaleString()}個</b>・`}貢献度 <b>+${core.fmtC(s.contrib)}</b>（目標から引いて、残りを計画します）</div>
+<div class="pl-line pl-calc" data-starbasis>${esc(s.diff.name)}・1周 ${Math.round(s.p * 1000) / 1000}% で計算（トレハンタブの設定：箱 ${Math.round(s.box * 1000) / 1000}% × アイテム ${s.itemRate}%）</div>
 ${pl && pl.days.length ? `<div class="pl-line">${pl.days.map((id) => this.dayName(id)).join('・')}に、1日 約 <b>${core.fmtHM(pl.perDay)}</b>ずつ回すと考えます。${pl.perDay / 3600 > core.DAY_MAX_HOURS ? `<span class="pl-bad">1日 ${core.DAY_MAX_HOURS}時間を超えます。欲しい本数を減らすか、走れる日を増やしてください。</span>` : ''}</div>` : (s.secPer ? '<div class="pl-line pl-bad">周回できる日がありません（走れる日と、難易度の解放日を確かめてください）。</div>' : '')}</div>`;
         }
 
@@ -906,7 +917,7 @@ ${pl && pl.days.length ? `<div class="pl-line">${pl.days.map((id) => this.dayNam
                 if (starT > 0) body += `${body ? '<br>' : ''}＋極星器 ${core.fmtHM(starT)}（${esc(R.star.diff.name)}）`;
             }
             const marks = st.past ? '' : `<span class="pl-marks">${MARKS.map(([m, t]) => `<button type="button" data-mark="${m}" data-day="${d.id}" class="${st.mark === m ? 'on' : ''}">${t}</button>`).join('')}</span>`;
-            return `<div class="pl-card${st.past ? ' past' : ''}"><div class="pl-card-h"><b>${esc(d.name)}</b>${marks}</div><div class="pl-card-t">${title}</div><div>${body}</div>${st.past || !d.gain ? '' : `<div class="pl-card-f">獲得 ${fmtC(d.gain)}${d.meat ? `・肉 ${d.meat.toLocaleString()}` : ''}${d.mat ? `・素材 ${d.mat.toLocaleString()}` : ''}</div>`}</div>`;
+            return `<div class="pl-card${st.past ? ' past' : ''}"><div class="pl-card-h"><b>${esc(d.name)}</b>${marks}</div><div class="pl-card-t">${title}</div><div>${body}</div>${st.past || !d.gain ? '' : `<div class="pl-card-f">獲得 ${fmtC(d.gain)}${d.meat ? `・肉 ${d.meat.toLocaleString()}` : ''}${d.mat ? `・素材 ${d.mat.toLocaleString()}` : ''}</div>`}${!st.past && v.showIdle && d.hours > 0 && d.parts.length ? `<div class="pl-card-f" data-idle>余裕 ${Math.floor(d.idleSec / 60).toLocaleString()}分</div>` : ''}</div>`;
         }
 
         forwardHtml(f, R) {

@@ -3,7 +3,8 @@
   "private": true,
   "description": "古戦場ツールの、テストと検証（サイトの表示には使いません）",
   "scripts": {
-    "test": "node tests/test-engine.mjs && node tests/test-kosenjou.mjs && node tests/test-plan.mjs",
+    "test": "node tests/test-sources.mjs && node tests/test-engine.mjs && node tests/test-kosenjou.mjs && node tests/test-plan.mjs",
+    "test:sources": "node tests/test-sources.mjs",
     "test:engine": "node tests/test-engine.mjs",
     "test:kosenjou": "node tests/test-kosenjou.mjs",
     "test:plan": "node tests/test-plan.mjs",

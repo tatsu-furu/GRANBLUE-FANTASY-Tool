@@ -40,7 +40,7 @@ for (const file of ['kosenjou.html', 'kosenjou-beta.html']) {
     ok(!(await page.evaluate(() => document.querySelector('[data-body="now"]').hidden)) && (await page.evaluate(() => document.querySelector('[data-body="goal"]').hidden)), '「次へ」で、次の ② が開く');
     await page.fill('[data-f="meatText"]', '40000');
     const res = await T(page, '[data-resbody]');
-    ok(res.includes('毎日 約 6時間33分ずつで、届きます') && res.includes('必要な通常肉 4,200個') && res.includes('いま 40,000個で足ります') && res.includes('必要な250専用素材 1,040個') && res.includes('難易度ごとの時間：150HELL 6時間42分・200HELL 6時間30分・250HELL 13時間'), '結果: 目標60億・肉40,000個 → 毎日 6時間33分・必要な肉 4,200個・素材 1,040個・難易度ごとの時間', res);
+    ok(res.includes('毎日 約 6時間33分ずつで、届きます') && res.includes('必要な通常肉 4,200個') && res.includes('いま 40,000個で足ります') && res.includes('必要な250専用素材 1,040個') && res.includes('難易度ごとの時間：150HELL 6時間36分・200HELL 6時間30分・250HELL 13時間'), '結果: 目標60億・肉40,000個 → 毎日 6時間33分・必要な肉 4,200個・素材 1,040個・難易度ごとの時間', res);
     ok((await T(page, '[data-sum]')).includes('時間優先：毎日 約 6時間33分ずつで、届きます') && (await T(page, '[data-sum]')).includes('必要な通常肉 4,200個（足ります）'), '上の要約の帯に、要点が出る');
     ok(res.includes('▶ 時間優先：毎日 約 6時間33分ずつで、届きます・必要な通常肉 4,200個') && /肉優先：毎日 約 6時間3\d分ずつで、届きます・必要な通常肉 3,980個/.test(res), '結果: 時間優先と肉優先を、1行ずつ並べて比べられる', res);
     await page.click('[data-rt="meat"]');
@@ -53,7 +53,47 @@ for (const file of ['kosenjou.html', 'kosenjou-beta.html']) {
       return { req: sc.req.meat, mat: sc.req.mat, hours: sc.solved.actual.hours, plan: planPanel.R.views.time.req.meat, planHours: planPanel.R.views.time.autoHours };
     });
     ok(same.req === same.plan && same.hours === same.planHours && same.req === 4200 && same.mat === 1040, 'スケジュールの計算と、同じ結果（必要な肉・時間）', JSON.stringify(same));
+    // A2：日ごとのカードは、「目標に届く中で、肉が最小の計画」（必要な通常肉を求めたときの計画）
+    const cardsNow = await page.evaluate(() => [...document.querySelectorAll('[data-resbody] .pl-card')].map((c) => c.innerText.replace(/\s+/g, ' ').trim()));
+    const sumMeat = cardsNow.reduce((a, c) => { const m = c.match(/肉 ([\d,]+)/); return a + (m ? parseInt(m[1].replace(/,/g, ''), 10) : 0); }, 0);
+    ok(sumMeat === 4200, `A2: 肉が足りるとき、日ごとのカードの肉の合計（${sumMeat}）が「必要な通常肉」（4,200）と一致する`, cardsNow.join(' | '));
+    ok(cardsNow.filter((c) => /余裕 \d+分/.test(c)).length === 4, 'A2: 日ごとのカードに「余裕 ◯分」が出る（4日とも）', cardsNow.join(' | '));
+    ok(await page.evaluate(() => planPanel.R.views.time.minMeat === true && planPanel.R.views.meat.minMeat === true), 'A2: 肉が足りるとき、時間優先・肉優先とも、カードは「肉が最小の計画」');
     await ctx.close();
+  }
+
+  // ---- A1：極星器の計算に使った、難易度と確率を出す ----
+  {
+    const a = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'number', goalText: '60億', meatText: '40000', starText: '3' }, errors });
+    const res = await T(a.page, '[data-resbody]');
+    ok(res.includes('200HELL・1周 0.384% で計算'), 'A1: 結果に、使った難易度と確率（「200HELL・1周 0.384% で計算」）が出る', res.slice(0, 600));
+    ok(res.includes('箱 4.8% × アイテム 8%'), 'A1: 内訳（箱 × アイテム）も出る');
+    await a.ctx.close();
+    const b = await openPlan(file, { seed: { gbf_kj_times: FULL, gbf_kj_trehun: { diff: 'h100', boxBase: 3, itemRate: 4 } }, plan: { goalKind: 'number', goalText: '60億', meatText: '40000', starText: '3' }, errors });
+    const res2 = await T(b.page, '[data-resbody]');
+    ok(res2.includes('100HELL・1周 0.144% で計算') && res2.includes('箱 3.6% × アイテム 4%'), 'A1: トレハンタブの設定を変えると、使った難易度と確率も変わる（100HELL・箱 3% × 倍率 120% × アイテム 4% → 0.144%）', res2.slice(0, 600));
+    await b.ctx.close();
+  }
+
+  // ---- A2：肉が足りないとき・肉が未入力のとき・目標を決めないとき ----
+  {
+    const cardInfo = (page) => page.evaluate(() => {
+      const cards = [...document.querySelectorAll('[data-resbody] .pl-card')].map((c) => c.innerText.replace(/\s+/g, ' ').trim());
+      return { cards, meat: cards.reduce((a, c) => { const m = c.match(/肉 ([\d,]+)/); return a + (m ? parseInt(m[1].replace(/,/g, ''), 10) : 0); }, 0), idle: cards.filter((c) => /余裕/.test(c)).length };
+    });
+    const a = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'number', goalText: '60億', meatText: '3000' }, errors });
+    const short = await cardInfo(a.page);
+    ok(short.meat <= 3000 && short.meat > 0, `A2: 肉が足りないとき、カードの肉の合計（${short.meat}）が、いまの肉（3,000）以下`, short.cards.join(' | '));
+    ok(await a.page.evaluate(() => planPanel.R.views.time.minMeat === false && planPanel.R.views.time.shortage.meat > 0), 'A2: 肉が足りないとき、カードは「いまの肉で取れるだけ取る計画」（肉が最小の計画ではない）');
+    await a.ctx.close();
+    const b = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'number', goalText: '60億' }, errors });
+    const unk = await cardInfo(b.page);
+    ok(unk.meat === 4200, `A2: 肉が未入力のとき、カードの肉の合計（${unk.meat}）は、必要な通常肉（4,200）`, unk.cards.join(' | '));
+    await b.ctx.close();
+    const c = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'none', meatText: '40000', normalHours: '4' }, errors });
+    const fwd = await cardInfo(c.page);
+    ok(fwd.cards.length === 4 && fwd.idle === 0, 'A2: 目標を決めないとき（貢献度の最大化）は、「余裕」を出さない（表示は変えない）', fwd.cards.join(' | '));
+    await c.ctx.close();
   }
 
   // ---- 日ごとの ○△× ----

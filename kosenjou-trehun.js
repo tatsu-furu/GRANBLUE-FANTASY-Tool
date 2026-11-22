@@ -48,6 +48,9 @@
     const DBEE = 3;
     const PRECIOUS = 3;
 
+    // ドロップ率の既定値は、ここだけで定義する（かんたん計画は、トレハンタブの設定を読んで使う）。
+    // 【運営者に確認】itemRate（箱からアイテム = 極星器などが落ちる確率）の既定値 8% は、90HELL の目安。注意書きでは「95HELL 以降は 4% が目安」なので、
+    // 既定の 200HELL では、箱 4% × 倍率 120%（団サポ 20%）＝ 4.8% に 8% をかけた 0.384% で計算している（4% なら 0.192%）。どちらが正しいか、確認が取れるまで、値は変えない
     const DEFAULTS = {
         diff: 'h200', boxBase: 4, itemRate: 8,
         trehun: 0, tears: 0, tearsOdds: 0, weathercock: 3, essel: 0, character: 0, coexist: false, richard: false, minic: false,
