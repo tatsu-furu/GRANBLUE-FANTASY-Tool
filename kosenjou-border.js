@@ -16,6 +16,7 @@
  *       getReloadTimes: () => Object.fromEntries([...reloadEnabled].filter((id) => killTimes2[id]).map((id) => [id, killTimes2[id]])),  // 任意: リロ有の討伐秒数
  *     });
  *     // 討伐時間を変えたあとやタブを開いたときに borderPanel.refresh() を呼ぶ
+ *     // 目標計算のボタンは borderPanel.valueForRank(2000) → { value, basis: 'final'|'current', label } | null で、順位の値を読む
  *   </script>
  * 色は親ページの CSS 変数（--accent, --text など）を使う。保存先は localStorage の gbf_kj_border。
  */
@@ -506,6 +507,14 @@
         /** 討伐時間の変更などを反映する */
         refresh() {
             this.update();
+        }
+
+        /** 順位（2000・100000 など）のボーダー。最終予想があればそれ、なければ現在値。値がなければ null */
+        valueForRank(rank) {
+            const row = this.state.rows.find((r) => rankOf(r.label) === rank);
+            if (!row) return null;
+            const value = row.final ?? row.current;
+            return value == null ? null : { value, basis: row.final != null ? 'final' : 'current', label: row.label };
         }
 
         update() {

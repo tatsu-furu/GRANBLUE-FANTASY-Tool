@@ -173,6 +173,7 @@
         }
         .base-btn:hover { border-color: var(--accent); color: var(--accent); }
         .base-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+        #t-goal-presets .base-btn { font-size: 0.8em; padding: 5px 10px; }
 
         /* Difficulty colors */
         .c-vh   { color: #6080a0; }
@@ -570,9 +571,10 @@
                 <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> 目標計算タブ
             </summary>
             <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
-                <p style="margin-bottom:6px;">目標貢献度と現在の貢献度を選択すると <strong style="color:var(--text);">必要回数・必要肉数</strong> を一覧表示します。</p>
+                <p style="margin-bottom:6px;">目標貢献度と現在の貢献度を入力（50億・1億5000万など）すると <strong style="color:var(--text);">必要回数・必要肉数</strong> を一覧表示します。</p>
                 <ul style="padding-left:14px;display:flex;flex-direction:column;gap:4px;">
                     <li>必要肉数はチャンク数込みの実消費数を表示</li>
+                    <li><strong style="color:var(--text);">英雄（2000位）・10万位ボーダー</strong>のボタン: ボーダータブの値（最終予想があればそれ）を目標に入れる。数は手入力もできる</li>
                     <li><strong style="color:var(--text);">残り時間</strong>（日数＋時間）を入力 → 時間内に達成できるか判定</li>
                     <li>討伐効率タブで時間入力済みの難易度は所要時間も表示</li>
                 </ul>
@@ -587,8 +589,9 @@
                 <p style="margin-bottom:6px;">所持リソースを入力して全投入時の貢献度を試算します。</p>
                 <ul style="padding-left:14px;display:flex;flex-direction:column;gap:4px;">
                     <li><strong style="color:var(--text);">通常肉</strong>: HELL90〜200に使う素材</li>
-                    <li><strong style="color:var(--text);">250専用素材</strong>: 250HELL自発に必須。余り分は最大500個まで通常肉2個に変換可</li>
+                    <li><strong style="color:var(--text);">250専用素材</strong>: 250HELL自発に必須（1回につき20個使用）。余り分は最大500個まで通常肉2個に変換可</li>
                     <li><strong style="color:var(--text);">250HELL回数</strong>: 使う予定の回数を入力すると残り素材の変換量を計算</li>
+                    <li>通常肉の回数 = 肉の数 ÷ 1回の消費肉（90HELL 5・95HELL 10・100〜200HELL 20）</li>
                     <li>合計期待貢献度 = 250HELL分 + 通常肉全投入の上限値</li>
                 </ul>
             </div>
@@ -707,13 +710,22 @@
         <div class="card">
             <div class="card-title">目標貢献度の設定</div>
             <div class="frow">
-                <label>目標貢献度</label>
-                <select id="t-goal" class="time-sel" style="width:120px"></select>
+                <label for="t-goal">目標貢献度</label>
+                <input type="text" id="t-goal" inputmode="decimal" autocomplete="off" placeholder="例：50億" list="t-contrib-list" style="width:140px">
+                <span class="unit" id="t-goal-echo"></span>
             </div>
+            <div class="frow" id="t-goal-presets" style="margin-bottom:4px;">
+                <label>クイック設定</label>
+                <button type="button" class="base-btn" data-goal-rank="2000" data-goal-name="英雄（2000位）">英雄（2000位）</button>
+                <button type="button" class="base-btn" data-goal-rank="100000" data-goal-name="10万位ボーダー">10万位ボーダー</button>
+            </div>
+            <p class="note" id="t-goal-hint" style="margin-bottom:8px;"></p>
             <div class="frow">
-                <label>現在の貢献度</label>
-                <select id="t-cur" class="time-sel" style="width:120px"></select>
+                <label for="t-cur">現在の貢献度</label>
+                <input type="text" id="t-cur" inputmode="decimal" autocomplete="off" placeholder="0" list="t-contrib-list" style="width:140px">
+                <span class="unit" id="t-cur-echo"></span>
             </div>
+            <datalist id="t-contrib-list"></datalist>
             <div id="t-remain-box" style="display:none;" class="sum-box">
                 <div class="sum-label">残り必要貢献度</div>
                 <div class="sum-val" id="t-remain-val">─</div>
@@ -775,7 +787,7 @@
 
         <div class="card">
             <div class="card-title">通常肉 全投入シミュレーション</div>
-            <p class="note" style="margin-bottom:12px;">250HELL後の残り通常肉を各難易度に全投入した場合の期待貢献度</p>
+            <p class="note" style="margin-bottom:12px;">250HELL後の残り通常肉を各難易度に全投入した場合の期待貢献度（回数 ＝ 肉の数 ÷ 1回の消費肉）</p>
             <div id="m-result"><div class="no-data">所持リソースを入力してください</div></div>
         </div>
 
@@ -968,6 +980,25 @@ function parseC(s) {
     if (s.endsWith('万')) return parseFloat(s) * 10000;
     const n = parseFloat(s);
     return isNaN(n) ? null : n;
+}
+
+// 手入力の貢献度：「50億」「1億5000万」「3500万」「5,000,000,000」を数に直す（読めなければ null）
+function parseGoal(text) {
+    const s = String(text == null ? '' : text).normalize('NFKC').replace(/[,\s]/g, '');
+    if (!s) return null;
+    const m = s.match(/^(?:(\d+(?:\.\d+)?)億)?(?:(\d+(?:\.\d+)?)万)?(\d+(?:\.\d+)?)?(?:pt|ポイント)?$/i);
+    if (!m || (m[1] == null && m[2] == null && m[3] == null)) return null;
+    const n = (m[1] ? parseFloat(m[1]) * 1e8 : 0) + (m[2] ? parseFloat(m[2]) * 1e4 : 0) + (m[3] ? parseFloat(m[3]) : 0);
+    return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+}
+
+// 貢献度を、入力欄に入れる形に直す（万で割り切れるときは「98億7650万」、そうでなければ桁区切りの数）
+function fmtGoal(n) {
+    if (n >= 1e4 && n % 1e4 === 0) {
+        const oku = Math.floor(n / 1e8), man = (n % 1e8) / 1e4;
+        return (oku ? `${oku}億` : '') + (man ? `${man}万` : '');
+    }
+    return n.toLocaleString();
 }
 
 function diffClass(d) {
@@ -1232,18 +1263,43 @@ function updateEffView() {
 }
 
 // ── Tab 2: 目標計算 ──
-function buildContribOpts(includeZero) {
-    let html = '';
-    if (includeZero) html += '<option value="0">0（なし）</option>';
-    for (let v = 5; v <= 200; v += 5) {
-        html += `<option value="${v * 100000000}">${v}億</option>`;
+// 手入力の候補（datalist）：5億〜200億を 5億きざみ、そのあと大きい値をいくつか
+function buildContribList() {
+    const vals = [];
+    for (let v = 5; v <= 200; v += 5) vals.push(v);
+    vals.push(300, 400, 500, 700, 1000);
+    return vals.map(v => `<option value="${v}億"></option>`).join('');
+}
+
+const GOAL_HINT = 'ボタンはボーダータブの値（最終予想があればそれ）を入れます。数は手入力もできます（50億・1億5000万・5000000000）。';
+function setGoalHint(html) {
+    document.getElementById('t-goal-hint').innerHTML = html || GOAL_HINT;
+}
+
+// 入力欄のとなりに、読み取った数（桁区切り）を出す。読めないときは赤字で知らせる
+function showGoalEcho(id, raw, n) {
+    const el = document.getElementById(id);
+    if (!String(raw).trim()) { el.textContent = ''; return; }
+    if (n == null) { el.textContent = '読み取れません'; el.style.color = '#e07070'; return; }
+    el.textContent = '＝ ' + n.toLocaleString();
+    el.style.color = '';
+}
+
+// 「英雄（2000位）」「10万位ボーダー」：ボーダータブの値（最終予想があればそれ）を、目標に入れる
+function applyBorderGoal(rank, name) {
+    const info = (typeof borderPanel !== 'undefined' && borderPanel.valueForRank) ? borderPanel.valueForRank(rank) : null;
+    if (!info) {
+        setGoalHint(`「${name}」のボーダーが、ボーダータブにまだありません。<a href="#border" style="color:var(--accent)">ボーダータブ</a>で「最新を取得」を押すか値を入れてから、もう一度押してください。ここに手で入れてもかまいません。`);
+        return;
     }
-    return html;
+    const goal = document.getElementById('t-goal');
+    goal.value = fmtGoal(info.value);
+    goal.dispatchEvent(new Event('input', { bubbles: true }));
+    setGoalHint(`${name}の${info.basis === 'final' ? '最終予想' : '現在のボーダー'}（${fmtC(info.value)}）を入れました。`);
 }
 
 function setupTargetInputs() {
-    document.getElementById('t-goal').innerHTML = buildContribOpts(false);
-    document.getElementById('t-cur').innerHTML  = buildContribOpts(true);
+    document.getElementById('t-contrib-list').innerHTML = buildContribList();
 
     // 残り日数: 0〜4日
     let daysHtml = '';
@@ -1255,18 +1311,40 @@ function setupTargetInputs() {
     for (let h = 1; h <= 24; h++) hoursHtml += `<option value="${h}">${h}時間</option>`;
     document.getElementById('t-hours').innerHTML = hoursHtml;
 
-    ['t-goal','t-cur','t-days','t-hours'].forEach(id =>
+    ['t-days','t-hours'].forEach(id =>
         document.getElementById(id).addEventListener('change', updateTargetView)
     );
+
+    // 目標・現在の貢献度は手入力（打つたびに更新）。目標を手で直したら、ボタンの説明を元に戻す
+    ['t-goal','t-cur'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', updateTargetView);
+        el.addEventListener('change', updateTargetView);
+    });
+    document.getElementById('t-goal').addEventListener('input', () => setGoalHint(null));
+    document.querySelectorAll('#t-goal-presets [data-goal-rank]').forEach(btn =>
+        btn.addEventListener('click', () => applyBorderGoal(+btn.dataset.goalRank, btn.dataset.goalName))
+    );
+    setGoalHint(null);
 }
 
 function updateTargetView() {
-    const goal = parseInt(document.getElementById('t-goal').value) || 0;
-    const cur  = parseInt(document.getElementById('t-cur').value)  || 0;
+    const goalRaw = document.getElementById('t-goal').value;
+    const curRaw  = document.getElementById('t-cur').value;
+    const goalN = parseGoal(goalRaw);
+    const curN  = parseGoal(curRaw);
+    showGoalEcho('t-goal-echo', goalRaw, goalN);
+    showGoalEcho('t-cur-echo', curRaw, curN);
+    const goal = goalN || 0;
+    const cur  = curN  || 0;
     const remBox = document.getElementById('t-remain-box');
     const wrap   = document.getElementById('t-table-wrap');
 
-    if (!goal) { remBox.style.display = 'none'; wrap.innerHTML = '<div class="no-data">目標貢献度を選択してください</div>'; return; }
+    if (!goal) {
+        remBox.style.display = 'none';
+        wrap.innerHTML = `<div class="no-data">${String(goalRaw).trim() && goalN == null ? '目標貢献度を読み取れません。「50億」「1億5000万」のように入れてください' : '目標貢献度を入力してください（例：50億）。「英雄」「10万位ボーダー」のボタンでも入れられます'}</div>`;
+        return;
+    }
 
     const needed = Math.max(0, goal - cur);
     remBox.style.display = 'block';
@@ -1368,22 +1446,27 @@ function updateMeatView() {
     const mat250     = parseInt(document.getElementById('m-mat').value) || 0;
     const runs250req = parseInt(document.getElementById('m-250runs').value) || 0;
 
-    const actualRuns250  = Math.min(runs250req, mat250);
-    const remaining250   = mat250 - actualRuns250;
-    const convertible    = Math.min(remaining250, 500);
-    const convertedMeat  = convertible * 2;
-    const totalMeat      = normalMeat + convertedMeat;
+    // 250HELL は、1回につき専用素材を chunks（20）個使う
+    const d250          = DIFFS.find(d => d.is250);
+    const cost250       = d250.chunks;
+    const maxRuns250    = Math.floor(mat250 / cost250);
+    const actualRuns250 = Math.min(runs250req, maxRuns250);
+    const used250       = actualRuns250 * cost250;
+    const remaining250  = mat250 - used250;
+    const convertible   = Math.min(remaining250, 500);
+    const convertedMeat = convertible * 2;
+    const totalMeat     = normalMeat + convertedMeat;
 
     // Info
     const info = document.getElementById('m-250info');
     const lines = [];
-    if (runs250req > mat250) lines.push(`⚠️ 素材が${runs250req}個必要ですが${mat250}個しかありません（最大${mat250}回）`);
-    lines.push(`250HELL: ${actualRuns250}回 ← 専用素材${actualRuns250}個使用`);
+    if (runs250req > maxRuns250) lines.push(`⚠️ ${runs250req.toLocaleString()}回には素材が${(runs250req * cost250).toLocaleString()}個必要ですが${mat250.toLocaleString()}個しかありません（最大${maxRuns250.toLocaleString()}回）`);
+    lines.push(`250HELL: ${actualRuns250.toLocaleString()}回 × ${cost250}個 = 専用素材${used250.toLocaleString()}個使用`);
     if (remaining250 > 0) {
-        lines.push(`残り素材 ${remaining250}個 → ${convertible}個変換 → 通常肉 +${convertedMeat}個`);
-        if (remaining250 > 500) lines.push(`⚠️ 500個超えの分 (${remaining250 - 500}個) は変換不可`);
+        lines.push(`残り素材 ${remaining250.toLocaleString()}個 → ${convertible.toLocaleString()}個変換 → 通常肉 +${convertedMeat.toLocaleString()}個`);
+        if (remaining250 > 500) lines.push(`⚠️ 500個超えの分 (${(remaining250 - 500).toLocaleString()}個) は変換不可`);
     }
-    lines.push(`通常肉合計: ${normalMeat.toLocaleString()} + ${convertedMeat} = <strong>${totalMeat.toLocaleString()}個</strong>`);
+    lines.push(`通常肉合計: ${normalMeat.toLocaleString()} + ${convertedMeat.toLocaleString()} = <strong>${totalMeat.toLocaleString()}個</strong>`);
     info.innerHTML = lines.join('<br>');
 
     const meatDiffs = DIFFS.filter(d => d.isMeat);
@@ -1396,18 +1479,22 @@ function updateMeatView() {
         return;
     }
 
-    // 通常肉シミュ table
+    // 通常肉シミュ table（回数 = 肉の数 ÷ 1回の消費肉。割り切れない分は余り）
     let tbl = `<div style="overflow-x:auto"><table class="data-table"><thead><tr>
-        <th>難易度</th><th>1回の貢献度</th><th>× ${totalMeat.toLocaleString()}個 = 合計</th><th>1時間の回数</th>
+        <th>難易度</th><th>1回の貢献度</th><th>1回の消費肉</th><th>回数（${totalMeat.toLocaleString()}個 ÷ 消費肉）</th><th>合計</th><th>1時間の回数</th>
     </tr></thead><tbody>`;
 
     meatDiffs.forEach(d => {
-        const total = d.contrib * totalMeat;
+        const runs = Math.floor(totalMeat / d.chunks);
+        const rest = totalMeat - runs * d.chunks;
+        const total = d.contrib * runs;
         const t = killTimes[d.id];
         const rpm = t ? Math.floor(3600 / t) : null;
         tbl += `<tr>
             <td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span></td>
             <td style="color:var(--text-2)">${fmtC(d.contrib)}</td>
+            <td style="color:var(--text-3)">${d.chunks}個</td>
+            <td style="color:var(--text-2)">${runs.toLocaleString()}回${rest ? `<span style="color:var(--text-3);font-size:0.8em"> 余り${rest}個</span>` : ''}</td>
             <td style="color:var(--accent);font-weight:700">${fmtC(total)}</td>
             <td style="color:var(--text-3)">${rpm != null ? rpm + '回/h' : '─'}</td>
         </tr>`;
@@ -1416,21 +1503,21 @@ function updateMeatView() {
     resultEl.innerHTML = tbl;
 
     // 合計
-    const contrib250total = actualRuns250 * 75000000;
+    const contrib250total = actualRuns250 * d250.contrib;
     const sorted = meatDiffs
-        .map(d => ({ d, meatTotal: d.contrib * totalMeat, total: contrib250total + d.contrib * totalMeat }))
+        .map(d => { const runs = Math.floor(totalMeat / d.chunks); const meatTotal = d.contrib * runs; return { d, runs, meatTotal, total: contrib250total + meatTotal }; })
         .sort((a, b) => b.total - a.total);
 
     let totHtml = '';
     if (actualRuns250 > 0) {
         totHtml += `<div style="font-size:0.84em;color:var(--text-3);margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:6px;">
-            250HELL: <span style="color:#9575cd;font-weight:700">${actualRuns250}回 × 7,500万 = ${fmtC(contrib250total)}</span>
+            250HELL: <span style="color:#9575cd;font-weight:700">${actualRuns250.toLocaleString()}回 × ${fmtC(d250.contrib)} = ${fmtC(contrib250total)}</span>
         </div>`;
     }
     sorted.forEach((item, i) => {
         const best = i === 0;
         const formulaStr = totalMeat > 0
-            ? `<span style="font-size:0.78em;color:var(--text-3);margin-right:6px">${fmtC(item.d.contrib)} × ${totalMeat}${actualRuns250 > 0 ? ` + ${fmtC(contrib250total)}` : ''} =</span>`
+            ? `<span style="font-size:0.78em;color:var(--text-3);margin-right:6px">${fmtC(item.d.contrib)} × ${item.runs.toLocaleString()}回${actualRuns250 > 0 ? ` + ${fmtC(contrib250total)}` : ''} =</span>`
             : '';
         totHtml += `<div class="meat-row ${best ? 'best' : ''}">
             <span style="min-width:18px;color:${best ? 'var(--accent)' : 'transparent'};font-weight:700">${best ? '★' : ''}</span>
