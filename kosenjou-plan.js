@@ -1,0 +1,940 @@
+/**
+ * 古戦場ツール：かんたん計画（順番に入れていくと、目標までの計画が出る）
+ *
+ * 目標 → 今の状況 → 極星器 → 討伐タイム → 走れる日 の順に入れる。わからない所は、飛ばしてもよい。
+ * 入れた分だけで、次のことを出す：
+ *   ・目標が決まっていて、討伐タイムが1つでもあれば：毎日の時間・難易度ごとの時間・必要な肉と素材・足りない分（肉を集める時間の目安）・日ごとの計画・各日の終了時の目安
+ *   ・討伐タイムがなければ：各難易度での必要回数
+ *   ・目標を決めなければ：この条件で、どこまで行けるか（貢献度と、順位の目安）
+ * 時間優先と肉優先は、結果をタブで分ける。
+ *
+ * 計算は、ページ側のスケジュールの計算（kosenjou.html の KJ_CORE）をそのまま使う。
+ * 使い方：new PlanPanel(要素, core, { getBorderRows, getTrehun })
+ *   getBorderRows() → [{ label, rank, current, final }]（ボーダータブの値）
+ *   getTrehun()     → { diff, item, box, itemRate }（トレハンタブの、周回する難易度と、1周でアイテムが落ちる確率・箱が落ちる確率・箱からアイテムが落ちる確率（%））
+ * 保存先は localStorage の gbf_kj_plan（討伐時間は、討伐効率タブと同じ gbf_kj_times）。
+ */
+(function (global) {
+    'use strict';
+
+    const KEY = 'gbf_kj_plan';
+    const DAYS = ['d1', 'd2', 'd3', 'd4'];
+    const WHERE = [['pre', '本戦前（予選前・予選中）'], ['d1', '本戦1日目'], ['d2', '本戦2日目'], ['d3', '本戦3日目'], ['d4', '本戦4日目']];
+    const STEPS = [
+        { id: 'goal', no: '①', title: '目標' },
+        { id: 'now',  no: '②', title: '今の状況' },
+        { id: 'star', no: '③', title: '極星器（なくてもよい）' },
+        { id: 'time', no: '④', title: '討伐タイム' },
+        { id: 'days', no: '⑤', title: '走れる日' },
+    ];
+    const MARKS = [['o', '○'], ['t', '△'], ['x', '×']];
+    const DEFAULTS = {
+        open: 'goal',
+        goalKind: 'number', goalText: '', goalRank: 0,
+        where: 'pre', curText: '', meatText: '', matText: '', collectText: '',
+        starText: '', starMode: 'avg',
+        timeMode: 'full', oneId: 'h150', oneMin: '', oneSec: '',
+        gatherMin: '10', gatherMeat: '',
+        triHours: '3', normalHours: '4', detail: false,
+        tab: 'time',
+    };
+
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const num = (t) => { const s = String(t == null ? '' : t).normalize('NFKC').replace(/[,\s]/g, ''); if (!s) return null; const v = Number(s); return Number.isFinite(v) ? v : null; };
+    const int0 = (t) => Math.max(0, Math.floor(num(t) || 0));
+    const blank = (t) => String(t == null ? '' : t).trim() === '';
+
+    // ───────────── 計算（画面と切り離して、テストできるように） ─────────────
+
+    /** 1周で落ちる確率が q（0〜1）のとき、n 個以上落ちる確率が conf 以上になる、最小の周回数（二項分布） */
+    function runsForCount(q, n, conf) {
+        if (!(q > 0)) return Infinity;
+        if (q >= 1) return n;
+        const tail = (R) => {                                         // P(X ≥ n) = 1 − Σ_{k<n} C(R,k) q^k (1−q)^(R−k)
+            let term = Math.pow(1 - q, R), cdf = 0;
+            for (let k = 0; k < n; k++) { cdf += term; term *= (R - k) / (k + 1) * q / (1 - q); }
+            return 1 - cdf;
+        };
+        let lo = n, hi = Math.max(n, Math.ceil(n / q * 3) + 50);
+        while (tail(hi) < conf && hi < 1e8) hi *= 2;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (tail(mid) >= conf) hi = mid; else lo = mid + 1; }
+        return lo;
+    }
+
+    /** 計算に使う討伐時間（秒）。しっかり入力 = 討伐効率タブの時間。1つだけ = 入れた1つ＋それより上の難易度を同じ効率で推定。ざっくり = ◯分で◯回から */
+    function effectiveTimes(W, core) {
+        const HELL = core.HELL_DIFFS;
+        const times = {}, estimated = [];
+        let base = null;
+        if (W.timeMode === 'rough') {
+            HELL.forEach((d) => {
+                const r = W.rough[d.id], runs = num(r && r.runs);
+                const min = num(r && r.min) != null ? num(r.min) : (d.is250 ? 30 : 5);     // 分が空なら、入力欄に薄く出ている値
+                if (min > 0 && runs > 0) times[d.id] = min * 60 / runs;
+            });
+        } else if (W.timeMode === 'one') {
+            const sec = (num(W.oneMin) || 0) * 60 + (num(W.oneSec) || 0);
+            const b = HELL.find((d) => d.id === W.oneId);
+            if (b && sec > 0) {
+                base = b; times[b.id] = sec;
+                const perSec = b.contrib / sec;
+                HELL.forEach((d) => { if (d !== b && core.tierOf(d) > core.tierOf(b)) { times[d.id] = d.contrib / perSec; estimated.push(d.id); } });   // 丸めない（効率がずれないように）
+            }
+        } else {
+            const kt = core.getKillTimes();
+            HELL.forEach((d) => { if (kt[d.id] > 0) times[d.id] = kt[d.id]; });
+        }
+        return { times, estimated, base, mode: W.timeMode };
+    }
+
+    function resolveGoal(W, core, rows) {
+        if (W.goalKind === 'none') return { kind: 'none', value: null };
+        if (W.goalKind === 'rank') {
+            const row = rows.find((r) => r.rank === W.goalRank);
+            const value = row ? (row.final != null ? row.final : row.current) : null;
+            return value > 0 ? { kind: 'rank', value, label: row.label, basis: row.final != null ? 'final' : 'current' } : { kind: 'rank', value: null, missing: true };
+        }
+        if (blank(W.goalText)) return { kind: 'number', value: null, empty: true };
+        const v = core.parseGoal(W.goalText);
+        return v > 0 ? { kind: 'number', value: v } : { kind: 'number', value: null, invalid: true };
+    }
+
+    /** 本戦の4日の状態：終わった日（past）・今日（now）・これから */
+    function dayStates(W) {
+        const idx = W.where === 'pre' ? -1 : DAYS.indexOf(W.where);
+        return DAYS.map((id, i) => ({ id, past: i < idx, now: i === idx, mark: W.marks[id] || 'o', typed: W.hours[id] }));
+    }
+
+    /** 日ごとの時間（数 = 固定、null = 自動）。終わった日・×の日は 0。目標がなければ、○の日は「ふつうの日の時間」 */
+    function hoursOptFrom(W, hasGoal, days) {
+        const hours = { q: null };
+        days.forEach((d) => {
+            let h;
+            const typed = W.detail ? num(d.typed) : null;
+            if (d.past) h = 0;
+            else if (typed != null && typed >= 0) h = typed;
+            else if (d.mark === 'x') h = 0;
+            else if (d.mark === 't') h = num(W.triHours) != null ? Math.max(0, num(W.triHours)) : 3;
+            else h = hasGoal ? null : (num(W.normalHours) != null ? Math.max(0, num(W.normalHours)) : 4);
+            hours[d.id] = h;
+        });
+        return { includeQ: false, hours };
+    }
+
+    /** 極星器：欲しい本数 → 周回する難易度（トレハンの設定）の周回数・時間・肉・貢献度 */
+    function starInfo(W, core, trehun, times) {
+        const n = Math.floor(num(W.starText) || 0);
+        if (n <= 0) return null;
+        const d = trehun ? core.HELL_DIFFS.find((x) => x.id === trehun.diff) : null;
+        const p = trehun ? trehun.item : 0;
+        if (!d) return { n, error: '周回する難易度が決まっていません（トレハンタブで選べます）' };
+        if (!(p > 0)) return { n, diff: d, p, error: 'ドロップ率が 0% です（トレハンタブの設定を確かめてください）' };
+        const q = Math.min(p, 100) / 100;
+        const runsAvg = Math.ceil(n / q), runs90 = runsForCount(q, n, 0.9);
+        const runs = W.starMode === 'p90' ? runs90 : runsAvg;
+        const secPer = times[d.id] > 0 ? times[d.id] : null;
+        return { n, diff: d, p, runsAvg, runs90, runs, secPer, sec: secPer ? runs * secPer : null,
+                 meat: d.is250 ? 0 : runs * d.chunks, mat: d.is250 ? runs * d.chunks : 0, contrib: runs * d.contrib };
+    }
+
+    /** 極星器の周回を入れる日：使える日（終わっていない・×でない・解放済み）のうち、自動の○の日。なければ、使える日 */
+    function starPlacement(star, days, hoursOpt, core) {
+        if (!star || star.error || !(star.sec > 0)) return null;
+        const maxTier = (id) => core.PHASES.find((p) => p.id === id).maxTier;
+        const ok = days.filter((d) => !d.past && hoursOpt.hours[d.id] !== 0 && core.tierOf(star.diff) <= maxTier(d.id));
+        const autos = ok.filter((d) => hoursOpt.hours[d.id] == null);
+        const target = autos.length ? autos : ok;
+        if (!target.length) return { days: [], perDay: 0, perDayContrib: 0 };
+        return { days: target.map((d) => d.id), perDay: star.sec / target.length, perDayContrib: star.contrib / target.length };
+    }
+
+    /** 肉を集める速さ（個/時間）。「◯分で肉◯個」から */
+    function gatherRate(W) {
+        const min = num(W.gatherMin), meat = num(W.gatherMeat);
+        return min > 0 && meat > 0 ? meat * 60 / min : null;
+    }
+
+    /** 時間がなくてもできる逆算：目標までに、各難易度だけで回すと何回・肉（素材）いくつか */
+    function countsTable(core, need, times) {
+        return core.HELL_DIFFS.map((d) => {
+            const runs = Math.ceil(need / d.contrib);
+            return { id: d.id, name: d.name, runs, meat: d.is250 ? 0 : runs * d.chunks, mat: d.is250 ? runs * d.chunks : 0, sec: times[d.id] > 0 ? runs * times[d.id] : null };
+        });
+    }
+
+    /** 貢献度から、順位の目安（ボーダーの点を、対数で結ぶ）。pts: [{ rank, value }]（順位の昇順） */
+    function rankEstimate(value, pts) {
+        if (!pts.length || !(value > 0)) return null;
+        const fmt = (r) => {
+            const n = r < 1000 ? Math.round(r / 10) * 10 : r < 10000 ? Math.round(r / 100) * 100 : Math.round(r / 1000) * 1000;
+            return n >= 10000 ? `${(n / 10000).toLocaleString(undefined, { maximumFractionDigits: 1 })}万位` : `${Math.max(1, n).toLocaleString()}位`;
+        };
+        if (value >= pts[0].value) return { text: `${pts[0].rank.toLocaleString()}位以内`, rank: pts[0].rank };
+        const last = pts[pts.length - 1];
+        if (value < last.value) return { text: `${last.rank >= 10000 ? `${last.rank / 10000}万` : last.rank.toLocaleString()}位より下`, rank: last.rank * 1.5 };
+        for (let i = 0; i + 1 < pts.length; i++) {
+            const a = pts[i], b = pts[i + 1];
+            if (value <= a.value && value >= b.value) {
+                const t = a.value === b.value ? 0 : (Math.log(a.value) - Math.log(value)) / (Math.log(a.value) - Math.log(b.value));
+                const rank = Math.exp(Math.log(a.rank) + t * (Math.log(b.rank) - Math.log(a.rank)));
+                return { text: `約 ${fmt(rank)}`, rank };
+            }
+        }
+        return null;
+    }
+
+    /** 1つの優先の試算（scheduleScenario の結果）を、画面に出す形にまとめる */
+    function planView(sc, ctx) {
+        const core = ctx.core;
+        const solved = sc.solved, A = solved.actual, U = solved.unlimited;
+        const spec = sc.spec;
+        const hours = spec.map((s) => (s.fixed ? s.hours : (solved.hasAuto ? A.hours : 0)));
+        const plan = A.plan;
+        const days = [];
+        let cum = 0;
+        const checkpoints = [];
+        core.PHASES.forEach((ph, i) => {
+            if (ph.id === 'q') return;
+            const parts = [];
+            let meat = 0, mat = 0, gain = 0;
+            sc.diffsP.forEach((d) => {
+                const n = plan.runs[ph.id][d.id] || 0;
+                if (!n) return;
+                parts.push({ name: d.name, runs: n });
+                gain += n * d.contrib;
+                if (d.is250) mat += n * d.chunks; else meat += n * d.chunks;
+            });
+            cum += gain + (ctx.extra[ph.id] || 0);
+            if (hours[i] > 0 || (ctx.extra[ph.id] || 0) > 0) checkpoints.push({ id: ph.id, name: ph.name, total: ctx.cur + cum });
+            days.push({ id: ph.id, name: ph.name, hours: hours[i], fixed: spec[i].fixed, off: !!spec[i].off, noTier: !!spec[i].noTier, parts, gain, meat, mat });
+        });
+        const finalTotal = ctx.cur + cum;
+        let shortage = null;
+        if (sc.req && ctx.meatKnown) {
+            const matKnown = ctx.mat250 != null;
+            const haveMeat = ctx.stock + (matKnown ? 2 * Math.max(0, Math.min(500, ctx.mat250 - sc.req.mat)) : 0);
+            shortage = { meat: Math.max(0, sc.req.meat - haveMeat) + ctx.starDeficit, mat: matKnown ? Math.max(0, sc.req.mat - ctx.mat250) : 0 };
+        }
+        return {
+            priority: sc.priority, reachable: A.reachable, hasAuto: solved.hasAuto, autoHours: solved.hasAuto ? A.hours : null,
+            idealReach: U.reachable, idealHours: solved.hasAuto && U.reachable ? U.hours : null,
+            days, checkpoints, finalTotal, bd: core.hoursByDiff(plan, sc.diffsP), req: sc.req, shortage,
+        };
+    }
+
+    /** 入力から、画面に出す結果をすべて計算する */
+    function compute(W, env) {
+        const core = env.core;
+        const R = { W };
+        const ti = effectiveTimes(W, core);
+        const diffs = core.planDiffsFrom(ti.times, ti.estimated);
+        Object.assign(R, { ti, diffs, hasTime: diffs.some((d) => d.time > 0) });
+        const goal = resolveGoal(W, core, env.rows);
+        const cur = core.parseGoal(W.curText) || 0;
+        const meatKnown = !blank(W.meatText), matKnown = !blank(W.matText);
+        const meat0 = int0(W.meatText), collect = int0(W.collectText);
+        const mat250 = matKnown ? int0(W.matText) : null;
+        const days = dayStates(W);
+        const hoursOpt = hoursOptFrom(W, goal.value > 0, days);
+        const star = starInfo(W, core, env.trehun, ti.times);
+        const starOk = star && !star.error ? star : null;
+        const placement = starPlacement(starOk, days, hoursOpt, core);
+        const extra = {};
+        if (placement) placement.days.forEach((id) => { extra[id] = placement.perDayContrib; });
+        Object.assign(R, { goal, cur, meatKnown, matKnown, meat: meat0, collect, mat250, days, hoursOpt, star, placement, gatherPerHour: gatherRate(W), views: null, forward: null });
+
+        if (goal.value > 0) {
+            R.need0 = Math.max(0, goal.value - cur);
+            R.counts = countsTable(core, R.need0, ti.times);
+            if (R.need0 <= 0) { R.done = true; return R; }
+            R.needLeft = R.need0 - (starOk ? starOk.contrib : 0);
+            if (R.needLeft <= 0) { R.starCovers = true; return R; }
+            if (!R.hasTime) return R;
+            const have = meat0 + collect;
+            const stock = meatKnown ? Math.max(0, have - (starOk ? starOk.meat : 0)) : 1e9;     // 肉が未入力のときは、足りる前提で、必要な数を出す
+            const ctx = { core, stock, mat250, cur, extra, meatKnown, starDeficit: meatKnown && starOk ? Math.max(0, starOk.meat - have) : 0 };
+            R.views = {};
+            ['time', 'meat'].forEach((pr) => {
+                R.views[pr] = planView(core.scheduleScenario(pr, { diffs, stock, mat250, need: R.needLeft, hoursOpt }), ctx);
+            });
+        } else if (goal.kind === 'none' && R.hasTime) {
+            const have = meat0 + collect;
+            const stock = meatKnown ? Math.max(0, have - (starOk ? starOk.meat : 0)) : 1e9;
+            const ctx = { core, stock, mat250, cur, extra, meatKnown, starDeficit: 0 };
+            R.forward = {};
+            ['time', 'meat'].forEach((pr) => {
+                const diffsP = core.allowedDiffs(diffs, pr);
+                const spec = core.scheduleHoursSpec(diffsP, hoursOpt);
+                const phases = core.PHASES.map((ph, i) => ({ id: ph.id, maxTier: ph.maxTier, hours: spec[i].fixed ? spec[i].hours : 0 }));
+                const plan = core.planSchedule({ stock, mat250, phases, diffs: diffsP });
+                const sc = { priority: pr, diffsP, spec, req: null, solved: { hasAuto: false, actual: { reachable: true, hours: 0, plan }, unlimited: { reachable: true, hours: 0, plan } } };
+                const v = planView(sc, ctx);
+                const use = core.scheduleUsage(plan, diffsP, stock, mat250);
+                v.use = { meat: use.meat + (starOk ? starOk.meat : 0), mat: use.mat };
+                v.rank = rankEstimate(v.finalTotal, env.points);
+                R.forward[pr] = v;
+            });
+        }
+        return R;
+    }
+
+    const W_TAB = (cur, k) => (cur === k ? '▶ ' : '　');
+
+    // ───────────── 画面 ─────────────
+
+    class PlanPanel {
+        constructor(root, core, opts) {
+            this.root = root;
+            this.core = core;
+            this.opts = opts || {};
+            this.state = this.load();
+            this.injectStyle();
+            this.render();
+        }
+
+        freshState() {
+            return { ...DEFAULTS, rough: {}, marks: { d1: 'o', d2: 'o', d3: 'o', d4: 'o' }, hours: { d1: '', d2: '', d3: '', d4: '' }, skipped: {}, fresh: true };
+        }
+
+        load() {
+            const W = this.freshState();
+            let s = null;
+            try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { s = null; }
+            if (s && typeof s === 'object') {
+                W.fresh = false;
+                Object.keys(DEFAULTS).forEach((k) => { if (typeof DEFAULTS[k] === typeof s[k]) W[k] = s[k]; });
+                if (s.marks && typeof s.marks === 'object') DAYS.forEach((d) => { if (['o', 't', 'x'].includes(s.marks[d])) W.marks[d] = s.marks[d]; });
+                if (s.hours && typeof s.hours === 'object') DAYS.forEach((d) => { if (typeof s.hours[d] === 'string') W.hours[d] = s.hours[d]; });
+                if (s.rough && typeof s.rough === 'object') Object.keys(s.rough).forEach((id) => { const r = s.rough[id]; if (r && typeof r === 'object') W.rough[id] = { min: String(r.min == null ? '' : r.min), runs: String(r.runs == null ? '' : r.runs) }; });
+                if (s.skipped && typeof s.skipped === 'object') Object.keys(s.skipped).forEach((k) => { if (s.skipped[k] === true) W.skipped[k] = true; });
+            }
+            if (W.open !== '' && !STEPS.some((st) => st.id === W.open)) W.open = 'goal';
+            const pick = (k, list) => { if (!list.includes(W[k])) W[k] = DEFAULTS[k]; };
+            pick('goalKind', ['number', 'rank', 'none']); pick('where', WHERE.map((x) => x[0])); pick('timeMode', ['full', 'one', 'rough']);
+            pick('tab', ['time', 'meat']); pick('starMode', ['avg', 'p90']); pick('oneId', this.core.HELL_DIFFS.map((d) => d.id));
+            if (!Number.isFinite(W.goalRank)) W.goalRank = 0;
+            return W;
+        }
+
+        save() {
+            const { fresh, ...rest } = this.state;
+            try { localStorage.setItem(KEY, JSON.stringify(rest)); } catch (e) { /* 保存できなくても動く */ }
+        }
+
+        /** はじめて開いたとき：ほかのタブに入っている目標・貢献度・肉・素材を、取り込む */
+        adopt() {
+            const v = (id) => { const el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+            const W = this.state;
+            if (v('t-goal')) W.goalText = v('t-goal');
+            if (v('t-cur') && v('t-cur') !== '0') W.curText = v('t-cur');
+            if (parseInt(v('m-normal')) > 0) W.meatText = String(parseInt(v('m-normal')));
+            if (parseInt(v('m-mat')) > 0) W.matText = String(parseInt(v('m-mat')));
+            if (parseInt(v('s-collect')) > 0) W.collectText = String(parseInt(v('s-collect')));
+        }
+
+        /** ほかのタブ（目標計算・肉計算）に入っている値 */
+        otherTabs() {
+            const v = (id) => { const el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+            const pos = (id) => { const n = parseInt(v(id)); return n > 0 ? String(n) : ''; };
+            return { goal: v('t-goal'), cur: v('t-cur') !== '0' ? v('t-cur') : '', meat: pos('m-normal'), mat: pos('m-mat') };
+        }
+
+        importFromTabs(what) {
+            const W = this.state, o = this.otherTabs();
+            if (what === 'goal' && o.goal) { W.goalKind = 'number'; W.goalText = o.goal; delete W.skipped.goal; }
+            if (what === 'now') {
+                if (o.cur) W.curText = o.cur;
+                if (o.meat) W.meatText = o.meat;
+                if (o.mat) W.matText = o.mat;
+            }
+        }
+
+        injectStyle() {
+            if (document.getElementById('pl-style')) return;
+            const style = document.createElement('style');
+            style.id = 'pl-style';
+            style.textContent = `
+.pl-intro { font-size:0.85em; color:var(--text-2); line-height:1.7; margin-bottom:10px; }
+.pl-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+.pl-chip { font:inherit; font-size:0.78em; padding:4px 10px; border:1px solid var(--border); border-radius:999px; background:var(--surface); color:var(--text-3); cursor:pointer; }
+.pl-chip:hover { border-color:var(--accent); color:var(--accent); }
+.pl-chip.done { color:var(--text); border-color:var(--accent-lo); }
+.pl-chip.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+.pl-sum { position:sticky; top:0; z-index:6; margin-bottom:10px; padding:8px 12px; background:var(--surface-2, var(--surface)); border:1px solid var(--accent-lo); border-left:3px solid var(--accent); font-size:0.88em; line-height:1.6; color:var(--text); }
+.pl-sum small { color:var(--text-3); }
+.pl-step { border:1px solid var(--border); background:var(--surface); border-radius:2px; }
+.pl-step.open { border-color:var(--accent-lo); }
+.pl-head { width:100%; display:flex; align-items:center; gap:8px; padding:10px 12px; background:none; border:0; color:var(--text); font:inherit; cursor:pointer; text-align:left; }
+.pl-no { color:var(--accent); font-weight:700; }
+.pl-ttl { font-weight:700; font-size:0.92em; }
+.pl-state { font-size:0.72em; padding:1px 8px; border-radius:999px; border:1px solid var(--border); color:var(--text-3); white-space:nowrap; }
+.pl-state.done { color:#4caf50; border-color:#3a6b3c; }
+.pl-state.skip { color:var(--text-3); }
+.pl-summ { margin-left:auto; font-size:0.8em; color:var(--text-2); text-align:right; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pl-body { padding:4px 12px 12px; border-top:1px solid var(--border); }
+.pl-body[hidden] { display:none; }
+.pl-arrow { text-align:center; color:var(--accent-lo); font-size:0.8em; line-height:1.5; }
+.pl-seg { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+.pl-seg button, .pl-nav button, .pl-rt button { font:inherit; font-size:0.84em; padding:6px 12px; background:var(--bg); color:var(--text-2); border:1px solid var(--border); border-radius:4px; cursor:pointer; }
+.pl-seg button:hover, .pl-nav button:hover, .pl-rt button:hover { border-color:var(--accent); color:var(--accent); }
+.pl-seg button.on, .pl-rt button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
+.pl-nav { display:flex; gap:8px; margin-top:12px; justify-content:flex-end; }
+.pl-nav .pl-next { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
+.pl-sub { font-size:0.78em; font-weight:700; color:var(--accent); margin:14px 0 6px; }
+.pl-rows { display:flex; flex-direction:column; gap:6px; margin:6px 0; }
+.pl-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:0.88em; }
+.pl-row .pl-k { min-width:7em; color:var(--text-2); font-weight:700; }
+.pl-row input[type=number], .pl-row input[type=text], .pl-row select { font:inherit; font-size:0.95em; padding:5px 6px; background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:4px; }
+.pl-row input[type=number] { width:100px; text-align:right; -moz-appearance:textfield; appearance:textfield; }
+.pl-row input[type=number]::-webkit-outer-spin-button, .pl-row input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.pl-row input.pl-s { width:60px; }
+.pl-row .pl-u { color:var(--text-3); font-size:0.9em; }
+.pl-row .pl-calc { color:var(--text-3); font-size:0.85em; }
+.pl-marks { display:inline-flex; gap:4px; }
+.pl-marks button { font:inherit; font-size:0.95em; width:36px; padding:4px 0; background:var(--bg); color:var(--text-2); border:1px solid var(--border); border-radius:4px; cursor:pointer; }
+.pl-marks button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
+.pl-day-past { opacity:0.5; }
+.pl-res .pl-rt { display:flex; gap:6px; margin-bottom:10px; }
+.pl-head-line { font-size:1.12em; font-weight:700; color:var(--accent); line-height:1.5; }
+.pl-head-line.ng { color:#e07070; }
+.pl-head-line.ok { color:#4caf50; }
+.pl-ok { color:#4caf50; font-weight:700; padding:12px; text-align:center; }
+.pl-line { font-size:0.84em; color:var(--text-2); line-height:1.8; }
+.pl-line b { color:var(--text); }
+.pl-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px; margin:10px 0; }
+.pl-box { border:1px solid var(--border); background:var(--bg); padding:8px 10px; }
+.pl-box .k { font-size:0.74em; color:var(--text-3); }
+.pl-box .v { font-size:1.1em; font-weight:700; color:var(--text); }
+.pl-box .s { font-size:0.78em; color:var(--text-2); margin-top:2px; line-height:1.5; }
+.pl-bad { color:#e07070; font-weight:700; }
+.pl-good { color:#4caf50; font-weight:700; }
+.pl-advice { margin:8px 0; padding:8px 12px; border-left:3px solid var(--accent-lo); background:var(--accent-bg); font-size:0.85em; line-height:1.8; color:var(--text-2); }
+.pl-advice li { margin-left:1.1em; }
+.pl-star { margin:10px 0; padding:8px 12px; border:1px solid var(--border); background:var(--bg); }
+.pl-days { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:8px; margin:10px 0; }
+.pl-card { border:1px solid var(--border); background:var(--bg); padding:8px 10px; font-size:0.84em; line-height:1.7; }
+.pl-card.past { opacity:0.5; }
+.pl-card-h { display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px; }
+.pl-card-t { color:var(--accent); font-weight:700; }
+.pl-card-f { color:var(--text-3); font-size:0.92em; margin-top:2px; }
+.pl-notice { font-size:0.82em; color:var(--text-2); line-height:1.7; margin:4px 0; }
+.pl-notice a { color:var(--accent); }
+.pl-notice .base-btn { margin-left:6px; font-size:0.9em; padding:3px 10px; }
+@media (max-width: 600px) { .pl-row .pl-k { min-width:100%; } .pl-summ { display:none; } .pl-sum { position:static; } }
+`;
+            document.head.appendChild(style);
+        }
+
+        // ───── 画面の部品 ─────
+        seg(field, items) {
+            return `<div class="pl-seg" data-seg="${field}">${items.map(([v, t]) => `<button type="button" data-v="${v}">${esc(t)}</button>`).join('')}</div>`;
+        }
+
+        step(st, body) {
+            return `
+<section class="pl-step" data-step="${st.id}">
+  <button type="button" class="pl-head" data-head="${st.id}" aria-expanded="false">
+    <span class="pl-no">${st.no}</span><span class="pl-ttl">${esc(st.title)}</span><span class="pl-state" data-state="${st.id}"></span><span class="pl-summ" data-summ="${st.id}"></span>
+  </button>
+  <div class="pl-body" data-body="${st.id}" hidden>${body}
+    <div class="pl-nav">${st.id === 'days' ? '' : `<button type="button" data-skip="${st.id}">スキップ</button>`}<button type="button" class="pl-next" data-next="${st.id}">${st.id === 'days' ? '結果を見る ▼' : '次へ ▼'}</button></div>
+  </div>
+</section>`;
+        }
+
+        render() {
+            const core = this.core;
+            const HELL = core.HELL_DIFFS;
+            const contribList = (() => { const v = []; for (let x = 5; x <= 200; x += 5) v.push(x); v.push(300, 400, 500, 700, 1000); return v.map((x) => `<option value="${x}億"></option>`).join(''); })();
+            const fullRows = HELL.map((d) => `
+<div class="pl-row"><span class="pl-k">${esc(d.name)}</span>
+  <input type="number" min="0" max="${d.is250 ? 90 : 30}" inputmode="numeric" data-tf="${d.id}" data-part="min" class="pl-s" placeholder="0"><span class="pl-u">分</span>
+  <input type="number" min="0" max="59" inputmode="numeric" data-tf="${d.id}" data-part="sec" class="pl-s" placeholder="0"><span class="pl-u">秒</span></div>`).join('');
+            const roughRows = HELL.map((d) => `
+<div class="pl-row"><span class="pl-k">${esc(d.name)}</span>
+  <input type="number" min="1" inputmode="numeric" data-rough="${d.id}" data-part="min" class="pl-s" placeholder="${d.is250 ? 30 : 5}"><span class="pl-u">分で</span>
+  <input type="number" min="0" inputmode="numeric" data-rough="${d.id}" data-part="runs" placeholder="回数"><span class="pl-u">回</span><span class="pl-calc" data-roughcalc="${d.id}"></span></div>`).join('');
+            const oneOpts = HELL.filter((d) => d.id !== HELL[HELL.length - 1].id).map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+            const body = {
+                goal: `
+${this.seg('goalKind', [['number', '数字で入れる'], ['rank', '順位（ボーダー）から選ぶ'], ['none', '決めない']])}
+<div data-box="goal-number">
+  <div class="pl-row"><span class="pl-k">目標貢献度</span><input type="text" id="pl-goal" data-f="goalText" list="pl-contrib-list" inputmode="decimal" autocomplete="off" placeholder="例：50億" style="width:140px"><span class="pl-calc" data-echo="goal"></span></div>
+  <datalist id="pl-contrib-list">${contribList}</datalist>
+  <div class="pl-notice">「50億」「1億5000万」のように入れます。</div>
+  <div class="pl-notice" data-importgoal hidden></div>
+</div>
+<div data-box="goal-rank" hidden>
+  <div class="pl-row"><span class="pl-k">順位</span><select data-rank></select></div>
+  <div class="pl-notice" data-rankinfo></div>
+</div>
+<div data-box="goal-none" hidden><div class="pl-notice">目標を決めずに、「この条件で、どこまで行けるか」を見ます。⑤で、1日に走れる時間を入れてください。</div></div>`,
+                now: `
+${this.seg('where', WHERE)}
+<div class="pl-notice">予選では貢献度がほとんど増えないので、予選前と予選中は同じ扱いです（いまの肉の数だけ入れてください）。</div>
+<div class="pl-rows">
+  <div class="pl-row"><span class="pl-k">今の貢献度</span><input type="text" data-f="curText" inputmode="decimal" autocomplete="off" placeholder="なければ空" list="pl-contrib-list" style="width:140px"><span class="pl-calc" data-echo="cur"></span></div>
+  <div class="pl-row"><span class="pl-k">通常肉</span><input type="number" min="0" data-f="meatText" inputmode="numeric" placeholder="未入力"><span class="pl-u">個</span><span class="pl-calc">空にすると、必要な数だけ出します</span></div>
+  <div class="pl-row"><span class="pl-k">250専用素材</span><input type="number" min="0" data-f="matText" inputmode="numeric" placeholder="未入力"><span class="pl-u">個</span><span class="pl-calc">空にすると、素材の数は気にせず、必要な合計を出します</span></div>
+  <div class="pl-row"><span class="pl-k">集める予定の肉</span><input type="number" min="0" data-f="collectText" inputmode="numeric" placeholder="0"><span class="pl-u">個</span><span class="pl-calc">これから集める予定の分（任意）</span></div>
+</div>
+<div class="pl-notice" data-importnow hidden></div>`,
+                star: `
+<div class="pl-row"><span class="pl-k">欲しい本数</span><input type="number" min="0" data-f="starText" inputmode="numeric" placeholder="0"><span class="pl-u">本</span></div>
+<div class="pl-row"><span class="pl-k">見積り</span><select data-f="starMode"><option value="avg">平均の周回数で</option><option value="p90">90%の確率で届く周回数で</option></select></div>
+<div class="pl-notice" data-starinfo></div>`,
+                time: `
+${this.seg('timeMode', [['full', 'しっかり入力'], ['one', '1つだけ入力（ほかは同じ効率で推定）'], ['rough', 'ざっくり（◯分で何回）']])}
+<div data-box="time-full"><div class="pl-notice">討伐効率タブと同じ時間です（ここで入れると、そちらにも入ります）。入れていない難易度は、使いません。</div><div class="pl-rows">${fullRows}</div></div>
+<div data-box="time-one" hidden>
+  <div class="pl-notice">1つだけ入れると、それより上の難易度（例：150HELL なら 200HELL・250HELL）を、同じ貢献度/時間だと考えて、時間を推定します。</div>
+  <div class="pl-row"><span class="pl-k">基準</span><select data-f="oneId">${oneOpts}</select>
+    <input type="number" min="0" data-f="oneMin" class="pl-s" inputmode="numeric" placeholder="0"><span class="pl-u">分</span><input type="number" min="0" max="59" data-f="oneSec" class="pl-s" inputmode="numeric" placeholder="0"><span class="pl-u">秒</span></div>
+  <div class="pl-notice" data-onelist></div>
+</div>
+<div data-box="time-rough" hidden>
+  <div class="pl-notice">時間を計るのが面倒なときは、「◯分で何回周回できたか」を入れます（わかる難易度だけでかまいません）。</div>
+  <div class="pl-rows">${roughRows}</div>
+</div>
+<div class="pl-sub">肉を集める速さ（任意）</div>
+<div class="pl-row"><span class="pl-k">肉集め</span><input type="number" min="1" data-f="gatherMin" class="pl-s" inputmode="numeric" placeholder="10"><span class="pl-u">分で肉</span><input type="number" min="0" data-f="gatherMeat" inputmode="numeric" placeholder="個数"><span class="pl-u">個</span><span class="pl-calc">肉が足りないとき、あと何時間集めればよいかを出します</span></div>`,
+                days: `
+<div class="pl-notice">本戦の日ごとに、走れそうかを選びます。○＝走れる（目標に届く時間を、自動で決めます）／△＝少しだけ／×＝走れない。あとから、結果の日ごとのカードでも変えられます。</div>
+<div class="pl-rows" data-daylist></div>
+<div class="pl-row"><span class="pl-k">△の日の時間</span><input type="number" min="0" step="0.5" data-f="triHours" inputmode="decimal" placeholder="3"><span class="pl-u">時間</span></div>
+<div class="pl-row" data-normalrow hidden><span class="pl-k">○の日の時間</span><input type="number" min="0" step="0.5" data-f="normalHours" inputmode="decimal" placeholder="4"><span class="pl-u">時間（目標を決めないときだけ使います）</span></div>
+<label class="pl-row" style="cursor:pointer;margin-top:6px;"><input type="checkbox" data-f="detail"> 走れる時間を日ごとに細かく入れる</label>`,
+            };
+            this.root.innerHTML = `
+<div class="pl-intro">順番に入れると、目標までの計画が出ます。わからない所は「スキップ」でかまいません。入れた分だけで、わかる範囲の結果を出します。 <button type="button" class="base-btn" data-reset style="margin-left:6px;">最初からやり直す</button></div>
+<div class="pl-chips" data-chips></div>
+<div class="pl-sum" data-sum></div>
+${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<div class="pl-arrow">▼</div>' : '')).join('')}
+<div class="pl-arrow">▼</div>
+<div class="card pl-res" data-res>
+  <div class="card-title">結果</div>
+  <div class="pl-rt" data-rtabs><button type="button" data-rt="time">時間優先</button><button type="button" data-rt="meat">肉優先</button></div>
+  <div data-resbody></div>
+</div>`;
+            this.bind();
+            this.syncInputs();
+            this.update();
+        }
+
+        // ───── 入力の反映 ─────
+        timeRowValue(id) {
+            const sec = this.core.getKillTimes()[id];
+            return sec > 0 ? { min: String(Math.floor(sec / 60)), sec: String(Math.round(sec % 60)) } : { min: '', sec: '' };
+        }
+
+        /** 状態を、入力欄に入れる（開いたとき・ほかのタブから戻ったとき） */
+        syncInputs() {
+            const W = this.state, root = this.root;
+            root.querySelectorAll('[data-f]').forEach((el) => {
+                const k = el.dataset.f;
+                if (el.type === 'checkbox') el.checked = !!W[k]; else el.value = W[k];
+            });
+            root.querySelectorAll('[data-tf]').forEach((el) => { const v = this.timeRowValue(el.dataset.tf); el.value = v[el.dataset.part]; });
+            root.querySelectorAll('[data-rough]').forEach((el) => { const r = W.rough[el.dataset.rough]; el.value = r ? r[el.dataset.part] : ''; });
+        }
+
+        bind() {
+            const root = this.root, W = this.state;
+            const change = () => { this.save(); this.update(); };
+            root.addEventListener('click', (e) => {
+                const t = e.target.closest('button');
+                if (!t || !root.contains(t)) return;
+                if (t.dataset.head) { W.open = W.open === t.dataset.head ? '' : t.dataset.head; return change(); }
+                if (t.dataset.chip) { W.open = t.dataset.chip; this.save(); this.update(); const sec = root.querySelector(`[data-step="${W.open}"]`); if (sec && sec.scrollIntoView) sec.scrollIntoView({ block: 'nearest' }); return; }
+                if (t.dataset.next || t.dataset.skip) {
+                    const id = t.dataset.next || t.dataset.skip;
+                    if (t.dataset.skip) W.skipped[id] = true; else delete W.skipped[id];
+                    const i = STEPS.findIndex((s) => s.id === id);
+                    W.open = i + 1 < STEPS.length ? STEPS[i + 1].id : '';
+                    this.save(); this.update();
+                    const tgt = W.open ? root.querySelector(`[data-step="${W.open}"]`) : root.querySelector('[data-res]');
+                    if (tgt && tgt.scrollIntoView) tgt.scrollIntoView({ block: 'nearest' });
+                    return;
+                }
+                if (t.dataset.reset != null) {
+                    if (!global.confirm('入力した目標・今の状況・極星器・タイムなどを、すべて消します。よろしいですか？（討伐効率タブの討伐時間は、そのまま残ります）')) return;
+                    const fresh = this.freshState();
+                    Object.keys(W).forEach((k) => delete W[k]);
+                    Object.assign(W, fresh, { fresh: false });
+                    this.syncInputs();
+                    return change();
+                }
+                if (t.dataset.import) { this.importFromTabs(t.dataset.import); this.syncInputs(); return change(); }
+                if (t.dataset.rt) { W.tab = t.dataset.rt; return change(); }
+                if (t.dataset.mark) { W.marks[t.dataset.day] = t.dataset.mark; return change(); }
+                const seg = t.closest('[data-seg]');
+                if (seg && t.dataset.v != null) { W[seg.dataset.seg] = t.dataset.v; delete W.skipped[{ goalKind: 'goal', where: 'now', timeMode: 'time' }[seg.dataset.seg]]; return change(); }
+            });
+            root.addEventListener('input', (e) => this.onInput(e));
+            root.addEventListener('change', (e) => this.onInput(e));
+        }
+
+        onInput(e) {
+            const el = e.target, W = this.state;
+            if (el.dataset.f != null) {
+                W[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value;
+                if (['goalText'].includes(el.dataset.f)) delete W.skipped.goal;
+            } else if (el.dataset.rank != null) {
+                W.goalRank = parseInt(el.value) || 0;
+            } else if (el.dataset.rough != null) {
+                const id = el.dataset.rough;
+                W.rough[id] = { min: '', runs: '', ...(W.rough[id] || {}) };
+                W.rough[id][el.dataset.part] = el.value;
+            } else if (el.dataset.hours != null) {
+                W.hours[el.dataset.hours] = el.value;
+            } else if (el.dataset.tf != null) {
+                const id = el.dataset.tf;
+                const minEl = this.root.querySelector(`[data-tf="${id}"][data-part="min"]`), secEl = this.root.querySelector(`[data-tf="${id}"][data-part="sec"]`);
+                const sec = (num(minEl.value) || 0) * 60 + (num(secEl.value) || 0);
+                this.core.setKillTime(id, sec > 0 ? sec : null);
+            } else return;
+            this.save();
+            this.update();
+        }
+
+        /** ほかのタブの入力が復元されたあとに、ページ側から呼ぶ：まだ何も保存していなければ、ほかのタブの目標・肉などを取り込む */
+        afterRestore() {
+            if (this.state.fresh) this.adopt();
+            this.syncInputs();
+            this.update();
+        }
+
+        /** ほかのタブから戻ったとき：討伐効率タブで変えた時間などを、取り込む */
+        refresh() {
+            this.syncInputs();
+            this.update();
+        }
+
+        // ───── 計算と表示 ─────
+        env() {
+            const rows = (this.opts.getBorderRows ? this.opts.getBorderRows() : []).filter((r) => r.rank > 0 && (r.final != null || r.current != null) && (r.final ?? r.current) > 0);
+            const points = rows.map((r) => ({ rank: r.rank, value: r.final != null ? r.final : r.current })).sort((a, b) => a.rank - b.rank);
+            return { core: this.core, rows, points, trehun: this.opts.getTrehun ? this.opts.getTrehun() : null };
+        }
+
+        update() {
+            const W = this.state, core = this.core;
+            const env = this.env();
+            this._env = env;
+            const R = compute(W, env);
+            this.R = R;
+            const root = this.root;
+            const $ = (sel) => root.querySelector(sel);
+            const fmtC = core.fmtC;
+
+            // 切り替えボタンと、枠の出し入れ
+            root.querySelectorAll('[data-seg]').forEach((seg) => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === String(W[seg.dataset.seg]))));
+            root.querySelectorAll('[data-rt]').forEach((b) => b.classList.toggle('on', b.dataset.rt === W.tab));
+            ['goal-number', 'goal-rank', 'goal-none'].forEach((k) => { const el = $(`[data-box="${k}"]`); if (el) el.hidden = k !== `goal-${W.goalKind}`; });
+            ['time-full', 'time-one', 'time-rough'].forEach((k) => { const el = $(`[data-box="${k}"]`); if (el) el.hidden = k !== `time-${W.timeMode}`; });
+            const normalRow = $('[data-normalrow]'); if (normalRow) normalRow.hidden = W.goalKind !== 'none';
+            STEPS.forEach((st) => {
+                const open = W.open === st.id;
+                $(`[data-body="${st.id}"]`).hidden = !open;
+                $(`[data-head="${st.id}"]`).setAttribute('aria-expanded', open ? 'true' : 'false');
+                $(`[data-step="${st.id}"]`).classList.toggle('open', open);
+            });
+
+            // 順位の選択肢
+            const sel = $('[data-rank]');
+            if (sel) {
+                const opts = env.rows.slice().sort((a, b) => a.rank - b.rank);
+                const html = opts.length ? opts.map((r) => `<option value="${r.rank}">${esc(r.label)}（${r.final != null ? '最終予想' : '現在'} ${fmtC(r.final != null ? r.final : r.current)}）</option>`).join('') : '<option value="0">ボーダーの値がありません</option>';
+                if (sel.dataset.sig !== html) { sel.innerHTML = html; sel.dataset.sig = html; }
+                if (!opts.some((r) => r.rank === W.goalRank) && opts.length) { W.goalRank = (opts.find((r) => r.rank === 2000) || opts[0]).rank; this.save(); }
+                sel.value = String(W.goalRank);
+            }
+            const rankInfo = $('[data-rankinfo]');
+            if (rankInfo) rankInfo.innerHTML = R.goal.kind === 'rank' && R.goal.value ? `${esc(R.goal.label)}の${R.goal.basis === 'final' ? '最終予想' : '現在のボーダー'}：<b>${fmtC(R.goal.value)}</b>` : (env.rows.length ? '' : 'ボーダータブに値がありません。<a href="#border">ボーダータブ</a>で「最新を取得」を押すか、値を入れてください。');
+
+            // 入力のとなりの表示
+            const echo = (k, text) => { const el = $(`[data-echo="${k}"]`); if (el) el.textContent = text; };
+            const goalN = core.parseGoal(W.goalText), curN = core.parseGoal(W.curText);
+            echo('goal', blank(W.goalText) ? '' : (goalN ? `＝ ${goalN.toLocaleString()}` : '読み取れません'));
+            echo('cur', blank(W.curText) ? '' : (curN != null ? `＝ ${curN.toLocaleString()}` : '読み取れません'));
+            // ほかのタブの値が、ここと違うときの案内
+            const o = this.otherTabs();
+            const goalDiff = o.goal && core.parseGoal(o.goal) > 0 && !(W.goalKind === 'number' && core.parseGoal(W.goalText) === core.parseGoal(o.goal));
+            const impG = $('[data-importgoal]');
+            if (impG) { impG.hidden = !goalDiff; if (goalDiff) impG.innerHTML = `目標計算タブには「<b>${esc(o.goal)}</b>」が入っています。<button type="button" class="base-btn" data-import="goal">これを使う</button>`; }
+            const nowDiffs = [];
+            if (o.cur && core.parseGoal(o.cur) !== (core.parseGoal(W.curText) || 0)) nowDiffs.push(`今の貢献度 ${esc(o.cur)}`);
+            if (o.meat && o.meat !== String(int0(W.meatText))) nowDiffs.push(`通常肉 ${Number(o.meat).toLocaleString()}個`);
+            if (o.mat && o.mat !== String(int0(W.matText))) nowDiffs.push(`250専用素材 ${Number(o.mat).toLocaleString()}個`);
+            const impN = $('[data-importnow]');
+            if (impN) { impN.hidden = !nowDiffs.length; if (nowDiffs.length) impN.innerHTML = `ほかのタブには「${nowDiffs.join('・')}」が入っています。<button type="button" class="base-btn" data-import="now">これを使う</button>`; }
+            this.updateStarInfo(R, env);
+            this.updateTimeInfo(R);
+            this.updateDayList(R);
+
+            // 要約・進み具合・結果
+            STEPS.forEach((st) => {
+                const s = this.stepState(st.id, R);
+                const stEl = $(`[data-state="${st.id}"]`);
+                stEl.textContent = s.label; stEl.className = `pl-state ${s.cls}`;
+                $(`[data-summ="${st.id}"]`).textContent = s.summary;
+            });
+            $('[data-chips]').innerHTML = STEPS.map((st) => { const s = this.stepState(st.id, R); return `<button type="button" class="pl-chip ${s.cls}${W.open === st.id ? ' on' : ''}" data-chip="${st.id}">${st.no} ${esc(st.title.replace('（なくてもよい）', ''))}</button>`; }).join('');
+            $('[data-sum]').innerHTML = this.summaryHtml(R);
+            $('[data-resbody]').innerHTML = this.resultHtml(R, env);
+        }
+
+        stepState(id, R) {
+            const W = this.state, core = this.core, fmtC = core.fmtC;
+            const skipped = !!W.skipped[id];
+            let done = false, summary = '';
+            if (id === 'goal') {
+                done = R.goal.kind === 'none' || R.goal.value > 0;
+                summary = R.goal.kind === 'none' ? '決めない' : (R.goal.value > 0 ? fmtC(R.goal.value) : '未入力');
+            } else if (id === 'now') {
+                done = !blank(W.meatText) || !blank(W.curText) || !blank(W.matText) || W.where !== 'pre';
+                const where = (WHERE.find((x) => x[0] === W.where) || WHERE[0])[1].replace('（予選前・予選中）', '');
+                summary = `${where}・肉 ${blank(W.meatText) ? '―' : int0(W.meatText).toLocaleString()}`;
+            } else if (id === 'star') {
+                done = !!(R.star && !R.star.error);
+                summary = R.star ? (R.star.error ? 'エラー' : `${R.star.n}本（約 ${R.star.runs.toLocaleString()}周）`) : 'なし';
+            } else if (id === 'time') {
+                const n = Object.keys(R.ti.times).length - R.ti.estimated.length;
+                done = n > 0;
+                summary = n > 0 ? `${n}つ入力${R.ti.estimated.length ? `＋推定${R.ti.estimated.length}つ` : ''}` : '未入力';
+            } else if (id === 'days') {
+                done = DAYS.some((d) => W.marks[d] !== 'o' || (W.detail && !blank(W.hours[d]))) || W.where !== 'pre';
+                summary = R.days.filter((d) => !d.past).map((d) => ({ o: '○', t: '△', x: '×' }[d.mark])).join('') || '―';
+            }
+            return { label: skipped && !done ? 'スキップ' : (done ? '入力済み' : (id === 'days' ? '初期値' : '未入力')), cls: done ? 'done' : (skipped ? 'skip' : ''), summary, done };
+        }
+
+        updateStarInfo(R, env) {
+            const el = this.root.querySelector('[data-starinfo]');
+            if (!el) return;
+            const t = env.trehun, core = this.core;
+            if (!t) { el.textContent = ''; return; }
+            const d = core.HELL_DIFFS.find((x) => x.id === t.diff);
+            const p = t.item;
+            let html = `周回する難易度：<b>${d ? esc(d.name) : '―'}</b>、1周でアイテムが落ちる確率：<b>${(Math.round(p * 1000) / 1000)}%</b>（箱 ${Math.round(t.box * 1000) / 1000}% × アイテム ${t.itemRate}%。<a href="#trehun">トレハンタブ</a>の設定です。ドロップ率アップや、アイテムの確率を入れると変わります）。`;
+            if (R.star && !R.star.error) {
+                const s = R.star;
+                html += `<br>${s.n}本なら、平均で <b>約 ${s.runsAvg.toLocaleString()}周</b>、90%の確率で届くのは <b>${s.runs90.toLocaleString()}周</b>。${s.secPer ? `（時間 約 ${core.fmtHM(s.sec)}・肉 ${s.meat.toLocaleString()}個・貢献度 +${core.fmtC(s.contrib)}）` : '（④で、この難易度の討伐タイムを入れると、時間も出ます）'}`;
+            } else if (R.star && R.star.error) html += `<br><span class="pl-bad">${esc(R.star.error)}</span>`;
+            el.innerHTML = html;
+        }
+
+        updateTimeInfo(R) {
+            const root = this.root, core = this.core, W = this.state;
+            // 「ざっくり」：1回あたりの時間
+            core.HELL_DIFFS.forEach((d) => {
+                const el = root.querySelector(`[data-roughcalc="${d.id}"]`);
+                if (!el) return;
+                const t = R.ti.mode === 'rough' ? R.ti.times[d.id] : null;
+                el.textContent = t ? `＝ 1回 約 ${core.fmtTime(Math.round(t))}` : '';
+            });
+            // 「1つだけ」：推定した時間の一覧
+            const one = root.querySelector('[data-onelist]');
+            if (one) {
+                one.innerHTML = R.ti.base
+                    ? `推定した時間：${core.HELL_DIFFS.filter((d) => R.ti.estimated.includes(d.id)).map((d) => `${esc(d.name)} ${core.fmtTime(Math.round(R.ti.times[d.id]))}`).join('・') || 'なし（基準より上の難易度がありません）'}。基準より下の難易度は、使いません。`
+                    : '基準の難易度と時間を入れてください。';
+            }
+        }
+
+        /** ⑤：日ごとの ○△×（と、細かい時間）の並び */
+        updateDayList(R) {
+            const list = this.root.querySelector('[data-daylist]');
+            if (!list) return;
+            const W = this.state;
+            const sig = JSON.stringify([R.days.map((d) => [d.id, d.past, d.now]), W.detail]);
+            if (list.dataset.sig !== sig) {
+                list.dataset.sig = sig;
+                list.innerHTML = R.days.map((d) => `
+<div class="pl-row${d.past ? ' pl-day-past' : ''}" data-dayrow="${d.id}"><span class="pl-k">${esc(this.dayName(d.id))}${d.now ? '（今日）' : ''}</span>
+  ${d.past ? '<span class="pl-calc">終わりました</span>' : `<span class="pl-marks">${MARKS.map(([v, t]) => `<button type="button" data-mark="${v}" data-day="${d.id}">${t}</button>`).join('')}</span>
+  ${W.detail ? `<input type="number" min="0" max="17" step="0.5" data-hours="${d.id}" inputmode="decimal" placeholder="自動"><span class="pl-u">時間</span>` : ''}`}</div>`).join('');
+                list.querySelectorAll('[data-hours]').forEach((el) => { el.value = W.hours[el.dataset.hours]; });
+            }
+            list.querySelectorAll('[data-mark]').forEach((b) => b.classList.toggle('on', W.marks[b.dataset.day] === b.dataset.mark));
+        }
+
+        dayName(id) { return (this.core.PHASES.find((p) => p.id === id) || {}).name || id; }
+
+        // ───── 結果 ─────
+        hhmm(h) { return h ? this.core.fmtTime(Math.round(h * 3600)) : '0時間'; }
+
+        summaryHtml(R) {
+            const core = this.core, fmtC = core.fmtC, W = this.state;
+            if (R.done) return '🎉 今の貢献度で、すでに目標を超えています';
+            if (R.starCovers) return `極星器の周回だけで、目標に届きます（貢献度 +${fmtC(R.star.contrib)}）`;
+            const v = R.views && R.views[W.tab];
+            if (v) {
+                const meat = v.req ? `必要な通常肉 ${v.req.meat.toLocaleString()}個${v.shortage ? (v.shortage.meat > 0 ? `（<span class="pl-bad">あと ${v.shortage.meat.toLocaleString()}個</span>）` : '（足ります）') : ''}` : '';
+                return `<b>${W.tab === 'time' ? '時間優先' : '肉優先'}</b>：${this.headline(v, R, true)}${meat ? ` ／ ${meat}` : ''}`;
+            }
+            const f = R.forward && R.forward[W.tab];
+            if (f) return `<b>この条件だと</b>、貢献度 約 ${fmtC(f.finalTotal)}${f.rank ? `（順位の目安：${f.rank.text}）` : ''}`;
+            if (R.goal.value > 0 && R.counts) return `目標まで あと ${fmtC(R.need0)}。④で討伐タイムを入れると、毎日の時間と肉の計画が出ます。`;
+            return '<small>①目標を入れる（または「決めない」）と、ここに要点が出ます。</small>';
+        }
+
+        /** 見出しの文（short = 要約用の短い形） */
+        headline(v, R, short) {
+            const core = this.core;
+            const future = v.days.filter((d) => !R.days.find((x) => x.id === d.id).past);
+            const autos = future.filter((d) => !d.fixed);
+            const who = autos.length === future.length ? '毎日' : `自動の日（${autos.map((d) => d.name).join('・')}）は`;
+            if (v.hasAuto) {
+                return v.reachable
+                    ? `${who} 約 ${this.hhmm(v.autoHours)}ずつで、届きます`
+                    : `${who} ${core.DAY_MAX_HOURS}時間ずつ（1日の上限）でも、届きません`;
+            }
+            return v.reachable ? `決めた時間で、届きます（見込み ${core.fmtC(v.finalTotal)}）` : `決めた時間では、届きません（見込み ${core.fmtC(v.finalTotal)}）`;
+        }
+
+        notices(R) {
+            const out = [];
+            const g = R.goal;
+            if (g.kind === 'number' && g.empty) out.push('①で目標を入れてください（「決めない」を選ぶと、この条件でどこまで行けるかを出します）。');
+            if (g.kind === 'number' && g.invalid) out.push('目標を読み取れません。「50億」「1億5000万」のように入れてください。');
+            if (g.kind === 'rank' && g.missing) out.push('選んだ順位のボーダーがありません。<a href="#border">ボーダータブ</a>で値を取得してください。');
+            if (g.kind === 'none' && !R.hasTime) out.push('④で討伐タイムを1つでも入れると、毎日の時間と肉の計画が出ます。1つだけでも、ほかの難易度を同じ効率で推定できます。');
+            if (g.value > 0 && R.hasTime && !R.meatKnown && R.views) out.push('通常肉が未入力なので、足りるかどうかは出していません（必要な数だけ出します）。');
+            return out;
+        }
+
+        resultHtml(R, env) {
+            const core = this.core, W = this.state, fmtC = core.fmtC;
+            const parts = [];
+            if (R.views) parts.push(this.compareHtml(R));
+            this.notices(R).forEach((t) => parts.push(`<div class="pl-notice">${t}</div>`));
+            if (R.done) parts.push('<div class="pl-ok">🎉 今の貢献度で、すでに目標を超えています</div>');
+            if (R.star) parts.push(this.starHtml(R));
+            if (R.starCovers) parts.push(`<div class="pl-ok">極星器の周回だけで、目標に届きます（貢献度 +${fmtC(R.star.contrib)}）</div>`);
+            const v = R.views && R.views[W.tab];
+            if (v) parts.push(this.planHtml(v, R));
+            const f = R.forward && R.forward[W.tab];
+            if (f) parts.push(this.forwardHtml(f, R));
+            if (!v && !f && R.counts && !R.done && !R.starCovers) parts.push(this.countsHtml(R));
+            if (!parts.length) parts.push('<div class="no-data">①から順に入れると、ここに結果が出ます</div>');
+            return parts.join('');
+        }
+
+        /** 時間優先と肉優先を、1行ずつ並べる（結果のタブを切り替えなくても、見比べられるように） */
+        compareHtml(R) {
+            const line = (k, name) => {
+                const v = R.views[k];
+                const meat = v.req ? `必要な通常肉 ${v.req.meat.toLocaleString()}個` : '';
+                return `<div>${W_TAB(this.state.tab, k)}<b>${name}</b>：${this.headline(v, R, true)}${meat ? `・${meat}` : ''}</div>`;
+            };
+            return `<div class="pl-line" style="margin-bottom:8px;">${line('time', '時間優先')}${line('meat', '肉優先')}</div>`;
+        }
+
+        starHtml(R) {
+            const core = this.core, s = R.star;
+            if (s.error) return `<div class="pl-star"><div class="pl-bad">極星器：${esc(s.error)}</div></div>`;
+            const pl = R.placement;
+            return `<div class="pl-star"><div class="pl-line"><b>極星器 ${s.n}本</b>：${esc(s.diff.name)} を <b>約 ${s.runs.toLocaleString()}周</b>（${this.state.starMode === 'p90' ? '90%の確率で届く周回数' : '平均'}。平均 ${s.runsAvg.toLocaleString()}周・90%で ${s.runs90.toLocaleString()}周）</div>
+<div class="pl-line">${s.secPer ? `時間 約 <b>${core.fmtHM(s.sec)}</b>・` : ''}${s.diff.is250 ? '' : `肉 <b>${s.meat.toLocaleString()}個</b>・`}貢献度 <b>+${core.fmtC(s.contrib)}</b>（目標から引いて、残りを計画します）</div>
+${pl && pl.days.length ? `<div class="pl-line">${pl.days.map((id) => this.dayName(id)).join('・')}に、1日 約 <b>${core.fmtHM(pl.perDay)}</b>ずつ回すと考えます。${pl.perDay / 3600 > core.DAY_MAX_HOURS ? `<span class="pl-bad">1日 ${core.DAY_MAX_HOURS}時間を超えます。欲しい本数を減らすか、走れる日を増やしてください。</span>` : ''}</div>` : (s.secPer ? '<div class="pl-line pl-bad">周回できる日がありません（走れる日と、難易度の解放日を確かめてください）。</div>' : '')}</div>`;
+        }
+
+        planHtml(v, R) {
+            const core = this.core, fmtC = core.fmtC, W = this.state;
+            const future = v.days.filter((d) => !R.days.find((x) => x.id === d.id).past);
+            const total = future.reduce((a, d) => a + d.hours, 0);
+            const star = R.star && !R.star.error ? R.star : null;
+            const goal = R.goal.value;
+            const lines = [];
+            lines.push(`<div class="pl-head-line ${v.reachable ? '' : 'ng'}">${this.headline(v, R)}</div>`);
+            if (!v.reachable) lines.push(`<div class="pl-line">そのときの見込みは <b>${fmtC(v.finalTotal)}</b>（あと ${fmtC(Math.max(0, goal - v.finalTotal))}）。</div>`);
+            lines.push(`<div class="pl-line">使う時間は、合計 <b>${this.hhmm(total)}</b>${star && star.sec ? `（＋極星器の周回 ${core.fmtHM(star.sec)}）` : ''}。${v.bd.length ? `<br>難易度ごとの時間：${esc(core.hoursText(v.bd, '・'))}` : ''}</div>`);
+            // 必要な肉・素材
+            const sh = v.shortage;
+            const matKnown = R.mat250 != null;
+            const boxes = [];
+            if (v.req) {
+                boxes.push(`<div class="pl-box"><div class="k">必要な通常肉</div><div class="v">${v.req.meat.toLocaleString()}個</div><div class="s">${sh ? (sh.meat > 0 ? `<span class="pl-bad">いま ${(R.meat + R.collect).toLocaleString()}個 → あと ${sh.meat.toLocaleString()}個 足りません</span>（200HELL なら約 ${Math.ceil(sh.meat / 20).toLocaleString()}回ぶん）` : `<span class="pl-good">いま ${(R.meat + R.collect).toLocaleString()}個で足ります</span>`) : '（いまの肉が未入力）'}${star && star.meat ? `<br>極星器の周回の肉 ${star.meat.toLocaleString()}個は、別です` : ''}</div></div>`);
+                boxes.push(`<div class="pl-box"><div class="k">必要な250専用素材</div><div class="v">${v.req.mat > 0 ? `${v.req.mat.toLocaleString()}個` : '使いません'}</div><div class="s">${v.req.mat > 0 ? `250HELL ${Math.ceil(v.req.mat / 20).toLocaleString()}回` : ''}${matKnown && v.req.mat > 0 ? (sh && sh.mat > 0 ? `<br><span class="pl-bad">いま ${R.mat250.toLocaleString()}個 → あと ${sh.mat.toLocaleString()}個 足りません</span>` : `<br><span class="pl-good">いま ${R.mat250.toLocaleString()}個で足ります</span>`) : (v.req.mat > 0 ? '<br>（いまの素材は未入力）' : '')}</div></div>`);
+            }
+            boxes.push(`<div class="pl-box"><div class="k">見込みの貢献度</div><div class="v">${fmtC(v.finalTotal)}</div><div class="s">目標 ${fmtC(goal)}（${Math.round(v.finalTotal / goal * 100)}%）${this.rankText(v.finalTotal, R) ? `<br>順位の目安：${this.rankText(v.finalTotal, R)}` : ''}</div></div>`);
+            lines.push(`<div class="pl-grid">${boxes.join('')}</div>`);
+            // 提案
+            const adv = [];
+            if (sh && sh.meat > 0) {
+                const g = R.gatherPerHour;
+                const gatherH = g ? sh.meat / g : null;
+                const autoDays = v.days.filter((d) => !d.fixed && !R.days.find((x) => x.id === d.id).past).length;
+                const saveH = v.hasAuto && v.idealReach && v.reachable ? Math.max(0, v.autoHours - v.idealHours) * autoDays : 0;
+                adv.push(`通常肉があと ${sh.meat.toLocaleString()}個 足りません。${g ? `肉集めが「${esc(W.gatherMin)}分で ${esc(W.gatherMeat)}個」なら、あと <b>約 ${core.fmtHM(gatherH * 3600)}</b> 集めると足ります（予選などで）。` : '④で「◯分で肉◯個」を入れると、あと何時間集めればよいかも出ます。'}②の「集める予定の肉」に入れると、計画に反映されます。`);
+                if (saveH > 0) adv.push(`肉が足りれば、毎日 約 ${this.hhmm(v.idealHours)}で届きます（いまは 約 ${this.hhmm(v.autoHours)}）。本戦で、合計 <b>約 ${core.fmtHM(saveH * 3600)}</b> 節約できます${gatherH ? (gatherH < saveH ? `。集める時間（約 ${core.fmtHM(gatherH * 3600)}）より長いので、集める価値があります。` : `。ただし、集める時間（約 ${core.fmtHM(gatherH * 3600)}）のほうが長いので、無理に集めなくてもかまいません。`) : '。'}`);
+            }
+            const pl = R.placement;
+            if (pl && pl.days.length) {
+                const over = v.days.filter((d) => pl.days.includes(d.id) && d.hours + pl.perDay / 3600 > core.DAY_MAX_HOURS + 1e-9);
+                if (over.length) adv.push(`極星器の周回を入れると、${over.map((d) => esc(d.name)).join('・')}は、1日 ${core.DAY_MAX_HOURS}時間（本戦の1日に遊べる上限）を超えます。走れる日を増やすか、欲しい本数を減らしてください。`);
+            }
+            if (sh && sh.mat > 0) adv.push(`250専用素材があと ${sh.mat.toLocaleString()}個（250HELL ${Math.ceil(sh.mat / 20).toLocaleString()}回ぶん）足りません。足りないぶんは、ほかの難易度で回すので、いまの計画は時間が増えています。`);
+            if (!v.reachable && v.idealReach && v.hasAuto) adv.push(`肉と素材が足りれば、${this.headline({ ...v, reachable: true, autoHours: v.idealHours }, R)}。`);
+            if (!v.reachable && !v.idealReach) adv.push(`この走れる日・タイムだと、肉と素材が十分あっても届きません。目標を下げるか、走れる日（×・△）を減らすか、討伐タイムを縮めてください。${this.rankText(v.finalTotal, R) ? `いまの条件で届くのは 約 ${fmtC(v.finalTotal)}（順位の目安：${this.rankText(v.finalTotal, R)}）です。` : ''}`);
+            if (!v.hasAuto && v.reachable === false) adv.push('すべての日の時間を決めているので、時間を増やすか、「○」にして自動にすると、届く時間を出せます。');
+            if (adv.length) lines.push(`<ul class="pl-advice">${adv.map((a) => `<li>${a}</li>`).join('')}</ul>`);
+            // 日ごとのカード
+            lines.push(`<div class="pl-days">${v.days.map((d) => this.dayCard(d, R, v)).join('')}</div>`);
+            if (v.checkpoints.length) lines.push(`<div class="pl-line"><b>${v.reachable ? '各日の終了時に、これだけの貢献度があれば順調です' : 'この条件だと、各日の終了時の見込み'}</b><br>${v.checkpoints.map((c) => `${esc(c.name)}終了時：<b>${fmtC(c.total)}</b>（目標の ${Math.round(c.total / goal * 100)}%）`).join('<br>')}</div>`);
+            return lines.join('');
+        }
+
+        rankText(value, R) {
+            const r = rankEstimate(value, (this._env || this.env()).points);
+            return r ? r.text : '';
+        }
+
+        dayCard(d, R, v) {
+            const core = this.core, fmtC = core.fmtC;
+            const st = R.days.find((x) => x.id === d.id);
+            const pl = R.placement;
+            const starT = pl && pl.days.includes(d.id) ? pl.perDay : 0;
+            let title, body = '';
+            if (st.past) { title = '終わりました'; }
+            else if (d.noTier) title = '使える難易度なし';
+            else if (d.hours <= 0 && !starT) title = '走らない';
+            else title = `${this.hhmm(d.hours)}${d.fixed ? '' : '（自動）'}`;
+            if (!st.past) {
+                body = d.parts.length ? d.parts.map((p) => `${esc(p.name)} ${p.runs.toLocaleString()}回`).join('<br>') : (d.hours > 0 && !d.noTier ? '<span class="pl-card-f">回数なし（いまの肉は、ほかの日に回すほうが、貢献度が高いため）</span>' : '');
+                if (starT > 0) body += `${body ? '<br>' : ''}＋極星器 ${core.fmtHM(starT)}（${esc(R.star.diff.name)}）`;
+            }
+            const marks = st.past ? '' : `<span class="pl-marks">${MARKS.map(([m, t]) => `<button type="button" data-mark="${m}" data-day="${d.id}" class="${st.mark === m ? 'on' : ''}">${t}</button>`).join('')}</span>`;
+            return `<div class="pl-card${st.past ? ' past' : ''}"><div class="pl-card-h"><b>${esc(d.name)}</b>${marks}</div><div class="pl-card-t">${title}</div><div>${body}</div>${st.past || !d.gain ? '' : `<div class="pl-card-f">獲得 ${fmtC(d.gain)}${d.meat ? `・肉 ${d.meat.toLocaleString()}` : ''}${d.mat ? `・素材 ${d.mat.toLocaleString()}` : ''}</div>`}</div>`;
+        }
+
+        forwardHtml(f, R) {
+            const core = this.core, fmtC = core.fmtC;
+            const lines = [];
+            lines.push(`<div class="pl-head-line">この条件だと、貢献度 約 ${fmtC(f.finalTotal)}${f.rank ? `（順位の目安：${f.rank.text}）` : ''}</div>`);
+            lines.push(`<div class="pl-line">使う時間は、合計 <b>${this.hhmm(f.days.reduce((a, d) => a + d.hours, 0))}</b>。${f.bd.length ? `<br>難易度ごとの時間：${esc(core.hoursText(f.bd, '・'))}` : ''}<br>使う通常肉 <b>${f.use.meat.toLocaleString()}個</b>${f.use.mat ? `・250専用素材 <b>${f.use.mat.toLocaleString()}個</b>` : ''}${R.meatKnown ? '' : '（いまの肉が未入力なので、肉は足りる前提です）'}</div>`);
+            lines.push(`<div class="pl-days">${f.days.map((d) => this.dayCard(d, R, f)).join('')}</div>`);
+            if (f.checkpoints.length) lines.push(`<div class="pl-line"><b>各日の終了時の見込み</b><br>${f.checkpoints.map((c) => `${esc(c.name)}終了時：<b>${fmtC(c.total)}</b>`).join('<br>')}</div>`);
+            lines.push('<div class="pl-notice">目標を入れると、そこに届くのに必要な時間・肉が出ます（①）。</div>');
+            return lines.join('');
+        }
+
+        countsHtml(R) {
+            const core = this.core, fmtC = core.fmtC;
+            const rows = R.counts.map((c) => `<tr><td>${esc(c.name)}</td><td>${c.runs.toLocaleString()}回</td><td>${c.sec ? core.fmtTime(Math.round(c.sec)) : '―'}</td><td>${c.meat ? `${c.meat.toLocaleString()}個` : (c.mat ? `${c.mat.toLocaleString()}個（素材）` : '―')}</td></tr>`).join('');
+            return `<div class="pl-notice">討伐タイムがないので、<b>各難易度だけで回したとき</b>の回数の目安を出しています（あと ${fmtC(R.need0)}）。④で討伐タイムを1つでも入れると、毎日の時間と、肉の計画が出ます。</div>
+<div style="overflow-x:auto"><table class="data-table"><thead><tr><th>難易度</th><th>必要回数</th><th>所要時間</th><th>必要な肉（素材）</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        }
+    }
+
+    PlanPanel.runsForCount = runsForCount;
+    PlanPanel.effectiveTimes = effectiveTimes;
+    PlanPanel.rankEstimate = rankEstimate;
+    PlanPanel.hoursOptFrom = hoursOptFrom;
+    PlanPanel.dayStates = dayStates;
+    PlanPanel.starInfo = starInfo;
+    PlanPanel.compute = compute;
+    PlanPanel.DEFAULTS = DEFAULTS;
+    global.PlanPanel = PlanPanel;
+})(window);

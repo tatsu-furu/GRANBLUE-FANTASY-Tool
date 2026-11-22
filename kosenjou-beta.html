@@ -510,7 +510,7 @@
         <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:8px;">
             <div>
                 <h1>古戦場 効率計算ツール</h1>
-                <p>討伐効率比較 / 目標計算 / 肉計算 / スケジュール / ボーダー / トレハン</p>
+                <p>かんたん計画 / 討伐効率比較 / 目標計算 / 肉計算 / スケジュール / ボーダー / トレハン</p>
             </div>
             <button id="help-open-btn" style="padding:8px 16px;background:var(--accent-lo);border:none;color:var(--on-accent);border-radius:6px;cursor:pointer;font-size:0.85em;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(62,200,223,0.25);transition:background 0.15s,transform 0.12s;" onmouseover="this.style.background='var(--accent)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='var(--accent-lo)';this.style.transform=''">使い方</button>
         </div>
@@ -585,6 +585,22 @@
 
         <!-- ③ タブ別詳細 (collapsible) -->
         <p style="font-size:0.75em;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;">タブ別詳細</p>
+
+        <details style="margin-bottom:8px;">
+            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
+                <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> かんたん計画タブ
+            </summary>
+            <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
+                <p style="margin-bottom:6px;">目標・今の状況・極星器・討伐タイム・走れる日を、<strong style="color:var(--text);">順番に入れる</strong>と、目標までの計画（毎日の時間・必要な肉と素材・日ごとの計画）が出ます。わからない所は「スキップ」でかまいません。入れた分だけで、わかる範囲の結果を出します。</p>
+                <ul style="padding-left:14px;display:flex;flex-direction:column;gap:4px;">
+                    <li><strong style="color:var(--text);">目標</strong>は、数字・ボーダーの順位から選ぶ・決めない（この条件でどこまで行けるか）の3つ</li>
+                    <li><strong style="color:var(--text);">討伐タイム</strong>は、しっかり入力（討伐効率タブと同じ）・1つだけ入れてほかは同じ効率で推定・「◯分で何回」のざっくり入力から選べます</li>
+                    <li><strong style="color:var(--text);">極星器</strong>は、欲しい本数から、トレハンタブのドロップ率で周回数を出し、時間・肉・貢献度に反映します</li>
+                    <li>結果は<strong style="color:var(--text);">時間優先・肉優先</strong>のタブで切り替え。日ごとのカードの ○△× を押すと、走れない日を除いて、組み直します</li>
+                    <li>肉が足りないときは、「◯分で肉◯個」を入れておくと、あと何時間集めればよいかも出ます</li>
+                </ul>
+            </div>
+        </details>
 
         <details style="margin-bottom:8px;">
             <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
@@ -710,6 +726,7 @@
     </div>
 
     <nav class="tabs">
+        <button class="tab-btn" data-tab="plan">かんたん計画</button>
         <button class="tab-btn active" data-tab="efficiency">討伐効率</button>
         <button class="tab-btn" data-tab="target">目標計算</button>
         <button class="tab-btn" data-tab="meat">肉計算</button>
@@ -717,6 +734,9 @@
         <button class="tab-btn" data-tab="border">ボーダー</button>
         <button class="tab-btn" data-tab="trehun">トレハン</button>
     </nav>
+
+    <!-- ===== TAB 0: かんたん計画（kosenjou-plan.js） ===== -->
+    <div id="tab-plan" class="tab-content"><div id="plan-panel"></div></div>
 
     <!-- ===== TAB 1: 討伐効率 ===== -->
     <div id="tab-efficiency" class="tab-content active">
@@ -1916,6 +1936,11 @@ function scheduleTimes() {
     return { times, estimated, base };
 }
 
+// 難易度ごとの、計画用の入力（時間は秒。入れていない難易度は null。estimatedIds は、推定した難易度の id）
+function planDiffsFrom(times, estimatedIds) {
+    return HELL_DIFFS.map(d => ({ id: d.id, name: d.name, tier: tierOf(d), contrib: d.contrib, chunks: d.chunks, is250: d.is250, time: times[d.id] || null, estimated: estimatedIds.includes(d.id) }));
+}
+
 // 予定の計算に使う入力（所持の肉 + 集める予定の肉、250専用素材、難易度ごとの討伐時間）。
 // 250専用素材：「必要な総数を出す」（総数モード）は null（素材の数を気にしない）。「予定数から、回数の上限を出す」（上限モード）は、予定数（空なら肉計算タブの数）
 function schedulePlanInput() {
@@ -1927,7 +1952,7 @@ function schedulePlanInput() {
     return {
         stock: (parseInt($('m-normal').value) || 0) + (parseInt($('s-collect').value) || 0),
         mat250: capMode ? planned : null,
-        diffs: HELL_DIFFS.map(d => ({ id: d.id, name: d.name, tier: tierOf(d), contrib: d.contrib, chunks: d.chunks, is250: d.is250, time: timeInfo.times[d.id] || null, estimated: timeInfo.estimated.includes(d) })),
+        diffs: planDiffsFrom(timeInfo.times, timeInfo.estimated.map(d => d.id)),
         timeInfo,
     };
 }
@@ -1953,10 +1978,11 @@ function allowedDiffs(diffs, priority) {
 // 日ごとの時間の指定：欄が空 = 自動、数 = 固定（0 は、その日は遊ばない。本戦は 17時間まで）。
 // 予選・インターバルは、時間を入れたときだけ使う（「自動の対象」で予選も含めると、自動の日になる）。
 // 自動の日でも、その日に使える難易度（討伐時間が入っていて、解放済みで、優先の条件に合うもの）がなければ、使わない
-function scheduleHoursSpec(planDiffs) {
-    const includeQ = document.getElementById('s-scope').value === 'all';
+// opt（{ includeQ, hours: { 日の id: 数 または null（自動） } }）を渡すと、画面の欄ではなく、それで決める（かんたん計画タブが使う）
+function scheduleHoursSpec(planDiffs, opt) {
+    const includeQ = opt ? !!opt.includeQ : document.getElementById('s-scope').value === 'all';
     return PHASES.map(ph => {
-        const raw = document.getElementById(`s-hrs-${ph.id}`).value.trim();
+        const raw = opt ? (opt.hours[ph.id] == null ? '' : String(opt.hours[ph.id])) : document.getElementById(`s-hrs-${ph.id}`).value.trim();
         const n = parseFloat(raw);
         if (raw !== '' && Number.isFinite(n) && n >= 0) return { ph, fixed: true, hours: Math.min(n, ph.id === 'q' ? 99 : DAY_MAX_HOURS), idle: !planDiffs.some(d => usableIn(d, ph)) };
         if (ph.id === 'q' && !includeQ) return { ph, fixed: true, hours: 0, off: true };
@@ -2014,9 +2040,9 @@ const hoursText = (list, sep) => list.map(x => `${x.name} ${fmtHM(x.sec)}`).join
 
 // 優先（time / meat）ごとの試算：実際の肉・素材での答え（actual）、肉と素材が十分あるときの答え（unlimited）、
 // そのときの時間で、目標に届くのにいちばん少ない肉の数と、そのとき使う素材の数（req）
-function scheduleScenario(priority, { diffs, stock, mat250, need }) {
+function scheduleScenario(priority, { diffs, stock, mat250, need, hoursOpt }) {
     const diffsP = allowedDiffs(diffs, priority);
-    const spec = scheduleHoursSpec(diffsP);
+    const spec = scheduleHoursSpec(diffsP, hoursOpt);
     const solved = solveSchedule({ need, stock, mat250, diffs: diffsP, spec });
     const U = solved.unlimited;
     let req = null;
@@ -2208,6 +2234,20 @@ function updateScheduleView() {
     }
     $('s-result').innerHTML = html;
 }
+
+// ── かんたん計画タブ（kosenjou-plan.js）に渡す、計算と討伐時間の道具 ──
+// 討伐時間を直す：討伐効率タブと同じ保存先（gbf_kj_times）に入れて、ほかのタブも更新する
+function setKillTime(id, sec) {
+    if (sec > 0) killTimes[id] = sec; else delete killTimes[id];
+    try { localStorage.setItem('gbf_kj_times', JSON.stringify(killTimes)); } catch (e) { /* 容量 */ }
+    buildEffTable(); updateEffView(); updateTargetView(); updateMeatView(); updateScheduleView();
+}
+const KJ_CORE = {
+    DIFFS, HELL_DIFFS, PHASES, DAY_MAX_HOURS, tierOf,
+    planSchedule, allowedDiffs, planDiffsFrom, scheduleHoursSpec, scheduleScenario, scheduleUsage, hoursByDiff, hoursText, fmtHM,
+    fmtTime, fmtC, parseGoal, fmtGoal,
+    getKillTimes: () => killTimes, setKillTime,
+};
 
 // ── タブ切り替え ──
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -2752,6 +2792,15 @@ const trehunPanel = new TrehunPanel(document.getElementById('trehun-panel'), {
 });
 document.querySelector('.tab-btn[data-tab="trehun"]').addEventListener('click', () => trehunPanel.refresh());
 </script>
+<!-- かんたん計画（順番に入れる） -->
+<script src="kosenjou-plan.js"></script>
+<script>
+const planPanel = new PlanPanel(document.getElementById('plan-panel'), KJ_CORE, {
+    getBorderRows: () => borderPanel.state.rows.map((r) => ({ label: r.label, rank: BorderPanel.rankOf(r.label), current: r.current, final: r.final })),
+    getTrehun: () => { const c = TrehunPanel.calc(trehunPanel.state); return { diff: trehunPanel.state.diff, item: c.item, box: c.box, itemRate: trehunPanel.state.itemRate }; },
+});
+document.querySelector('.tab-btn[data-tab="plan"]').addEventListener('click', () => planPanel.refresh());
+</script>
 
 <!-- 入力の自動保存・最後に開いたタブ・設定の引っ越し -->
 <script>
@@ -2783,6 +2832,7 @@ document.querySelector('.tab-btn[data-tab="trehun"]').addEventListener('click', 
     updateTargetView();
     updateMeatView();
     updateScheduleView();
+    planPanel.afterRestore();
 
     // 最後に開いたタブ（#border のようにURLでも指定できる）
     const btnOf = (t) => document.querySelector(`.tab-btn[data-tab="${t}"]`);
