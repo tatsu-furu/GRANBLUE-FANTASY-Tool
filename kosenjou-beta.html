@@ -619,7 +619,9 @@
                 <ul style="padding-left:14px;display:flex;flex-direction:column;gap:4px;">
                     <li>目標は目標計算タブ（「英雄」「10万位ボーダー」のボタンも使えます）、持っている肉は肉計算タブ、討伐時間は討伐効率タブに入れます</li>
                     <li><strong style="color:var(--text);">日ごとの調整</strong>: 「使う時間」が空の日は自動です。「2日目は3時間だけ」「4日目は10時間」のように時間を入れると固定になり、残りの自動の日が、目標に届くように合わせて変わります。0 を入れると、その日は遊びません</li>
-                    <li>肉が足りないときは、あと何個必要かが出ます。予選・インターバルで集める予定の数を「集める予定の肉」に入れると、反映されます</li>
+                    <li>肉が足りないときは、あと何個必要かが出ます（200HELL 何回ぶんかも）。予選・インターバルで集める予定の数は「集める予定の肉」に入れると、反映されます</li>
+                    <li><strong style="color:var(--text);">250専用素材</strong>は2通りで出せます。「必要な総数を出す」（基本）は、予定数を気にせず、合計いくつ必要かを出します。「予定数から、回数の上限を出す」は、予定数（空なら肉計算タブの数）で 250HELL の回数に上限をつけ、足りるか・あと何個かも出します</li>
+                    <li>本戦は 1日 最大17時間までで計算します</li>
                     <li>使える難易度：予選・インターバルは 90・95HELL、本戦1日目に 100・150HELL、2日目に 200HELL、3日目に 250HELL。250HELL は 1回につき専用素材 20個で、余った素材は 500個まで肉 2個に変換します</li>
                 </ul>
             </div>
@@ -836,6 +838,15 @@
                 <input type="number" id="s-collect" min="0" step="1" inputmode="numeric" placeholder="0">
                 <span class="unit">個（予選・インターバルで集める分。任意）</span>
             </div>
+            <div class="frow" style="margin-top:6px;margin-bottom:0;">
+                <label for="s-matmode">250専用素材</label>
+                <select id="s-matmode" class="time-sel">
+                    <option value="total">必要な総数を出す（基本）</option>
+                    <option value="cap">予定数から、回数の上限を出す</option>
+                </select>
+                <input type="number" id="s-mat" min="0" step="1" inputmode="numeric" style="width:120px">
+                <span class="unit">個（予定数）</span>
+            </div>
         </div>
         <div class="card">
             <div class="card-title">結果</div>
@@ -859,8 +870,10 @@
             <summary>計算のきまり</summary>
             <ul class="note" style="padding-left:16px;margin-top:8px;">
                 <li>使える難易度：予選・インターバルは 90・95HELL、本戦1日目に 100・150HELL、2日目に 200HELL、3日目から 250HELL。</li>
+                <li>本戦は 1日 最大17時間までで計算します（自動の日も、17時間を超えません）。</li>
                 <li>回数は、使う時間・討伐時間・解放日・持っている肉と素材の中で、獲得貢献度が最大になる組み合わせです。討伐時間を入れていない難易度は、使いません。</li>
                 <li>250HELL は 1回につき専用素材 20個。使わずに余った素材は、500個まで通常肉 2個に変換して、肉に足します。</li>
+                <li>250専用素材は、2通りで出せます。「必要な総数を出す」（基本）は、予定数を気にせず、この計画で合計いくつ必要かを出します（素材が足りる前提なら、本戦3・4日目は 250HELL が中心の計画になります）。「予定数から、回数の上限を出す」は、予定数（空なら肉計算タブの数）で 250HELL の回数に上限をつけ、足りるか・あと何個かも出します。</li>
                 <li>予選・インターバルは、時間を入れたときだけ HELL を回します（「自動の対象」で予選も含めると、本戦と同じ時間を割り振ります）。肉集めの時間は含みません。</li>
                 <li>各日の終了時の貢献度は、現在の貢献度に、その日までの獲得を足したものです。</li>
             </ul>
@@ -1599,7 +1612,7 @@ function updateMeatView() {
 }
 
 // ── スケジュール：目標から逆算した、日ごとの時間・肉・目安 ──
-// 予選・インターバルは 90・95HELL、本戦1日目に 100・150HELL、2日目に 200HELL、3日目に 250HELL が使えるようになる
+// 予選・インターバルは 90・95HELL、本戦1日目に 100・150HELL、2日目に 200HELL、3日目に 250HELL が使えるようになる。本戦は 1日 最大17時間
 const PHASES = [
     { id:'q',  name:'予選・インターバル', maxTier:95  },
     { id:'d1', name:'本戦1日目',          maxTier:150 },
@@ -1607,9 +1620,10 @@ const PHASES = [
     { id:'d3', name:'本戦3日目',          maxTier:250 },
     { id:'d4', name:'本戦4日目',          maxTier:250 },
 ];
+const DAY_MAX_HOURS = 17;                                              // 本戦の 1日に遊べる時間の上限
 const HELL_DIFFS   = DIFFS.filter(d => d.isMeat || d.is250);
 const tierOf       = d => parseInt(d.name, 10);                       // '150HELL' → 150
-const SCHEDULE_IDS = [...PHASES.map(ph => `s-hrs-${ph.id}`), 's-collect', 's-scope'];   // 保存する入力
+const SCHEDULE_IDS = [...PHASES.map(ph => `s-hrs-${ph.id}`), 's-collect', 's-scope', 's-matmode', 's-mat'];   // 保存する入力
 
 /** 単体法（最大化）：max c·x  ただし A x ≤ b, x ≥ 0。b ≥ 0 なら x = 0 から始められる。変数も式も少ないので、素朴な表で解く */
 function simplexMax(c, A, b) {
@@ -1648,12 +1662,13 @@ function simplexMax(c, A, b) {
  * 予定の回数を、獲得貢献度が最大になるように決める。
  * 日ごとの使える時間・難易度の解放日・所持の肉と素材（余った素材は 500個まで肉2個に変換）を守る。
  * 線形計画（単体法）で解いて、整数に直し、余った時間・肉に入るだけ足す。
- *   stock … 使える通常肉　mat250 … 250専用素材　phases … [{ id, maxTier, hours }]
+ *   stock … 使える通常肉　mat250 … 250専用素材（null = 未入力）　phases … [{ id, maxTier, hours }]
  *   diffs … [{ id, tier, contrib, chunks, is250, time }]（time は 1回の討伐秒数。未入力は null で、計画に入れない）
  * 戻り値：{ runs: { 日: { 難易度: 回数 } }, total, bound, skipped }（bound は、整数にする前の上限）
  */
 function planSchedule({ stock, mat250, phases, diffs }) {
-    const CONVERT_MAX = 500;
+    const matCap = mat250 == null ? 1e9 : Math.max(0, mat250);   // 素材が未入力（null）のときは、素材の数を気にせず、余りの変換もしない
+    const CONVERT_MAX = mat250 == null ? 0 : 500;
     const d250 = diffs.find(d => d.is250);
     const active = phases.filter(ph => ph.hours > 0);
     const usable = diffs.filter(d => d.time > 0);
@@ -1672,7 +1687,7 @@ function planSchedule({ stock, mat250, phases, diffs }) {
         rhs.push(ph.hours * 60);
     });
     rows.push(vars.map(v => (v.d.is250 ? 0 : v.d.chunks)).concat(-2)); rhs.push(Math.max(0, stock));   // 肉：使う ≤ 所持 + 変換 × 2
-    rows.push(vars.map(v => (v.d.is250 ? v.d.chunks : 0)).concat(1));  rhs.push(Math.max(0, mat250));  // 素材：250HELL で使う + 変換 ≤ 所持
+    rows.push(vars.map(v => (v.d.is250 ? v.d.chunks : 0)).concat(1));  rhs.push(matCap);  // 素材：250HELL で使う + 変換 ≤ 所持
     rows.push(Array.from({ length: n }, (_, j) => (j === yIdx ? 1 : 0))); rhs.push(CONVERT_MAX);       // 変換は 500個まで
     const lp = simplexMax(vars.map(v => v.d.contrib / 1e4).concat(0), rows, rhs);
     if (!lp.x) return plan;
@@ -1688,7 +1703,7 @@ function planSchedule({ stock, mat250, phases, diffs }) {
             if (v.d.is250) mat += runs[k] * cost250; else meat += runs[k] * v.d.chunks;
         });
         for (const ph of active) if ((sec.get(ph) || 0) > ph.hours * 3600 + 1e-6) return false;
-        return mat <= mat250 && meat <= stock + 2 * Math.min(CONVERT_MAX, mat250 - mat);
+        return mat <= matCap && meat <= stock + 2 * Math.min(CONVERT_MAX, matCap - mat);
     };
     for (let guard = 0; guard < 10000 && !fits(); guard++) {            // 丸めで、わずかに超えたときは、貢献度の小さいものから減らす
         let k = -1;
@@ -1710,65 +1725,70 @@ function planSchedule({ stock, mat250, phases, diffs }) {
     return plan;
 }
 
-// 予定の計算に使う入力（所持の肉 + 集める予定の肉、素材、難易度ごとの討伐時間）
+// 予定の計算に使う入力（所持の肉 + 集める予定の肉、250専用素材、難易度ごとの討伐時間）。
+// 250専用素材：「必要な総数を出す」（総数モード）は null（素材の数を気にしない）。「予定数から、回数の上限を出す」（上限モード）は、予定数（空なら肉計算タブの数）
 function schedulePlanInput() {
     const $ = (id) => document.getElementById(id);
+    const capMode = $('s-matmode').value === 'cap';
+    const raw = $('s-mat').value.trim();
+    const planned = raw !== '' ? (parseInt(raw) || 0) : (parseInt($('m-mat').value) || 0);
     return {
         stock: (parseInt($('m-normal').value) || 0) + (parseInt($('s-collect').value) || 0),
-        mat250: parseInt($('m-mat').value) || 0,
+        mat250: capMode ? planned : null,
         diffs: HELL_DIFFS.map(d => ({ id: d.id, name: d.name, tier: tierOf(d), contrib: d.contrib, chunks: d.chunks, is250: d.is250, time: killTimes[d.id] || null })),
     };
 }
 
-// 日ごとの時間の指定：欄が空 = 自動、数 = 固定（0 は、その日は遊ばない）。
+// 日ごとの時間の指定：欄が空 = 自動、数 = 固定（0 は、その日は遊ばない。本戦は 17時間まで）。
 // 予選・インターバルは、時間を入れたときだけ使う（「自動の対象」で予選も含めると、自動の日になる）
 function scheduleHoursSpec() {
     const includeQ = document.getElementById('s-scope').value === 'all';
     return PHASES.map(ph => {
         const raw = document.getElementById(`s-hrs-${ph.id}`).value.trim();
         const n = parseFloat(raw);
-        if (raw !== '' && Number.isFinite(n) && n >= 0) return { ph, fixed: true, hours: Math.min(n, 24) };
+        if (raw !== '' && Number.isFinite(n) && n >= 0) return { ph, fixed: true, hours: Math.min(n, ph.id === 'q' ? 99 : DAY_MAX_HOURS) };
         if (ph.id === 'q' && !includeQ) return { ph, fixed: true, hours: 0, off: true };
         return { ph, fixed: false, hours: 0 };
     });
 }
 
-// 目標に届く、いちばん短い時間（自動の日に、同じ時間ずつ。0.05時間きざみ）。肉が十分ある場合（unlimited）も、あわせて出す
+// 目標に届く、いちばん短い時間（自動の日に、同じ時間ずつ。0.05時間きざみ。1日 DAY_MAX_HOURS まで）。
+// 肉と素材が十分ある場合（unlimited）も、あわせて出す（足りないとき、あと何個かを出すため）
 function solveSchedule({ need, stock, mat250, diffs, spec }) {
     const hasAuto = spec.some(s => !s.fixed);
     const phasesAt = (n) => PHASES.map((ph, i) => ({ id: ph.id, maxTier: ph.maxTier, hours: spec[i].fixed ? spec[i].hours : n }));
-    const run = (n, stk) => planSchedule({ stock: stk, mat250, phases: phasesAt(n), diffs });
-    const STEP = 0.05, MAX_K = Math.round(24 / STEP);
-    const solve = (stk) => {
-        if (!hasAuto) { const plan = run(0, stk); return { reachable: plan.total >= need, hours: 0, plan }; }
-        const top = run(MAX_K * STEP, stk);
-        if (top.bound + 1 < need) return { reachable: false, hours: MAX_K * STEP, plan: top };
+    const run = (n, stk, mat) => planSchedule({ stock: stk, mat250: mat, phases: phasesAt(n), diffs });
+    const STEP = 0.05, MAX_K = Math.round(DAY_MAX_HOURS / STEP);
+    const solve = (stk, mat) => {
+        if (!hasAuto) { const plan = run(0, stk, mat); return { reachable: plan.total >= need, hours: 0, plan }; }
+        const top = run(MAX_K * STEP, stk, mat);
+        if (top.bound + 1 < need) return { reachable: false, hours: DAY_MAX_HOURS, plan: top };
         let lo = 0, hi = MAX_K;
         while (lo < hi) {                                         // 時間が長いほど、取れる貢献度の上限は増えるので、二分探索
             const mid = (lo + hi) >> 1;
-            if (run(mid * STEP, stk).bound >= need - 1e-6) hi = mid; else lo = mid + 1;
+            if (run(mid * STEP, stk, mat).bound >= need - 1e-6) hi = mid; else lo = mid + 1;
         }
-        let k = lo, plan = run(k * STEP, stk);
-        while (plan.total < need && k < MAX_K) { k++; plan = run(k * STEP, stk); }   // 整数にしたぶんの不足は、少しずつ足す
+        let k = lo, plan = run(k * STEP, stk, mat);
+        while (plan.total < need && k < MAX_K) { k++; plan = run(k * STEP, stk, mat); }   // 整数にしたぶんの不足は、少しずつ足す
         return { reachable: plan.total >= need, hours: Math.round(k * STEP * 100) / 100, plan };
     };
-    return { hasAuto, actual: solve(stock), unlimited: solve(1e9) };
+    return { hasAuto, actual: solve(stock, mat250), unlimited: solve(1e9, null) };
 }
 
-// 計画で使う肉・素材と、使える肉（余った素材は 500個まで肉2個に変換）
+// 計画で使う肉・素材・250HELL の回数と、使える肉（余った素材は 500個まで肉2個に変換。素材が未入力なら、変換しない）
 function scheduleUsage(plan, diffs, stock, mat250) {
     const d250 = diffs.find(d => d.is250);
     let meat = 0, z = 0;
     diffs.forEach(d => PHASES.forEach(ph => { const n = plan.runs[ph.id][d.id] || 0; if (d.is250) z += n; else meat += n * d.chunks; }));
     const mat = z * (d250 ? d250.chunks : 20);
-    const converted = 2 * Math.max(0, Math.min(500, mat250 - mat));
-    return { meat, mat, converted, pool: stock + converted };
+    const converted = mat250 == null ? 0 : 2 * Math.max(0, Math.min(500, mat250 - mat));
+    return { meat, mat, z, converted, pool: stock + converted };
 }
 
 function setupScheduleInputs() {
     const row = (label, key) => `<tr><td class="s-rowh">${label}</td>${PHASES.map(ph => `<td id="s-${key}-${ph.id}">─</td>`).join('')}</tr>`;
     let html = `<thead><tr><th></th>${PHASES.map(ph => `<th>${ph.name}</th>`).join('')}</tr></thead><tbody>`;
-    html += `<tr><td class="s-rowh">使う時間（h）</td>${PHASES.map(ph => `<td id="s-hcell-${ph.id}"><input type="number" class="s-cell" id="s-hrs-${ph.id}" min="0" max="24" step="0.5" inputmode="decimal"><div class="note s-hlabel" id="s-hlabel-${ph.id}"></div></td>`).join('')}</tr>`;
+    html += `<tr><td class="s-rowh">使う時間（h）</td>${PHASES.map(ph => `<td id="s-hcell-${ph.id}"><input type="number" class="s-cell" id="s-hrs-${ph.id}" min="0" max="${ph.id === 'q' ? 99 : DAY_MAX_HOURS}" step="0.5" inputmode="decimal"><div class="note s-hlabel" id="s-hlabel-${ph.id}"></div></td>`).join('')}</tr>`;
     html += row('回数', 'runs') + row('その日の獲得', 'gain') + row('使う肉', 'meat') + row('使う素材（250）', 'mat') + '</tbody>';
     document.getElementById('s-table').innerHTML = html;
 
@@ -1790,6 +1810,9 @@ function updateScheduleView() {
     const $ = (id) => document.getElementById(id);
     if (!$('s-table') || !$('s-table').rows.length) return;
     const { stock, mat250, diffs } = schedulePlanInput();
+    const matKnown = mat250 != null;
+    $('s-mat').disabled = !matKnown;
+    $('s-mat').placeholder = matKnown ? (parseInt($('m-mat').value) > 0 ? `空なら ${parseInt($('m-mat').value).toLocaleString()}（肉計算タブ）` : '予定数') : '（使いません）';
     const stockMeat = parseInt($('m-normal').value) || 0;
     const collect = parseInt($('s-collect').value) || 0;
     const goal = parseGoal($('t-goal').value) || 0;
@@ -1806,7 +1829,8 @@ function updateScheduleView() {
     const noTime = diffs.filter(d => !(d.time > 0)).map(d => d.name);
     $('s-premise').innerHTML = [
         `<div><span class="s-k">目標</span>${goal ? `${fmtC(goal)}（現在 ${fmtC(cur)} → あと ${fmtC(Math.max(0, need))}）` : red('未入力')}<a href="#target">目標計算タブで変える</a></div>`,
-        `<div><span class="s-k">持っている肉</span>通常肉 ${stockMeat.toLocaleString()}個 ／ 250専用素材 ${mat250.toLocaleString()}個<a href="#meat">肉計算タブで変える</a></div>`,
+        `<div><span class="s-k">持っている肉</span>通常肉 ${stockMeat.toLocaleString()}個<a href="#meat">肉計算タブで変える</a></div>`,
+        `<div><span class="s-k">250専用素材</span>${matKnown ? `予定数 ${mat250.toLocaleString()}個 → 250HELL は最大 ${Math.floor(mat250 / 20).toLocaleString()}回（余りは、500個まで肉2個に変換）` : '予定数は気にせず、必要な総数を出します'}</div>`,
         `<div><span class="s-k">討伐時間</span>${timeNames.length ? timeNames.join('・') : red('未入力')}<a href="#efficiency">討伐効率タブで入れる</a>${noTime.length && timeNames.length ? `<div class="note" style="margin-left:calc(7em + 6px);">未入力の難易度は、使いません：${noTime.join('・')}</div>` : ''}</div>`,
     ].join('');
 
@@ -1865,7 +1889,7 @@ function updateScheduleView() {
                 main = sumBox(head, `${who} 約 ${hhmm(A.hours)}ずつで、届きます`);
                 sub = `使う時間は、合計 ${hhmm(totalHours)}${fixedNames.length ? `（固定の日：${fixedNames.join('・')}）` : ''}。`;
             } else {
-                main = sumBox(head, `${who} 24時間ずつでも、届きません`, '#e07070');
+                main = sumBox(head, `${who} ${DAY_MAX_HOURS}時間ずつ（1日の上限）でも、届きません`, '#e07070');
                 sub = `そのときの見込みは ${fmtC(finalTotal)}（あと ${fmtC(goal - finalTotal)}）。`;
             }
         } else if (A.reachable) {
@@ -1873,34 +1897,58 @@ function updateScheduleView() {
             sub = `使う時間は、合計 ${hhmm(totalHours)}。`;
         } else {
             main = sumBox(head, `この時間では、届きません（見込み ${fmtC(finalTotal)}）`, '#e07070');
-            sub = `あと ${fmtC(goal - finalTotal)}。使う時間を増やしてください。`;
+            sub = `あと ${fmtC(goal - finalTotal)}。使う時間を増やしてください（本戦は 1日 最大${DAY_MAX_HOURS}時間）。`;
         }
-        // 肉：足りるか。足りないときは、あと何個あれば届くか
+
+        // 肉・250専用素材：足りるか。足りないときは、あと何個あれば届くか
         const use = scheduleUsage(plan, diffs, stock, mat250);
         const poolParts = [`持っている ${stockMeat.toLocaleString()}`];
         if (collect) poolParts.push(`集める予定 ${collect.toLocaleString()}`);
         if (use.converted) poolParts.push(`素材から ${use.converted.toLocaleString()}`);
-        const meatOk = A.reachable && (!solved.hasAuto || A.hours <= U.hours + 0.049);
-        let meatLine;
-        if (meatOk) {
-            meatLine = `肉：${green('足ります')}（使う ${use.meat.toLocaleString()}個 ／ 使える ${use.pool.toLocaleString()}個＝${poolParts.join(' + ')}。余り ${(use.pool - use.meat).toLocaleString()}個）`;
+        const resOk = A.reachable && (!solved.hasAuto || A.hours <= U.hours + 0.049);
+        const runsOf = (n) => Math.ceil(n / 20).toLocaleString();
+        const meatOkLine = `通常肉：${green('足ります')}（使う ${use.meat.toLocaleString()}個 ／ 使える ${use.pool.toLocaleString()}個＝${poolParts.join(' + ')}。余り ${(use.pool - use.meat).toLocaleString()}個）`;
+        // 250専用素材：上限モードは、予定数に足りるか。総数モードは、必要な合計と、日ごとの数
+        const matOkLine = (matKnown && use.mat > 0)
+            ? `250専用素材：${green('足ります')}（使う ${use.mat.toLocaleString()}個＝250HELL ${use.z.toLocaleString()}回 ／ 予定数 ${mat250.toLocaleString()}個。余り ${(mat250 - use.mat).toLocaleString()}個${use.converted ? `のうち 500個までは、肉 ${use.converted.toLocaleString()}個に変換して、肉に足しています` : ''}）`
+            : null;
+        const perDayMat = (p) => PHASES.map(ph => {
+            const n = HELL_DIFFS.filter(d => d.is250).reduce((a, d) => a + (p.runs[ph.id][d.id] || 0) * d.chunks, 0);
+            return n ? `${ph.name} ${n.toLocaleString()}個` : null;
+        }).filter(Boolean).join('・');
+        const matTotalLine = (!matKnown && use.mat > 0)
+            ? `250専用素材：<strong style="color:var(--text)">合計 ${use.mat.toLocaleString()}個 必要です</strong>（250HELL ${use.z.toLocaleString()}回 × 20個。${perDayMat(plan)}）。予定数から回数の上限を出すには、上の「250専用素材」で切り替えます。`
+            : null;
+        const resLines = [];
+        if (resOk) {
+            resLines.push(meatOkLine);
+            if (matOkLine || matTotalLine) resLines.push(matOkLine || matTotalLine);
         } else if (U.reachable) {
-            const hoursU = spec.map(s => (s.fixed ? s.hours : U.hours));
-            const reach = (e) => planSchedule({ stock: stock + e, mat250, phases: phasesOf(hoursU), diffs }).total >= need;
-            let lo = 0, hi = Math.max(1000, stock * 4 + 1000);
-            while (!reach(hi) && hi < 1e7) hi *= 2;
-            while (lo < hi) { const mid = Math.floor((lo + hi) / 2); if (reach(mid)) hi = mid; else lo = mid + 1; }
-            const extra = Math.max(1, lo);
-            meatLine = `肉：${red(`あと ${extra.toLocaleString()}個 必要です`)}（予選・インターバルで集める目安。「集める予定の肉」に入れると、反映されます）。`
-                + (solved.hasAuto ? `肉が十分あれば、${who} 約 ${hhmm(U.hours)}ずつで済みます（いまの肉だと ${A.reachable ? `約 ${hhmm(A.hours)}` : '届きません'}）。` : '肉が十分あれば、この時間で届きます。');
+            const uu = scheduleUsage(U.plan, diffs, stock, mat250);
+            const haveMeat = stock + (matKnown ? 2 * Math.max(0, Math.min(500, mat250 - uu.mat)) : 0);
+            const meatShort = Math.max(0, uu.meat - haveMeat);
+            const matShort = matKnown ? Math.max(0, uu.mat - mat250) : 0;
+            resLines.push(meatShort > 0
+                ? `通常肉：${red(`あと ${meatShort.toLocaleString()}個 必要です`)}（200HELL なら約 ${runsOf(meatShort)}回ぶん。予選・インターバルで集める目安で、「集める予定の肉」に入れると反映されます）`
+                : meatOkLine);
+            if (matKnown) {
+                if (matShort > 0) resLines.push(`250専用素材：${red(`あと ${matShort.toLocaleString()}個 必要です`)}（250HELL なら ${runsOf(matShort)}回ぶん。予定数 ${mat250.toLocaleString()}個。予定数を気にしないと、合計 ${uu.mat.toLocaleString()}個 必要です）`);
+                else if (matOkLine) resLines.push(matOkLine);
+            } else if (matTotalLine) {
+                resLines.push(matTotalLine);
+            }
+            resLines.push(solved.hasAuto
+                ? `これだけあれば、${who} 約 ${hhmm(U.hours)}ずつで済みます（いまの肉・素材だと ${A.reachable ? `約 ${hhmm(A.hours)}` : '届きません'}）。`
+                : 'これだけあれば、この時間で届きます。');
         } else {
-            meatLine = `肉：${red('肉を増やしても、この時間では届きません')}（時間・解放日・素材のどれかが足りません）。`;
+            resLines.push(`通常肉・250専用素材：${red('増やしても、この時間では届きません')}（時間・解放日のどれかが足りません）。`);
         }
+
         const cpTitle = A.reachable ? '各日の終了時に、これだけの貢献度があれば順調です' : 'この時間だと、各日の終了時の見込み';
         const cpLines = checkpoints.map(c => `${c.ph.name}終了時：<strong style="color:var(--text)">${fmtC(c.total)}</strong>（目標の ${Math.round(c.total / goal * 100)}%）`);
         html = main
             + `<div class="note" style="margin-top:8px;line-height:1.9">${sub}</div>`
-            + `<div class="note" style="margin-top:6px;line-height:1.9">${meatLine}</div>`
+            + `<div class="note" style="margin-top:6px;line-height:1.9">${resLines.join('<br>')}</div>`
             + `<div class="note" style="margin-top:10px;line-height:1.9"><div style="color:var(--text-2);font-weight:700;margin-bottom:2px;">${cpTitle}</div>${cpLines.length ? cpLines.join('<br>') : '─'}</div>`;
     }
     $('s-result').innerHTML = html;
