@@ -174,6 +174,15 @@
         .base-btn:hover { border-color: var(--accent); color: var(--accent); }
         .base-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
         #t-goal-presets .base-btn { font-size: 0.8em; padding: 5px 10px; }
+        #s-table th, #s-table td { text-align: center; }
+        #s-table th:first-child, #s-table td:first-child { text-align: left; white-space: nowrap; position: sticky; left: 0; z-index: 1; }
+        #s-table td:first-child { background: var(--surface); }
+        #s-table th:first-child { background: var(--surface-2); }
+        #s-table .s-cell { width: 64px; min-width: 56px; text-align: right; padding: 4px 5px; }
+        #s-table td.s-lock { color: var(--text-3); background: rgba(255,255,255,0.03); opacity: 0.5; }
+        #s-table tfoot td { font-size: 0.84em; }
+        #s-table tfoot tr:first-child td { border-top: 2px solid var(--border); }
+        #s-table .s-neg { color: #e07070; font-weight: 700; }
 
         /* Difficulty colors */
         .c-vh   { color: #6080a0; }
@@ -474,7 +483,7 @@
         <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:8px;">
             <div>
                 <h1>古戦場 効率計算ツール</h1>
-                <p>討伐効率比較 / 目標計算 / 肉計算 / ボーダー / トレハン</p>
+                <p>討伐効率比較 / 目標計算 / 肉計算 / スケジュール / ボーダー / トレハン</p>
             </div>
             <button id="help-open-btn" style="padding:8px 16px;background:var(--accent-lo);border:none;color:var(--on-accent);border-radius:6px;cursor:pointer;font-size:0.85em;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(62,200,223,0.25);transition:background 0.15s,transform 0.12s;" onmouseover="this.style.background='var(--accent)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='var(--accent-lo)';this.style.transform=''">使い方</button>
         </div>
@@ -599,6 +608,21 @@
 
         <details style="margin-bottom:16px;">
             <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
+                <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> スケジュールタブ
+            </summary>
+            <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
+                <p style="margin-bottom:6px;">予選〜本戦4日目の予定の回数を入れて、肉の消費と獲得貢献度を日ごとに見ます。</p>
+                <ul style="padding-left:14px;display:flex;flex-direction:column;gap:4px;">
+                    <li><strong style="color:var(--text);">解放日</strong>: 150HELL は本戦1日目、200HELL は本戦2日目、250HELL は本戦3日目（予選は 90〜100HELL）。解放前の欄は入力できません</li>
+                    <li>所持の肉・素材は肉計算タブ、目標・現在の貢献度は目標計算タブの値を使います</li>
+                    <li>250HELL は 1回につき専用素材 20個。余った素材は 500個まで通常肉 2個に変換して、肉に足します</li>
+                    <li>討伐効率タブで時間を入れた難易度は、日ごとの所要時間も出ます</li>
+                </ul>
+            </div>
+        </details>
+
+        <details style="margin-bottom:16px;">
+            <summary style="cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:0.85em;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;">
                 <span class="det-arrow" style="font-size:0.75em;transition:transform 0.2s;">▶</span> ボーダータブ
             </summary>
             <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
@@ -660,6 +684,7 @@
         <button class="tab-btn active" data-tab="efficiency">討伐効率</button>
         <button class="tab-btn" data-tab="target">目標計算</button>
         <button class="tab-btn" data-tab="meat">肉計算</button>
+        <button class="tab-btn" data-tab="schedule">スケジュール</button>
         <button class="tab-btn" data-tab="border">ボーダー</button>
         <button class="tab-btn" data-tab="trehun">トレハン</button>
     </nav>
@@ -794,6 +819,27 @@
         <div class="card">
             <div class="card-title">合計期待貢献度（250HELL + 通常肉）</div>
             <div id="m-total"><div class="no-data">所持リソースを入力してください</div></div>
+        </div>
+    </div>
+
+    <!-- ===== TAB: スケジュール（日ごとの解放を考えた予定） ===== -->
+    <div id="tab-schedule" class="tab-content">
+        <div class="card">
+            <div class="card-title">スケジュール（予選〜本戦4日目）</div>
+            <p class="note" style="margin-bottom:6px;">150HELL は本戦1日目、200HELL は本戦2日目、250HELL は本戦3日目から使えます（予選は 90〜100HELL）。日ごとに予定の回数を入れると、肉の消費・獲得貢献度・累計が分かります。</p>
+            <p class="note" id="s-stock"></p>
+        </div>
+        <div class="card">
+            <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                予定の回数（回）
+                <button type="button" class="base-btn" id="s-clear">全部消す</button>
+            </div>
+            <div style="overflow-x:auto"><table class="data-table" id="s-table"></table></div>
+            <p class="note" style="margin-top:8px;">灰色の欄は、まだ解放されていない難易度です。250HELL の回数は、ここで入れた合計が使われます（肉計算タブの「250HELL 回数」とは別です）。所要時間は、討伐効率タブで時間を入れた難易度だけ出ます。</p>
+        </div>
+        <div class="card">
+            <div class="card-title">見込み</div>
+            <div id="s-summary"><div class="no-data">予定の回数を入れてください</div></div>
         </div>
     </div>
 
@@ -1528,6 +1574,146 @@ function updateMeatView() {
     totalEl.innerHTML = totHtml;
 }
 
+// ── スケジュール：日ごとの解放を考えた予定 ──
+// 予選は 90〜100HELL、本戦1日目に 150HELL、2日目に 200HELL、3日目に 250HELL が使えるようになる
+const PHASES = [
+    { id:'q',  name:'予選',      maxTier:100 },
+    { id:'d1', name:'本戦1日目', maxTier:150 },
+    { id:'d2', name:'本戦2日目', maxTier:200 },
+    { id:'d3', name:'本戦3日目', maxTier:250 },
+    { id:'d4', name:'本戦4日目', maxTier:250 },
+];
+const HELL_DIFFS   = DIFFS.filter(d => d.isMeat || d.is250);
+const tierOf       = d => parseInt(d.name, 10);                       // '150HELL' → 150
+const unlockPhase  = d => PHASES.find(ph => tierOf(d) <= ph.maxTier);  // 使えるようになる最初の日
+const SCHEDULE_IDS = HELL_DIFFS.flatMap(d => PHASES.filter(ph => tierOf(d) <= ph.maxTier).map(ph => `s-${d.id}-${ph.id}`));
+
+function setupScheduleInputs() {
+    let html = `<thead><tr><th>難易度</th>${PHASES.map(ph => `<th>${ph.name}</th>`).join('')}<th>合計</th></tr></thead><tbody>`;
+    HELL_DIFFS.forEach(d => {
+        const first = unlockPhase(d);
+        html += `<tr><td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span>${first.id !== 'q' ? `<div class="note" style="font-size:0.72em">${first.name}から</div>` : ''}</td>`;
+        PHASES.forEach(ph => {
+            html += tierOf(d) <= ph.maxTier
+                ? `<td><input type="number" class="s-cell" id="s-${d.id}-${ph.id}" min="0" step="1" inputmode="numeric" placeholder="0"></td>`
+                : `<td class="s-lock" title="${first.name}から使えます">─</td>`;
+        });
+        html += `<td id="s-sum-${d.id}" style="color:var(--text-3)">─</td></tr>`;
+    });
+    html += '</tbody><tfoot>';
+    const foot = (label, key, hasTotal) => `<tr><td style="color:var(--text-2);font-weight:700;white-space:nowrap">${label}</td>${PHASES.map(ph => `<td id="s-${key}-${ph.id}">─</td>`).join('')}<td id="s-${key}-all" style="font-weight:700">${hasTotal ? '─' : ''}</td></tr>`;
+    html += foot('使う肉', 'meat', true) + foot('使う素材（250）', 'mat', true) + foot('獲得貢献度', 'gain', true)
+          + foot('累計の貢献度', 'cum', false) + foot('所要時間', 'time', true) + foot('肉の残り', 'left', false);
+    html += '</tfoot>';
+    document.getElementById('s-table').innerHTML = html;
+
+    document.getElementById('s-clear').addEventListener('click', () => {
+        SCHEDULE_IDS.forEach(id => { document.getElementById(id).value = ''; });
+        document.getElementById(SCHEDULE_IDS[0]).dispatchEvent(new Event('input', { bubbles: true })); // 保存と再計算
+    });
+
+    // 予定の回数・所持・目標・討伐時間が変わったら、計算し直す
+    const watch = (e) => {
+        const t = e.target;
+        if (t && (SCHEDULE_IDS.includes(t.id) || ['t-goal', 't-cur', 'm-normal', 'm-mat'].includes(t.id) || (t.closest && t.closest('#tab-efficiency')))) updateScheduleView();
+    };
+    document.addEventListener('input', watch);
+    document.addEventListener('change', watch);
+    updateScheduleView();
+}
+
+function updateScheduleView() {
+    const tbl = document.getElementById('s-table');
+    if (!tbl || !tbl.rows.length) return;
+    const $ = (id) => document.getElementById(id);
+    const stockMeat = parseInt($('m-normal') && $('m-normal').value) || 0;
+    const mat250    = parseInt($('m-mat') && $('m-mat').value) || 0;
+    const d250      = DIFFS.find(d => d.is250);
+
+    // 予定の回数（解放前の欄は、そもそも入力欄がない）
+    const runs = {};
+    let total250 = 0;
+    PHASES.forEach(ph => {
+        runs[ph.id] = {};
+        HELL_DIFFS.forEach(d => {
+            const el = $(`s-${d.id}-${ph.id}`);
+            const n = el ? Math.max(0, Math.floor(parseFloat(el.value) || 0)) : 0;
+            runs[ph.id][d.id] = n;
+            if (d.is250) total250 += n;
+        });
+    });
+
+    // 250専用素材：使った分の残りのうち 500個までは、通常肉2個に変えられる（肉計算タブと同じ決まり）
+    const used250       = total250 * d250.chunks;
+    const left250       = mat250 - used250;
+    const convertible   = Math.max(0, Math.min(left250, 500));
+    const convertedMeat = convertible * 2;
+    const meatPool      = stockMeat + convertedMeat;
+
+    let anyRuns = false, cum = 0, meatCum = 0, firstShort = null, allSec = 0, allSecKnown = true;
+    const cols = PHASES.map(ph => {
+        let meat = 0, mat = 0, gain = 0, sec = 0, secKnown = true, any = false;
+        HELL_DIFFS.forEach(d => {
+            const n = runs[ph.id][d.id];
+            if (!n) return;
+            any = true;
+            if (d.is250) mat += n * d.chunks; else meat += n * d.chunks;
+            gain += n * d.contrib;
+            if (killTimes[d.id]) sec += n * killTimes[d.id]; else secKnown = false;
+        });
+        if (any) { anyRuns = true; if (secKnown) allSec += sec; else allSecKnown = false; }
+        cum += gain; meatCum += meat;
+        const left = meatPool - meatCum;
+        if (left < 0 && !firstShort) firstShort = ph;
+        return { ph, meat, mat, gain, cum, sec, secKnown, any, left };
+    });
+
+    const dash = '─';
+    const setText = (id, text, neg) => { const el = $(id); if (!el) return; el.textContent = text; el.classList.toggle('s-neg', !!neg); };
+    cols.forEach(c => {
+        const id = c.ph.id;
+        setText(`s-meat-${id}`, c.meat ? c.meat.toLocaleString() : dash);
+        setText(`s-mat-${id}`,  c.mat  ? c.mat.toLocaleString()  : dash);
+        setText(`s-gain-${id}`, c.gain ? fmtC(c.gain) : dash);
+        setText(`s-cum-${id}`,  anyRuns && c.cum ? fmtC(c.cum) : dash);
+        setText(`s-time-${id}`, c.any ? (c.secKnown ? fmtTime(c.sec) : '未入力あり') : dash);
+        setText(`s-left-${id}`, anyRuns ? c.left.toLocaleString() : dash, c.left < 0);
+    });
+    setText('s-meat-all', meatCum ? meatCum.toLocaleString() : dash);
+    setText('s-mat-all',  used250 ? used250.toLocaleString() : dash, used250 > mat250);
+    setText('s-gain-all', cum ? fmtC(cum) : dash);
+    setText('s-time-all', anyRuns && allSecKnown ? fmtTime(allSec) : dash);
+    HELL_DIFFS.forEach(d => {
+        const n = PHASES.reduce((a, ph) => a + runs[ph.id][d.id], 0);
+        setText(`s-sum-${d.id}`, n ? `${n.toLocaleString()}回` : dash);
+    });
+
+    $('s-stock').innerHTML = `所持：通常肉 ${stockMeat.toLocaleString()}個 ／ 250専用素材 ${mat250.toLocaleString()}個 <a href="#meat" style="color:var(--accent)">（肉計算タブで変える）</a>。目標・現在の貢献度は、目標計算タブの値と比べます。`;
+    const out = $('s-summary');
+    if (!anyRuns) { out.innerHTML = '<div class="no-data">予定の回数を入れてください（灰色の欄は、まだ解放されていない難易度です）</div>'; return; }
+
+    const red = (s) => `<span style="color:#e07070;font-weight:700">${s}</span>`;
+    const lines = [];
+    const meatLeft = meatPool - meatCum;
+    lines.push(`通常肉：使う ${meatCum.toLocaleString()}個 ／ 使える ${meatPool.toLocaleString()}個（所持 ${stockMeat.toLocaleString()}${convertedMeat ? ` + 素材から ${convertedMeat.toLocaleString()}` : ''}）→ `
+        + (meatLeft >= 0 ? `残り ${meatLeft.toLocaleString()}個` : red(`${(-meatLeft).toLocaleString()}個 足りません${firstShort ? `（${firstShort.name}で足りなくなります）` : ''}`)));
+    if (total250 > 0 || mat250 > 0) {
+        let s = `250専用素材：250HELL ${total250.toLocaleString()}回 × ${d250.chunks}個 = ${used250.toLocaleString()}個 ／ 所持 ${mat250.toLocaleString()}個`;
+        if (used250 > mat250) s += ' → ' + red(`${(used250 - mat250).toLocaleString()}個 足りません`);
+        else if (left250 > 0) s += ` → 残り ${left250.toLocaleString()}個のうち ${convertible.toLocaleString()}個を通常肉 ${convertedMeat.toLocaleString()}個に変換` + (left250 > 500 ? `（500個超えの ${(left250 - 500).toLocaleString()}個は変換不可）` : '');
+        lines.push(s);
+    }
+    const goal = parseGoal($('t-goal') ? $('t-goal').value : '') || 0;
+    const cur  = parseGoal($('t-cur') ? $('t-cur').value : '') || 0;
+    if (goal > 0) {
+        const fin = cur + cum;
+        lines.push(`目標 ${fmtC(goal)}：現在 ${fmtC(cur)} ＋ 予定 ${fmtC(cum)} ＝ ${fmtC(fin)} → `
+            + (fin >= goal ? `<span style="color:#4caf50;font-weight:700">✓ 届く見込み（+${fmtC(fin - goal)}）</span>` : red(`あと ${fmtC(goal - fin)}`)));
+    }
+    out.innerHTML = `<div class="sum-box" style="margin-top:0"><div class="sum-label">獲得貢献度の見込み（予定の合計）</div><div class="sum-val">${fmtC(cum)}</div></div>`
+        + `<div class="note" style="margin-top:10px;line-height:1.9">${lines.join('<br>')}</div>`;
+}
+
 // ── タブ切り替え ──
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1557,6 +1743,7 @@ document.getElementById('help-open-btn').addEventListener('click', openHelp);
 buildEffTable();
 setupTargetInputs();
 setupMeatInputs();
+setupScheduleInputs();
 updateEffView();
 
 document.getElementById('fine-mode-chk').addEventListener('change', e => {
@@ -2076,7 +2263,7 @@ document.querySelector('.tab-btn[data-tab="trehun"]').addEventListener('click', 
 (function () {
     const INPUT_KEY = 'gbf_kj_inputs';
     const TAB_KEY = 'gbf_kj_tab';
-    const IDS = ['t-goal', 't-cur', 't-days', 't-hours', 'm-normal', 'm-mat', 'm-250runs'];
+    const IDS = ['t-goal', 't-cur', 't-days', 't-hours', 'm-normal', 'm-mat', 'm-250runs', ...SCHEDULE_IDS];
     const read = (k) => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } };
 
     // 目標計算・肉計算の入力を覚える
@@ -2100,6 +2287,7 @@ document.querySelector('.tab-btn[data-tab="trehun"]').addEventListener('click', 
     });
     updateTargetView();
     updateMeatView();
+    updateScheduleView();
 
     // 最後に開いたタブ（#border のようにURLでも指定できる）
     const btnOf = (t) => document.querySelector(`.tab-btn[data-tab="${t}"]`);
