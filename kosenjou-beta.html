@@ -177,6 +177,8 @@
         #s-table th, #s-table td { text-align: center; }
         #s-table th { white-space: normal; }
         #tab-schedule .base-btn:disabled { opacity: 0.4; cursor: default; }
+        #s-scope { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+        #s-need-apply { white-space: normal; text-align: left; line-height: 1.5; }
         #s-table th:first-child, #s-table td:first-child { text-align: left; white-space: nowrap; position: sticky; left: 0; z-index: 1; }
         #s-table td:first-child { background: var(--surface); }
         #s-table th:first-child { background: var(--surface-2); }
@@ -619,6 +621,8 @@
                     <li>所持の肉・素材は肉計算タブ、目標・現在の貢献度は目標計算タブの値を使います</li>
                     <li>250HELL は 1回につき専用素材 20個。余った素材は 500個まで通常肉 2個に変換して、肉に足します</li>
                     <li><strong style="color:var(--text);">使える時間</strong>（その日に HELL を回せる時間）と、討伐効率タブの討伐時間を入れると、「おすすめの割り振りを入れる」で、貢献度が最大になる回数を自動で入れます。あとから手で直せて、「元に戻す」もあります</li>
+                    <li><strong style="color:var(--text);">一括入力</strong>: 使える時間を、本戦1〜4日目（または予選・インターバルも）にまとめて入れられます</li>
+                    <li><strong style="color:var(--text);">目標まで1日何時間</strong>: 目標貢献度（目標計算タブ）まで、毎日同じ時間ずつ遊ぶと仮定して、1日に必要な時間を出します。「この時間を入れて…」で、使える時間と回数を表に入れます</li>
                     <li>予選・インターバルに集める肉は、「肉を集める」の欄に入れます（所持の肉に足して計算）</li>
                     <li>所要時間が使える時間を超える日は、赤く出ます</li>
                 </ul>
@@ -851,6 +855,14 @@
                     <button type="button" class="base-btn" id="s-clear">回数を全部消す</button>
                 </span>
             </div>
+            <div class="frow" style="margin-bottom:8px;">
+                <label for="s-bulk">使える時間を一括で</label>
+                <input type="number" id="s-bulk" min="0" max="24" step="0.5" inputmode="decimal" placeholder="例：4" style="width:80px">
+                <span class="unit">時間ずつ</span>
+                <button type="button" class="base-btn" id="s-bulk-main">本戦1〜4日目に入れる</button>
+                <button type="button" class="base-btn" id="s-bulk-all">予選・インターバルも含めて入れる</button>
+                <button type="button" class="base-btn" id="s-bulk-clear">時間を全部消す</button>
+            </div>
             <div style="overflow-x:auto"><table class="data-table" id="s-table"></table></div>
             <p class="note" id="s-plan-info" style="margin-top:8px;"></p>
             <p class="note" style="margin-top:8px;">灰色の欄は、まだ解放されていない難易度です。「使える時間」は、その日に HELL を回せる時間（予選・インターバルは、肉集めの時間を除いた分）で、「おすすめの割り振り」と所要時間のチェックに使います。討伐時間は、討伐効率タブの値です。250HELL の回数は、ここで入れた合計が使われます（肉計算タブの「250HELL 回数」とは別です）。</p>
@@ -858,6 +870,18 @@
         <div class="card">
             <div class="card-title">見込み</div>
             <div id="s-summary"><div class="no-data">予定の回数を入れてください</div></div>
+        </div>
+        <div class="card">
+            <div class="card-title">目標まで、1日あたり何時間？</div>
+            <p class="note" style="margin-bottom:8px;">目標貢献度（目標計算タブ）まで、毎日同じ時間ずつ遊ぶと仮定して、1日に必要な時間を出します。解放日・所持の肉と素材・討伐時間（討伐効率タブ）を守り、貢献度が最大になる回数で計算します。</p>
+            <div class="frow">
+                <label for="s-scope">対象の日</label>
+                <select id="s-scope" class="time-sel">
+                    <option value="main">本戦1〜4日目</option>
+                    <option value="all">予選・インターバルも含める（1日分として数える）</option>
+                </select>
+            </div>
+            <div id="s-need-out"></div>
         </div>
     </div>
 
@@ -1605,7 +1629,7 @@ const HELL_DIFFS   = DIFFS.filter(d => d.isMeat || d.is250);
 const tierOf       = d => parseInt(d.name, 10);                       // '150HELL' → 150
 const unlockPhase  = d => PHASES.find(ph => tierOf(d) <= ph.maxTier);  // 使えるようになる最初の日
 const SCHEDULE_CELL_IDS = HELL_DIFFS.flatMap(d => PHASES.filter(ph => tierOf(d) <= ph.maxTier).map(ph => `s-${d.id}-${ph.id}`));
-const SCHEDULE_IDS = [...SCHEDULE_CELL_IDS, ...PHASES.map(ph => `s-hrs-${ph.id}`), 's-collect'];   // 保存する入力
+const SCHEDULE_IDS = [...SCHEDULE_CELL_IDS, ...PHASES.map(ph => `s-hrs-${ph.id}`), 's-collect', 's-bulk', 's-scope'];   // 保存する入力
 
 /** 単体法（最大化）：max c·x  ただし A x ≤ b, x ≥ 0。b ≥ 0 なら x = 0 から始められる。変数も式も少ないので、素朴な表で解く */
 function simplexMax(c, A, b) {
@@ -1734,6 +1758,13 @@ function setupScheduleInputs() {
         fireInput();
     });
     document.getElementById('s-auto').addEventListener('click', applySchedulePlan);
+    document.getElementById('s-bulk-main').addEventListener('click', () => setBulkHours(false));
+    document.getElementById('s-bulk-all').addEventListener('click', () => setBulkHours(true));
+    document.getElementById('s-bulk-clear').addEventListener('click', () => {
+        PHASES.forEach(ph => { document.getElementById(`s-hrs-${ph.id}`).value = ''; });
+        fireInput();
+    });
+    document.getElementById('s-need-out').addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#s-need-apply')) applyNeedHours(); });
     document.getElementById('s-undo').addEventListener('click', () => {
         if (!scheduleSnapshot) return;
         scheduleSnapshot.forEach(([id, v]) => { document.getElementById(id).value = v; });
@@ -1750,7 +1781,47 @@ function setupScheduleInputs() {
     };
     document.addEventListener('input', watch);
     document.addEventListener('change', watch);
+    // 目標まで 1日何時間かは、目標・現在・所持・集める肉・対象の日・討伐時間が変わったときだけ計算し直す
+    const watchNeed = (e) => {
+        const t = e.target;
+        if (t && (['t-goal', 't-cur', 'm-normal', 'm-mat', 's-collect', 's-scope'].includes(t.id) || (t.closest && t.closest('#tab-efficiency')))) updateNeedView();
+    };
+    document.addEventListener('input', watchNeed);
+    document.addEventListener('change', watchNeed);
     updateScheduleView();
+    updateNeedView();
+}
+
+// 予定の計算に使う入力（所持の肉 + 予選で集める肉、素材、難易度ごとの討伐時間）
+function schedulePlanInput() {
+    const $ = (id) => document.getElementById(id);
+    return {
+        stock: (parseInt($('m-normal').value) || 0) + (parseInt($('s-collect').value) || 0),
+        mat250: parseInt($('m-mat').value) || 0,
+        diffs: HELL_DIFFS.map(d => ({ id: d.id, name: d.name, tier: tierOf(d), contrib: d.contrib, chunks: d.chunks, is250: d.is250, time: killTimes[d.id] || null })),
+    };
+}
+
+// 「元に戻す」用に、予定の回数と使える時間を覚える
+function takeScheduleSnapshot() {
+    scheduleSnapshot = [...SCHEDULE_CELL_IDS, ...PHASES.map(ph => `s-hrs-${ph.id}`)].map(id => [id, document.getElementById(id).value]);
+    document.getElementById('s-undo').disabled = false;
+}
+
+// 計算した回数を、表に入れる（保存と再計算のために input を送る）
+function fillSchedule(plan) {
+    HELL_DIFFS.forEach(d => PHASES.forEach(ph => { const el = document.getElementById(`s-${d.id}-${ph.id}`); if (el) el.value = plan.runs[ph.id][d.id] || ''; }));
+    document.getElementById(SCHEDULE_CELL_IDS[0]).dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+// 使える時間を、日ごとの欄にまとめて入れる（本戦1〜4日目だけ／予選・インターバルも）
+function setBulkHours(includeQualifier) {
+    const n = parseFloat(document.getElementById('s-bulk').value);
+    const info = document.getElementById('s-plan-info');
+    if (!(n >= 0)) { info.textContent = '一括で入れる時間を、入れてください（例：4）。'; return; }
+    PHASES.forEach(ph => { if (includeQualifier || ph.id !== 'q') document.getElementById(`s-hrs-${ph.id}`).value = n; });
+    info.textContent = `使える時間を、${includeQualifier ? '予選・インターバルと本戦1〜4日目' : '本戦1〜4日目'}に ${n}時間ずつ入れました。`;
+    document.getElementById(SCHEDULE_CELL_IDS[0]).dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 // 「おすすめの割り振りを入れる」：使える時間・討伐時間・肉・素材から、貢献度が最大になる回数を入れる
@@ -1758,19 +1829,78 @@ function applySchedulePlan() {
     const $ = (id) => document.getElementById(id);
     const info = $('s-plan-info');
     const phases = PHASES.map(ph => ({ id: ph.id, name: ph.name, maxTier: ph.maxTier, hours: parseFloat($(`s-hrs-${ph.id}`).value) || 0 }));
-    if (!phases.some(ph => ph.hours > 0)) { info.textContent = '「使える時間」を、日ごとに入れてください（その日に HELL を回せる時間です）。'; return; }
-    const diffs = HELL_DIFFS.map(d => ({ id: d.id, name: d.name, tier: tierOf(d), contrib: d.contrib, chunks: d.chunks, is250: d.is250, time: killTimes[d.id] || null }));
-    const stock = (parseInt($('m-normal').value) || 0) + (parseInt($('s-collect').value) || 0);
-    const mat250 = parseInt($('m-mat').value) || 0;
+    if (!phases.some(ph => ph.hours > 0)) { info.textContent = '「使える時間」を、日ごとに入れてください（その日に HELL を回せる時間です。一括で入れることもできます）。'; return; }
+    const { stock, mat250, diffs } = schedulePlanInput();
     const plan = planSchedule({ stock, mat250, phases, diffs });
     const missing = plan.skipped.filter(d => phases.some(ph => ph.hours > 0 && d.tier <= ph.maxTier));
     const missingNote = missing.length ? ` 討伐効率タブで討伐時間が未入力の難易度は、入れていません：${missing.map(d => d.name).join('・')}。` : '';
     if (!plan.total) { info.textContent = `入れられる回数がありません。使える時間と、討伐効率タブの討伐時間を確かめてください。${missingNote}`; return; }
-    scheduleSnapshot = SCHEDULE_CELL_IDS.map(id => [id, $(id).value]);
-    $('s-undo').disabled = false;
-    HELL_DIFFS.forEach(d => PHASES.forEach(ph => { const el = $(`s-${d.id}-${ph.id}`); if (el) el.value = plan.runs[ph.id][d.id] || ''; }));
-    $(SCHEDULE_CELL_IDS[0]).dispatchEvent(new Event('input', { bubbles: true }));
+    takeScheduleSnapshot();
+    fillSchedule(plan);
     info.textContent = `おすすめを入れました：合計 ${fmtC(plan.total)}（整数にする前の上限 ${fmtC(plan.bound)}）。使える時間・解放日・肉と素材の数を守って、貢献度が最大になる回数です。手で直すと、見込みに反映されます。${missingNote}`;
+}
+
+// 目標までに必要な貢献度 need を、毎日同じ時間ずつ遊んで取るのに、1日あたり何時間いるか（0.05時間きざみで、いちばん短い時間）
+function solveHoursPerDay({ need, includeQualifier, stock, mat250, diffs }) {
+    const days = PHASES.filter(ph => includeQualifier || ph.id !== 'q');
+    const run = (h) => planSchedule({ stock, mat250, phases: PHASES.map(ph => ({ id: ph.id, maxTier: ph.maxTier, hours: days.includes(ph) ? h : 0 })), diffs });
+    const STEP = 0.05, MAX_K = Math.round(24 / STEP);
+    const top = run(MAX_K * STEP);
+    if (top.bound + 1 < need) return { reachable: false, max: top, days };
+    let lo = 0, hi = MAX_K;
+    while (lo < hi) {                                           // 時間が長いほど、取れる貢献度の上限は増えるので、二分探索
+        const mid = (lo + hi) >> 1;
+        if (run(mid * STEP).bound >= need - 1e-6) hi = mid; else lo = mid + 1;
+    }
+    let k = lo, plan = run(k * STEP);
+    while (plan.total < need && k < MAX_K) { k++; plan = run(k * STEP); }   // 整数にしたぶんの不足は、少しずつ足す
+    if (plan.total < need) return { reachable: false, max: plan, days };
+    return { reachable: true, hours: Math.round(k * STEP * 100) / 100, plan, days };
+}
+
+let needResult = null;   // 画面に出している答え（「この時間を入れる」で使う）
+
+function updateNeedView() {
+    const $ = (id) => document.getElementById(id);
+    const out = $('s-need-out');
+    if (!out) return;
+    needResult = null;
+    const goal = parseGoal($('t-goal') ? $('t-goal').value : '') || 0;
+    const cur  = parseGoal($('t-cur') ? $('t-cur').value : '') || 0;
+    if (!goal) { out.innerHTML = '<div class="no-data">目標貢献度を入れてください（目標計算タブ。「英雄」「10万位ボーダー」のボタンでも入れられます）</div>'; return; }
+    const need = goal - cur;
+    if (need <= 0) { out.innerHTML = '<div style="color:#4caf50;font-weight:700;padding:14px;text-align:center">🎉 現在の貢献度で、すでに目標を超えています</div>'; return; }
+    const includeQualifier = $('s-scope').value === 'all';
+    const { stock, mat250, diffs } = schedulePlanInput();
+    const inScope = (d) => PHASES.some(ph => (includeQualifier || ph.id !== 'q') && d.tier <= ph.maxTier);
+    if (!diffs.some(d => d.time > 0 && inScope(d))) { out.innerHTML = '<div class="no-data">討伐効率タブで、HELL の討伐時間を入れてください（時間から回数を出すためです）</div>'; return; }
+    const missing = diffs.filter(d => !(d.time > 0) && inScope(d)).map(d => d.name);
+    const missingNote = missing.length ? `<div class="note" style="margin-top:6px;">討伐時間が未入力の難易度は、入れずに計算しています：${missing.join('・')}</div>` : '';
+    const head = `目標 ${fmtC(goal)} − 現在 ${fmtC(cur)} ＝ 必要 ${fmtC(need)}`;
+    const r = solveHoursPerDay({ need, includeQualifier, stock, mat250, diffs });
+    if (!r.reachable) {
+        out.innerHTML = `<div class="sum-box" style="margin-top:0"><div class="sum-label">${head}</div><div class="sum-val" style="color:#e07070">毎日24時間ずつでも、届きません</div></div>`
+            + `<div class="note" style="margin-top:8px;">毎日24時間ずつのときの最大は ${fmtC(r.max.total)}（あと ${fmtC(need - r.max.total)}）。肉・素材の数、解放日、討伐時間のどれかが足りません。</div>` + missingNote;
+        return;
+    }
+    const perDay = r.hours * 3600;
+    const lines = r.days.map(ph => {
+        const parts = HELL_DIFFS.filter(d => r.plan.runs[ph.id][d.id] > 0).map(d => `${d.name} ${r.plan.runs[ph.id][d.id].toLocaleString()}回`);
+        return `${ph.name}：${parts.length ? parts.join(' ・ ') : '─'}`;
+    });
+    out.innerHTML = `<div class="sum-box" style="margin-top:0"><div class="sum-label">${head}</div><div class="sum-val">毎日 約 ${fmtTime(perDay)}（${r.days.length}日で ${fmtTime(perDay * r.days.length)}）</div></div>`
+        + `<div class="note" style="margin-top:8px;line-height:1.9">そのときの獲得貢献度は ${fmtC(r.plan.total)}。${includeQualifier ? '予選・インターバルは、1日分として数えています。' : ''}<br>${lines.join('<br>')}</div>`
+        + `<div style="margin-top:10px;"><button type="button" class="base-btn" id="s-need-apply" style="font-size:0.8em;padding:5px 10px;">この時間を入れて、割り振りも入れる</button></div>` + missingNote;
+    needResult = r;
+}
+
+function applyNeedHours() {
+    if (!needResult) return;
+    const r = needResult;
+    takeScheduleSnapshot();
+    PHASES.forEach(ph => { document.getElementById(`s-hrs-${ph.id}`).value = r.days.includes(ph) ? r.hours : ''; });
+    fillSchedule(r.plan);
+    document.getElementById('s-plan-info').textContent = `毎日 ${fmtTime(r.hours * 3600)} ずつの「使える時間」と、そのときの回数（合計 ${fmtC(r.plan.total)}）を入れました。「元に戻す」で、前の入力に戻せます。`;
 }
 
 function updateScheduleView() {
@@ -2447,6 +2577,7 @@ document.querySelector('.tab-btn[data-tab="trehun"]').addEventListener('click', 
     updateTargetView();
     updateMeatView();
     updateScheduleView();
+    updateNeedView();
 
     // 最後に開いたタブ（#border のようにURLでも指定できる）
     const btnOf = (t) => document.querySelector(`.tab-btn[data-tab="${t}"]`);
