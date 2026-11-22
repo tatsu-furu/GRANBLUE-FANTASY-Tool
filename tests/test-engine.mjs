@@ -119,6 +119,23 @@ function independentCheck(plan, c, diffsP, phases) {
   ok(hoursBad.length === 0, '必要な肉の計画の毎日の時間は、肉が十分あるときの時間と同じ', hoursBad.slice(0, 5).join('\n      '));
 }
 
+// ── 2b. 目標を決めない（貢献度の最大化）の計画も、検算を通る ──
+{
+  const r = rng(77);
+  let n = 0; const bad = [];
+  for (let i = 0; i < 80; i++) {
+    const c = randomCase(r);
+    const diffsP = E.allowedDiffs(E.planDiffsFrom(c.times), c.priority);
+    const spec = E.scheduleHoursSpec(diffsP, { includeQ: c.hoursOpt.includeQ, hours: { ...c.hoursOpt.hours, d1: c.hoursOpt.hours.d1 == null ? 4 : c.hoursOpt.hours.d1, d2: c.hoursOpt.hours.d2 == null ? 4 : c.hoursOpt.hours.d2, d3: c.hoursOpt.hours.d3 == null ? 4 : c.hoursOpt.hours.d3, d4: c.hoursOpt.hours.d4 == null ? 4 : c.hoursOpt.hours.d4 } });
+    const phases = PHASES.map((ph, k) => ({ id: ph.id, maxTier: ph.maxTier, hours: spec[k].fixed ? spec[k].hours : 0 }));
+    const plan = E.planSchedule({ stock: c.stock, mat250: c.mat250, phases, diffs: diffsP });
+    n++;
+    const why = independentCheck(plan, c, diffsP, phases);
+    if (why) bad.push(`#${i}: ${why}`);
+  }
+  ok(bad.length === 0, `目標を決めない（貢献度の最大化）の計画も、検算を通る（${n}問）`, bad.slice(0, 5).join('\n      '));
+}
+
 // ── 3. 無制限は、10⁹ ではなく、制約なし ──
 {
   const r = rng(5);

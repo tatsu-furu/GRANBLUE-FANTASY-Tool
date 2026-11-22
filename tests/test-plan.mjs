@@ -100,6 +100,10 @@ for (const file of ['kosenjou.html', 'kosenjou-beta.html']) {
     ok(short.meat <= 3000 && short.meat > 0, `A2: 肉が足りないとき、カードの肉の合計（${short.meat}）が、いまの肉（3,000）以下`, short.cards.join(' | '));
     ok(await a.page.evaluate(() => planPanel.R.views.time.minMeat === false && planPanel.R.views.time.shortage.meat > 0), 'A2: 肉が足りないとき、カードは「いまの肉で取れるだけ取る計画」（肉が最小の計画ではない）');
     await a.ctx.close();
+    const m = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'number', goalText: '60億', meatText: '3500', matText: '2000' }, errors });
+    const withMat = await cardInfo(m.page);
+    ok(withMat.meat === 4200 && await m.page.evaluate(() => planPanel.R.views.time.minMeat === true && planPanel.R.views.time.shortage.meat === 0), `A2: 素材の変換で肉が足りるとき（肉 3,500 + 素材 2,000）、カードの肉の合計（${withMat.meat}）は「必要な通常肉」（4,200）と一致する`, withMat.cards.join(' | '));
+    await m.ctx.close();
     const b = await openPlan(file, { seed: { gbf_kj_times: FULL }, plan: { goalKind: 'number', goalText: '60億' }, errors });
     const unk = await cardInfo(b.page);
     ok(unk.meat === 4200, `A2: 肉が未入力のとき、カードの肉の合計（${unk.meat}）は、必要な通常肉（4,200）`, unk.cards.join(' | '));
