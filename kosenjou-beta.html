@@ -175,6 +175,8 @@
         .base-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
         #t-goal-presets .base-btn { font-size: 0.8em; padding: 5px 10px; }
         #s-table th, #s-table td { text-align: center; }
+        #s-table th { white-space: normal; }
+        #tab-schedule .base-btn:disabled { opacity: 0.4; cursor: default; }
         #s-table th:first-child, #s-table td:first-child { text-align: left; white-space: nowrap; position: sticky; left: 0; z-index: 1; }
         #s-table td:first-child { background: var(--surface); }
         #s-table th:first-child { background: var(--surface-2); }
@@ -613,10 +615,12 @@
             <div style="padding:10px 12px 4px;font-size:0.83em;color:var(--text-2);line-height:1.7;">
                 <p style="margin-bottom:6px;">予選〜本戦4日目の予定の回数を入れて、肉の消費と獲得貢献度を日ごとに見ます。</p>
                 <ul style="padding-left:14px;display:flex;flex-direction:column;gap:4px;">
-                    <li><strong style="color:var(--text);">解放日</strong>: 150HELL は本戦1日目、200HELL は本戦2日目、250HELL は本戦3日目（予選は 90〜100HELL）。解放前の欄は入力できません</li>
+                    <li><strong style="color:var(--text);">解放日</strong>: 予選・インターバルは 90・95HELL、本戦1日目に 100・150HELL、2日目に 200HELL、3日目に 250HELL。解放前の欄は入力できません</li>
                     <li>所持の肉・素材は肉計算タブ、目標・現在の貢献度は目標計算タブの値を使います</li>
                     <li>250HELL は 1回につき専用素材 20個。余った素材は 500個まで通常肉 2個に変換して、肉に足します</li>
-                    <li>討伐効率タブで時間を入れた難易度は、日ごとの所要時間も出ます</li>
+                    <li><strong style="color:var(--text);">使える時間</strong>（その日に HELL を回せる時間）と、討伐効率タブの討伐時間を入れると、「おすすめの割り振りを入れる」で、貢献度が最大になる回数を自動で入れます。あとから手で直せて、「元に戻す」もあります</li>
+                    <li>予選・インターバルに集める肉は、「肉を集める」の欄に入れます（所持の肉に足して計算）</li>
+                    <li>所要時間が使える時間を超える日は、赤く出ます</li>
                 </ul>
             </div>
         </details>
@@ -826,16 +830,30 @@
     <div id="tab-schedule" class="tab-content">
         <div class="card">
             <div class="card-title">スケジュール（予選〜本戦4日目）</div>
-            <p class="note" style="margin-bottom:6px;">150HELL は本戦1日目、200HELL は本戦2日目、250HELL は本戦3日目から使えます（予選は 90〜100HELL）。日ごとに予定の回数を入れると、肉の消費・獲得貢献度・累計が分かります。</p>
+            <p class="note" style="margin-bottom:6px;">使える難易度：予選・インターバルは 90・95HELL、本戦1日目に 100・150HELL、2日目に 200HELL、3日目から 250HELL。予選は肉を集める日、本戦は HELL を回す日として、分けて入れます。</p>
             <p class="note" id="s-stock"></p>
+        </div>
+        <div class="card">
+            <div class="card-title">肉を集める（予選・インターバル）</div>
+            <div class="frow" style="margin-bottom:6px;">
+                <label for="s-collect">集める肉</label>
+                <input type="number" id="s-collect" min="0" step="1" inputmode="numeric" placeholder="0">
+                <span class="unit">個</span>
+            </div>
+            <p class="note">EX+ などで集める肉の数。所持の肉（肉計算タブ）に足して、使える肉として計算します。</p>
         </div>
         <div class="card">
             <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                 予定の回数（回）
-                <button type="button" class="base-btn" id="s-clear">全部消す</button>
+                <span style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button type="button" class="base-btn" id="s-auto">おすすめの割り振りを入れる</button>
+                    <button type="button" class="base-btn" id="s-undo" disabled>元に戻す</button>
+                    <button type="button" class="base-btn" id="s-clear">回数を全部消す</button>
+                </span>
             </div>
             <div style="overflow-x:auto"><table class="data-table" id="s-table"></table></div>
-            <p class="note" style="margin-top:8px;">灰色の欄は、まだ解放されていない難易度です。250HELL の回数は、ここで入れた合計が使われます（肉計算タブの「250HELL 回数」とは別です）。所要時間は、討伐効率タブで時間を入れた難易度だけ出ます。</p>
+            <p class="note" id="s-plan-info" style="margin-top:8px;"></p>
+            <p class="note" style="margin-top:8px;">灰色の欄は、まだ解放されていない難易度です。「使える時間」は、その日に HELL を回せる時間（予選・インターバルは、肉集めの時間を除いた分）で、「おすすめの割り振り」と所要時間のチェックに使います。討伐時間は、討伐効率タブの値です。250HELL の回数は、ここで入れた合計が使われます（肉計算タブの「250HELL 回数」とは別です）。</p>
         </div>
         <div class="card">
             <div class="card-title">見込み</div>
@@ -1575,21 +1593,124 @@ function updateMeatView() {
 }
 
 // ── スケジュール：日ごとの解放を考えた予定 ──
-// 予選は 90〜100HELL、本戦1日目に 150HELL、2日目に 200HELL、3日目に 250HELL が使えるようになる
+// 予選・インターバルは 90・95HELL、本戦1日目に 100・150HELL、2日目に 200HELL、3日目に 250HELL が使えるようになる
 const PHASES = [
-    { id:'q',  name:'予選',      maxTier:100 },
-    { id:'d1', name:'本戦1日目', maxTier:150 },
-    { id:'d2', name:'本戦2日目', maxTier:200 },
-    { id:'d3', name:'本戦3日目', maxTier:250 },
-    { id:'d4', name:'本戦4日目', maxTier:250 },
+    { id:'q',  name:'予選・インターバル', maxTier:95  },
+    { id:'d1', name:'本戦1日目',          maxTier:150 },
+    { id:'d2', name:'本戦2日目',          maxTier:200 },
+    { id:'d3', name:'本戦3日目',          maxTier:250 },
+    { id:'d4', name:'本戦4日目',          maxTier:250 },
 ];
 const HELL_DIFFS   = DIFFS.filter(d => d.isMeat || d.is250);
 const tierOf       = d => parseInt(d.name, 10);                       // '150HELL' → 150
 const unlockPhase  = d => PHASES.find(ph => tierOf(d) <= ph.maxTier);  // 使えるようになる最初の日
-const SCHEDULE_IDS = HELL_DIFFS.flatMap(d => PHASES.filter(ph => tierOf(d) <= ph.maxTier).map(ph => `s-${d.id}-${ph.id}`));
+const SCHEDULE_CELL_IDS = HELL_DIFFS.flatMap(d => PHASES.filter(ph => tierOf(d) <= ph.maxTier).map(ph => `s-${d.id}-${ph.id}`));
+const SCHEDULE_IDS = [...SCHEDULE_CELL_IDS, ...PHASES.map(ph => `s-hrs-${ph.id}`), 's-collect'];   // 保存する入力
+
+/** 単体法（最大化）：max c·x  ただし A x ≤ b, x ≥ 0。b ≥ 0 なら x = 0 から始められる。変数も式も少ないので、素朴な表で解く */
+function simplexMax(c, A, b) {
+    const m = A.length, n = c.length, W = n + m + 1, EPS = 1e-9;
+    const T = A.map((row, i) => [...row, ...Array.from({ length: m }, (_, j) => (i === j ? 1 : 0)), b[i]]);
+    const z = [...c.map(v => -v), ...new Array(m + 1).fill(0)];
+    const basis = Array.from({ length: m }, (_, i) => n + i);
+    for (let iter = 0; iter < 20000; iter++) {
+        let col = -1;
+        for (let j = 0; j < n + m; j++) if (z[j] < -EPS) { col = j; break; }      // Bland の決まり（同点は番号の小さい方）
+        if (col < 0) break;
+        let row = -1, best = Infinity;
+        for (let i = 0; i < m; i++) {
+            if (T[i][col] <= EPS) continue;
+            const r = T[i][W - 1] / T[i][col];
+            if (r < best - EPS || (Math.abs(r - best) <= EPS && basis[i] < basis[row])) { best = r; row = i; }
+        }
+        if (row < 0) return { unbounded: true };
+        const pv = T[row][col];
+        for (let j = 0; j < W; j++) T[row][j] /= pv;
+        for (let i = 0; i < m; i++) {
+            if (i === row) continue;
+            const f = T[i][col];
+            if (f !== 0) for (let j = 0; j < W; j++) T[i][j] -= f * T[row][j];
+        }
+        const f = z[col];
+        for (let j = 0; j < W; j++) z[j] -= f * T[row][j];
+        basis[row] = col;
+    }
+    const x = new Array(n).fill(0);
+    basis.forEach((bv, i) => { if (bv < n) x[bv] = T[i][W - 1]; });
+    return { x, value: z[W - 1] };
+}
+
+/**
+ * 予定の回数を、獲得貢献度が最大になるように決める。
+ * 日ごとの使える時間・難易度の解放日・所持の肉と素材（余った素材は 500個まで肉2個に変換）を守る。
+ * 線形計画（単体法）で解いて、整数に直し、余った時間・肉に入るだけ足す。
+ *   stock … 使える通常肉　mat250 … 250専用素材　phases … [{ id, maxTier, hours }]
+ *   diffs … [{ id, tier, contrib, chunks, is250, time }]（time は 1回の討伐秒数。未入力は null で、計画に入れない）
+ * 戻り値：{ runs: { 日: { 難易度: 回数 } }, total, bound, skipped }（bound は、整数にする前の上限）
+ */
+function planSchedule({ stock, mat250, phases, diffs }) {
+    const CONVERT_MAX = 500;
+    const d250 = diffs.find(d => d.is250);
+    const active = phases.filter(ph => ph.hours > 0);
+    const usable = diffs.filter(d => d.time > 0);
+    const plan = { runs: {}, total: 0, bound: 0, skipped: diffs.filter(d => !(d.time > 0)) };
+    phases.forEach(ph => { plan.runs[ph.id] = {}; diffs.forEach(d => { plan.runs[ph.id][d.id] = 0; }); });
+
+    const vars = [];
+    active.forEach(ph => usable.forEach(d => { if (d.tier <= ph.maxTier) vars.push({ ph, d }); }));
+    if (!vars.length) return plan;
+
+    // 線形計画：変数 = 各（日, 難易度）の回数 + 素材から肉への変換数 y
+    const n = vars.length + 1, yIdx = vars.length;
+    const rows = [], rhs = [];
+    active.forEach(ph => {                                                                     // 日ごとの使える時間（分）
+        rows.push(vars.map(v => (v.ph === ph ? v.d.time / 60 : 0)).concat(0));
+        rhs.push(ph.hours * 60);
+    });
+    rows.push(vars.map(v => (v.d.is250 ? 0 : v.d.chunks)).concat(-2)); rhs.push(Math.max(0, stock));   // 肉：使う ≤ 所持 + 変換 × 2
+    rows.push(vars.map(v => (v.d.is250 ? v.d.chunks : 0)).concat(1));  rhs.push(Math.max(0, mat250));  // 素材：250HELL で使う + 変換 ≤ 所持
+    rows.push(Array.from({ length: n }, (_, j) => (j === yIdx ? 1 : 0))); rhs.push(CONVERT_MAX);       // 変換は 500個まで
+    const lp = simplexMax(vars.map(v => v.d.contrib / 1e4).concat(0), rows, rhs);
+    if (!lp.x) return plan;
+    plan.bound = lp.value * 1e4;
+
+    const cost250 = d250 ? d250.chunks : 20;
+    const runs = lp.x.slice(0, vars.length).map(x => Math.max(0, Math.floor(x + 1e-9)));
+    const fits = () => {
+        const sec = new Map(); let meat = 0, mat = 0;
+        vars.forEach((v, k) => {
+            if (!runs[k]) return;
+            sec.set(v.ph, (sec.get(v.ph) || 0) + runs[k] * v.d.time);
+            if (v.d.is250) mat += runs[k] * cost250; else meat += runs[k] * v.d.chunks;
+        });
+        for (const ph of active) if ((sec.get(ph) || 0) > ph.hours * 3600 + 1e-6) return false;
+        return mat <= mat250 && meat <= stock + 2 * Math.min(CONVERT_MAX, mat250 - mat);
+    };
+    for (let guard = 0; guard < 10000 && !fits(); guard++) {            // 丸めで、わずかに超えたときは、貢献度の小さいものから減らす
+        let k = -1;
+        vars.forEach((v, i) => { if (runs[i] > 0 && (k < 0 || v.d.contrib < vars[k].d.contrib)) k = i; });
+        if (k < 0) break;
+        runs[k]--;
+    }
+    for (let guard = 0; guard < 10000; guard++) {                       // 余った時間・肉・素材に、入るだけ足す（貢献度の大きいものから）
+        let best = -1;
+        vars.forEach((v, k) => {
+            runs[k]++;
+            if (fits() && (best < 0 || v.d.contrib > vars[best].d.contrib)) best = k;
+            runs[k]--;
+        });
+        if (best < 0) break;
+        runs[best]++;
+    }
+    vars.forEach((v, k) => { plan.runs[v.ph.id][v.d.id] += runs[k]; plan.total += runs[k] * v.d.contrib; });
+    return plan;
+}
+
+let scheduleSnapshot = null;   // 「おすすめ」を入れる前の入力（元に戻す用）
 
 function setupScheduleInputs() {
     let html = `<thead><tr><th>難易度</th>${PHASES.map(ph => `<th>${ph.name}</th>`).join('')}<th>合計</th></tr></thead><tbody>`;
+    html += `<tr><td style="color:var(--text-2);font-weight:700;white-space:nowrap">使える時間（h）</td>${PHASES.map(ph => `<td><input type="number" class="s-cell" id="s-hrs-${ph.id}" min="0" step="0.5" inputmode="decimal" placeholder="0"></td>`).join('')}<td id="s-hrs-all" style="color:var(--text-3)">─</td></tr>`;
     HELL_DIFFS.forEach(d => {
         const first = unlockPhase(d);
         html += `<tr><td><span class="${diffClass(d)}" style="font-weight:700">${d.name}</span>${first.id !== 'q' ? `<div class="note" style="font-size:0.72em">${first.name}から</div>` : ''}</td>`;
@@ -1607,12 +1728,22 @@ function setupScheduleInputs() {
     html += '</tfoot>';
     document.getElementById('s-table').innerHTML = html;
 
+    const fireInput = () => document.getElementById(SCHEDULE_CELL_IDS[0]).dispatchEvent(new Event('input', { bubbles: true })); // 保存と再計算
     document.getElementById('s-clear').addEventListener('click', () => {
-        SCHEDULE_IDS.forEach(id => { document.getElementById(id).value = ''; });
-        document.getElementById(SCHEDULE_IDS[0]).dispatchEvent(new Event('input', { bubbles: true })); // 保存と再計算
+        SCHEDULE_CELL_IDS.forEach(id => { document.getElementById(id).value = ''; });
+        fireInput();
+    });
+    document.getElementById('s-auto').addEventListener('click', applySchedulePlan);
+    document.getElementById('s-undo').addEventListener('click', () => {
+        if (!scheduleSnapshot) return;
+        scheduleSnapshot.forEach(([id, v]) => { document.getElementById(id).value = v; });
+        scheduleSnapshot = null;
+        document.getElementById('s-undo').disabled = true;
+        document.getElementById('s-plan-info').textContent = '「おすすめ」を入れる前の回数に戻しました。';
+        fireInput();
     });
 
-    // 予定の回数・所持・目標・討伐時間が変わったら、計算し直す
+    // 予定の回数・時間・集める肉・所持・目標・討伐時間が変わったら、計算し直す
     const watch = (e) => {
         const t = e.target;
         if (t && (SCHEDULE_IDS.includes(t.id) || ['t-goal', 't-cur', 'm-normal', 'm-mat'].includes(t.id) || (t.closest && t.closest('#tab-efficiency')))) updateScheduleView();
@@ -1622,12 +1753,33 @@ function setupScheduleInputs() {
     updateScheduleView();
 }
 
+// 「おすすめの割り振りを入れる」：使える時間・討伐時間・肉・素材から、貢献度が最大になる回数を入れる
+function applySchedulePlan() {
+    const $ = (id) => document.getElementById(id);
+    const info = $('s-plan-info');
+    const phases = PHASES.map(ph => ({ id: ph.id, name: ph.name, maxTier: ph.maxTier, hours: parseFloat($(`s-hrs-${ph.id}`).value) || 0 }));
+    if (!phases.some(ph => ph.hours > 0)) { info.textContent = '「使える時間」を、日ごとに入れてください（その日に HELL を回せる時間です）。'; return; }
+    const diffs = HELL_DIFFS.map(d => ({ id: d.id, name: d.name, tier: tierOf(d), contrib: d.contrib, chunks: d.chunks, is250: d.is250, time: killTimes[d.id] || null }));
+    const stock = (parseInt($('m-normal').value) || 0) + (parseInt($('s-collect').value) || 0);
+    const mat250 = parseInt($('m-mat').value) || 0;
+    const plan = planSchedule({ stock, mat250, phases, diffs });
+    const missing = plan.skipped.filter(d => phases.some(ph => ph.hours > 0 && d.tier <= ph.maxTier));
+    const missingNote = missing.length ? ` 討伐効率タブで討伐時間が未入力の難易度は、入れていません：${missing.map(d => d.name).join('・')}。` : '';
+    if (!plan.total) { info.textContent = `入れられる回数がありません。使える時間と、討伐効率タブの討伐時間を確かめてください。${missingNote}`; return; }
+    scheduleSnapshot = SCHEDULE_CELL_IDS.map(id => [id, $(id).value]);
+    $('s-undo').disabled = false;
+    HELL_DIFFS.forEach(d => PHASES.forEach(ph => { const el = $(`s-${d.id}-${ph.id}`); if (el) el.value = plan.runs[ph.id][d.id] || ''; }));
+    $(SCHEDULE_CELL_IDS[0]).dispatchEvent(new Event('input', { bubbles: true }));
+    info.textContent = `おすすめを入れました：合計 ${fmtC(plan.total)}（整数にする前の上限 ${fmtC(plan.bound)}）。使える時間・解放日・肉と素材の数を守って、貢献度が最大になる回数です。手で直すと、見込みに反映されます。${missingNote}`;
+}
+
 function updateScheduleView() {
     const tbl = document.getElementById('s-table');
     if (!tbl || !tbl.rows.length) return;
     const $ = (id) => document.getElementById(id);
     const stockMeat = parseInt($('m-normal') && $('m-normal').value) || 0;
     const mat250    = parseInt($('m-mat') && $('m-mat').value) || 0;
+    const collect   = parseInt($('s-collect').value) || 0;
     const d250      = DIFFS.find(d => d.is250);
 
     // 予定の回数（解放前の欄は、そもそも入力欄がない）
@@ -1648,9 +1800,9 @@ function updateScheduleView() {
     const left250       = mat250 - used250;
     const convertible   = Math.max(0, Math.min(left250, 500));
     const convertedMeat = convertible * 2;
-    const meatPool      = stockMeat + convertedMeat;
+    const meatPool      = stockMeat + collect + convertedMeat;
 
-    let anyRuns = false, cum = 0, meatCum = 0, firstShort = null, allSec = 0, allSecKnown = true;
+    let anyRuns = false, cum = 0, meatCum = 0, firstShort = null, allSec = 0, allSecKnown = true, allHrs = 0;
     const cols = PHASES.map(ph => {
         let meat = 0, mat = 0, gain = 0, sec = 0, secKnown = true, any = false;
         HELL_DIFFS.forEach(d => {
@@ -1661,11 +1813,13 @@ function updateScheduleView() {
             gain += n * d.contrib;
             if (killTimes[d.id]) sec += n * killTimes[d.id]; else secKnown = false;
         });
+        const hrs = parseFloat($(`s-hrs-${ph.id}`).value) || 0;
+        allHrs += hrs;
         if (any) { anyRuns = true; if (secKnown) allSec += sec; else allSecKnown = false; }
         cum += gain; meatCum += meat;
         const left = meatPool - meatCum;
         if (left < 0 && !firstShort) firstShort = ph;
-        return { ph, meat, mat, gain, cum, sec, secKnown, any, left };
+        return { ph, meat, mat, gain, cum, sec, secKnown, any, left, hrs, over: any && secKnown && hrs > 0 && sec > hrs * 3600 + 1 };
     });
 
     const dash = '─';
@@ -1676,9 +1830,10 @@ function updateScheduleView() {
         setText(`s-mat-${id}`,  c.mat  ? c.mat.toLocaleString()  : dash);
         setText(`s-gain-${id}`, c.gain ? fmtC(c.gain) : dash);
         setText(`s-cum-${id}`,  anyRuns && c.cum ? fmtC(c.cum) : dash);
-        setText(`s-time-${id}`, c.any ? (c.secKnown ? fmtTime(c.sec) : '未入力あり') : dash);
+        setText(`s-time-${id}`, c.any ? (c.secKnown ? fmtTime(c.sec) + (c.hrs > 0 ? ` / ${fmtTime(c.hrs * 3600)}` : '') : '未入力あり') : dash, c.over);
         setText(`s-left-${id}`, anyRuns ? c.left.toLocaleString() : dash, c.left < 0);
     });
+    setText('s-hrs-all', allHrs ? `${allHrs}時間` : dash);
     setText('s-meat-all', meatCum ? meatCum.toLocaleString() : dash);
     setText('s-mat-all',  used250 ? used250.toLocaleString() : dash, used250 > mat250);
     setText('s-gain-all', cum ? fmtC(cum) : dash);
@@ -1695,7 +1850,10 @@ function updateScheduleView() {
     const red = (s) => `<span style="color:#e07070;font-weight:700">${s}</span>`;
     const lines = [];
     const meatLeft = meatPool - meatCum;
-    lines.push(`通常肉：使う ${meatCum.toLocaleString()}個 ／ 使える ${meatPool.toLocaleString()}個（所持 ${stockMeat.toLocaleString()}${convertedMeat ? ` + 素材から ${convertedMeat.toLocaleString()}` : ''}）→ `
+    const parts = [`所持 ${stockMeat.toLocaleString()}`];
+    if (collect) parts.push(`予選で集める ${collect.toLocaleString()}`);
+    if (convertedMeat) parts.push(`素材から ${convertedMeat.toLocaleString()}`);
+    lines.push(`通常肉：使う ${meatCum.toLocaleString()}個 ／ 使える ${meatPool.toLocaleString()}個（${parts.join(' + ')}）→ `
         + (meatLeft >= 0 ? `残り ${meatLeft.toLocaleString()}個` : red(`${(-meatLeft).toLocaleString()}個 足りません${firstShort ? `（${firstShort.name}で足りなくなります）` : ''}`)));
     if (total250 > 0 || mat250 > 0) {
         let s = `250専用素材：250HELL ${total250.toLocaleString()}回 × ${d250.chunks}個 = ${used250.toLocaleString()}個 ／ 所持 ${mat250.toLocaleString()}個`;
@@ -1703,6 +1861,7 @@ function updateScheduleView() {
         else if (left250 > 0) s += ` → 残り ${left250.toLocaleString()}個のうち ${convertible.toLocaleString()}個を通常肉 ${convertedMeat.toLocaleString()}個に変換` + (left250 > 500 ? `（500個超えの ${(left250 - 500).toLocaleString()}個は変換不可）` : '');
         lines.push(s);
     }
+    cols.filter(c => c.over).forEach(c => lines.push(red(`${c.ph.name}：所要時間 ${fmtTime(c.sec)} が、使える時間 ${fmtTime(c.hrs * 3600)} を超えています`)));
     const goal = parseGoal($('t-goal') ? $('t-goal').value : '') || 0;
     const cur  = parseGoal($('t-cur') ? $('t-cur').value : '') || 0;
     if (goal > 0) {
