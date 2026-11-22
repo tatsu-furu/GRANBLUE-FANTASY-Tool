@@ -11,6 +11,7 @@ npm test                            # すべて（下の順に走る）
 npm run test:sources                # ソースの決まりごと（ドロップ率の定義が1か所、など）（ブラウザなし）
 npm run test:engine                 # 計算（kosenjou-schedule.js）：同じ入力は同じ答え・整数の検算（ブラウザなし）
 npm run test:stars                  # 極星器：確率の分布（モンテカルロ法との照合）・欲しい本数を入れた計画（Node。ブラウザなし）
+npm run test:relations               # 入力を少し変えたとき、答えが決まった向きに動くこと（乱数で 200通り：肉・目標・日の○×・極星器の本数・毎日の時間）（Node）
 npm run test:worker                 # かんたん計画の計算を Web Worker で行う仕組み（結果の一致・CPU 4倍遅くしても一致・入力中に止まらない・Worker が使えないとき）
 npm run test:kosenjou               # 古戦場ツール本体（kosenjou.html・kosenjou-beta.html の2つ）
 npm run test:plan                   # かんたん計画タブ（同じく2つ。計算はページの中）

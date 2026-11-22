@@ -112,7 +112,7 @@ const qOf = (id) => (perDiff[id] && perDiff[id].known ? perDiff[id].item / 100 :
 }
 
 {
-  // 欲しい本数：期待本数が足りている・1日の上限を超えない・増やしても減らない
+  // 欲しい本数：期待本数が足りている・1日の上限を超えない・増やしても毎日の時間が減らない
   const rows = [];
   for (const mode of ['avg']) for (const extra of ['', 'h90', 'h200']) {
     let prev = null;
@@ -128,13 +128,14 @@ const qOf = (id) => (perDiff[id] && perDiff[id].known ? perDiff[id].item / 100 :
   const okRows = rows.filter((r) => r.n > 0 && !r.blocked);
   ok(okRows.length > 8 && okRows.every((r) => r.mean >= r.n - 1e-9), `B3: 欲しい本数を入れると、計画の期待本数が、その本数以上になる（${okRows.length}通り）`, JSON.stringify(okRows.filter((r) => r.mean < r.n - 1e-9)));
   ok(rows.every((r) => r.maxDay <= 17 + 1e-9), 'B3: どの日も、極星器の周回を含めて、1日 17時間を超えない（警告ではなく、計画の上で守る）', JSON.stringify(rows.filter((r) => r.maxDay > 17)));
-  // 本数を増やしても、毎日の時間と必要な肉は減らない（届くあいだ）
+  // 本数を増やしても、毎日の時間は減らない（届くあいだ）。
+  // 必要な通常肉は、最短の時間で比べると、時間が増えるぶん減ることがある（毎日の時間を同じにすれば、減らない。tests/test-relations.mjs で確かめている）
   let mono = true; const bad = [];
   for (const extra of ['', 'h90', 'h200']) for (const pr of ['time', 'meat']) {
     const seq = rows.filter((r) => r.extra === extra && r.pr === pr && r.reachable && !r.blocked);
-    for (let i = 1; i < seq.length; i++) if (seq[i].hours < seq[i - 1].hours - 1e-9 || seq[i].req < seq[i - 1].req - 1e-9) { mono = false; bad.push([extra, pr, seq[i - 1], seq[i]]); }
+    for (let i = 1; i < seq.length; i++) if (seq[i].hours < seq[i - 1].hours - 1e-9) { mono = false; bad.push([extra, pr, seq[i - 1], seq[i]]); }
   }
-  ok(mono, 'B3: 欲しい本数を増やしても、毎日の時間と必要な通常肉は、減らない', JSON.stringify(bad[0]));
+  ok(mono, 'B3: 欲しい本数を増やしても、毎日の時間は、減らない', JSON.stringify(bad[0]));
   ok(rows.some((r) => r.blocked), 'B3: 1日 17時間でも集められない本数は、集められないとわかる（starBlocked）');
 }
 
