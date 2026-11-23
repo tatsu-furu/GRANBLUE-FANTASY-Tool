@@ -28,7 +28,7 @@ const usableIn = (d, ph) => d.time > 0 && d.tier <= ph.maxTier && (!d.only || d.
 // 時間の上限（SAFETY_VALVE_MS）は、固まるのを防ぐ最後の安全装置で、ふつうの入力では、届かない大きさにしてある
 const BUDGET_SOLVE_NODES = 6000;      // 毎日の時間を決めるとき（solveSchedule の、実際の肉・素材と、十分あるときの、それぞれ）に調べてよい枝の数
 const BUDGET_REQ_NODES   = 8000;      // 必要な肉の逆算（scheduleScenario）で調べてよい枝の数
-const SAFETY_VALVE_MS    = 5000;      // 安全装置：これを超えたら、途中の答えを返す（結果に timedOut が立つ）
+const SAFETY_VALVE_MS    = 30000;     // 安全装置：これを超えたら、途中の答えを返す（結果に timedOut が立つ）。枝の数の予算で、ふつうは、数秒で終わる（CPU が 4倍遅くても 10秒ほど）ので、そこには届かない大きさにしてある
 // 極星器の本数の制約があるときは、日の時間がぴったり埋まる「針の穴」のような解が必要になることがあり、探索が難しいので、予算を増やす
 const BUDGET_SOLVE_NODES_STAR = 6000, BUDGET_REQ_NODES_STAR = 16000;
 const RETRY_NODES = 3000, RETRY_NODES_STAR = 3000, RETRY_REQ_NODES_STAR = 3000;      // 1回の探索が途中でやめたとき、もう一度試すときの、枝の数の上限（時間を決めるとき・必要な肉の逆算）
