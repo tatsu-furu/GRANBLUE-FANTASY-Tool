@@ -1,0 +1,23 @@
+{
+  "name": "granblue-fantasy-tool",
+  "private": true,
+  "description": "古戦場ツールの、テストと検証（サイトの表示には使いません）",
+  "scripts": {
+    "test": "node tests/test-sources.mjs && node tests/test-engine.mjs && node tests/test-stars.mjs && node tests/test-relations.mjs && node tests/test-worker.mjs && node tests/test-kosenjou.mjs && node tests/test-plan.mjs && node tests/test-plan.mjs --worker",
+    "test:sources": "node tests/test-sources.mjs",
+    "test:engine": "node tests/test-engine.mjs",
+    "test:stars": "node tests/test-stars.mjs",
+    "test:relations": "node tests/test-relations.mjs",
+    "test:worker": "node tests/test-worker.mjs",
+    "test:kosenjou": "node tests/test-kosenjou.mjs",
+    "test:plan": "node tests/test-plan.mjs",
+    "test:plan:worker": "node tests/test-plan.mjs --worker",
+    "verify": "node verification/run.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

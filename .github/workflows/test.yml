@@ -1,0 +1,25 @@
+name: ブラウザテスト
+
+# push のたびと、プルリクエストを作る（更新する）たびに、古戦場ツールのブラウザテストを走らせる。
+# 結果は、プルリクエストの「Checks」に出る。
+on:
+  push:
+  pull_request:
+
+jobs:
+  browser:
+    name: ブラウザテスト（Chromium）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: 依存を入れる
+        run: npm ci
+      - name: Chromium を入れる
+        run: npx playwright install --with-deps chromium
+      - name: テストを走らせる
+        run: npm test

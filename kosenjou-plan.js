@@ -18,12 +18,12 @@
     'use strict';
 
     const KEY = 'gbf_kj_plan';
-    const DAYS = ['d1', 'd2', 'd3', 'd4'];
+    const { DAYS, num, int0, blank, runsForCount, effectiveTimes, rankEstimate, hoursOptFrom, dayStates, starStats, compute } = PlanCore;   // 計算は kosenjou-plan-core.js（画面に触らない。Web Worker でも動く）
     const WHERE = [['pre', '本戦前（予選前・予選中）'], ['d1', '本戦1日目'], ['d2', '本戦2日目'], ['d3', '本戦3日目'], ['d4', '本戦4日目']];
     const STEPS = [
         { id: 'goal', no: '①', title: '目標' },
         { id: 'now',  no: '②', title: '今の状況' },
-        { id: 'star', no: '③', title: '極星器（なくてもよい）' },
+        { id: 'star', no: '③', title: '極星器' },
         { id: 'time', no: '④', title: '討伐タイム' },
         { id: 'days', no: '⑤', title: '走れる日' },
     ];
@@ -32,7 +32,7 @@
         open: 'goal',
         goalKind: 'number', goalText: '', goalRank: 0,
         where: 'pre', curText: '', meatText: '', matText: '', collectText: '',
-        starText: '', starMode: 'avg',
+        starCollect: 'no', starText: '', starMode: 'avg', starDiff: '',
         timeMode: 'full', oneId: 'h150', oneMin: '', oneSec: '',
         gatherMin: '10', gatherMeat: '',
         triHours: '3', normalHours: '4', detail: false,
@@ -40,243 +40,6 @@
     };
 
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const num = (t) => { const s = String(t == null ? '' : t).normalize('NFKC').replace(/[,\s]/g, ''); if (!s) return null; const v = Number(s); return Number.isFinite(v) ? v : null; };
-    const int0 = (t) => Math.max(0, Math.floor(num(t) || 0));
-    const blank = (t) => String(t == null ? '' : t).trim() === '';
-
-    // ───────────── 計算（画面と切り離して、テストできるように） ─────────────
-
-    /** 1周で落ちる確率が q（0〜1）のとき、n 個以上落ちる確率が conf 以上になる、最小の周回数（二項分布） */
-    function runsForCount(q, n, conf) {
-        if (!(q > 0)) return Infinity;
-        if (q >= 1) return n;
-        const tail = (R) => {                                         // P(X ≥ n) = 1 − Σ_{k<n} C(R,k) q^k (1−q)^(R−k)
-            let term = Math.pow(1 - q, R), cdf = 0;
-            for (let k = 0; k < n; k++) { cdf += term; term *= (R - k) / (k + 1) * q / (1 - q); }
-            return 1 - cdf;
-        };
-        let lo = n, hi = Math.max(n, Math.ceil(n / q * 3) + 50);
-        while (tail(hi) < conf && hi < 1e8) hi *= 2;
-        while (lo < hi) { const mid = (lo + hi) >> 1; if (tail(mid) >= conf) hi = mid; else lo = mid + 1; }
-        return lo;
-    }
-
-    /** 計算に使う討伐時間（秒）。しっかり入力 = 討伐効率タブの時間。1つだけ = 入れた1つ＋それより上の難易度を同じ効率で推定。ざっくり = ◯分で◯回から */
-    function effectiveTimes(W, core) {
-        const HELL = core.HELL_DIFFS;
-        const times = {}, estimated = [];
-        let base = null;
-        if (W.timeMode === 'rough') {
-            HELL.forEach((d) => {
-                const r = W.rough[d.id], runs = num(r && r.runs);
-                const min = num(r && r.min) != null ? num(r.min) : (d.is250 ? 30 : 5);     // 分が空なら、入力欄に薄く出ている値
-                if (min > 0 && runs > 0) times[d.id] = min * 60 / runs;
-            });
-        } else if (W.timeMode === 'one') {
-            const sec = (num(W.oneMin) || 0) * 60 + (num(W.oneSec) || 0);
-            const b = HELL.find((d) => d.id === W.oneId);
-            if (b && sec > 0) {
-                base = b; times[b.id] = sec;
-                const perSec = b.contrib / sec;
-                HELL.forEach((d) => { if (d !== b && core.tierOf(d) > core.tierOf(b)) { times[d.id] = d.contrib / perSec; estimated.push(d.id); } });   // 丸めない（効率がずれないように）
-            }
-        } else {
-            const kt = core.getKillTimes();
-            HELL.forEach((d) => { if (kt[d.id] > 0) times[d.id] = kt[d.id]; });
-        }
-        return { times, estimated, base, mode: W.timeMode };
-    }
-
-    function resolveGoal(W, core, rows) {
-        if (W.goalKind === 'none') return { kind: 'none', value: null };
-        if (W.goalKind === 'rank') {
-            const row = rows.find((r) => r.rank === W.goalRank);
-            const value = row ? (row.final != null ? row.final : row.current) : null;
-            return value > 0 ? { kind: 'rank', value, label: row.label, basis: row.final != null ? 'final' : 'current' } : { kind: 'rank', value: null, missing: true };
-        }
-        if (blank(W.goalText)) return { kind: 'number', value: null, empty: true };
-        const v = core.parseGoal(W.goalText);
-        return v > 0 ? { kind: 'number', value: v } : { kind: 'number', value: null, invalid: true };
-    }
-
-    /** 本戦の4日の状態：終わった日（past）・今日（now）・これから */
-    function dayStates(W) {
-        const idx = W.where === 'pre' ? -1 : DAYS.indexOf(W.where);
-        return DAYS.map((id, i) => ({ id, past: i < idx, now: i === idx, mark: W.marks[id] || 'o', typed: W.hours[id] }));
-    }
-
-    /** 日ごとの時間（数 = 固定、null = 自動）。終わった日・×の日は 0。目標がなければ、○の日は「ふつうの日の時間」 */
-    function hoursOptFrom(W, hasGoal, days) {
-        const hours = { q: null };
-        days.forEach((d) => {
-            let h;
-            const typed = W.detail ? num(d.typed) : null;
-            if (d.past) h = 0;
-            else if (typed != null && typed >= 0) h = typed;
-            else if (d.mark === 'x') h = 0;
-            else if (d.mark === 't') h = num(W.triHours) != null ? Math.max(0, num(W.triHours)) : 3;
-            else h = hasGoal ? null : (num(W.normalHours) != null ? Math.max(0, num(W.normalHours)) : 4);
-            hours[d.id] = h;
-        });
-        return { includeQ: false, hours };
-    }
-
-    /** 極星器：欲しい本数 → 周回する難易度（トレハンの設定）の周回数・時間・肉・貢献度 */
-    function starInfo(W, core, trehun, times) {
-        const n = Math.floor(num(W.starText) || 0);
-        if (n <= 0) return null;
-        const d = trehun ? core.HELL_DIFFS.find((x) => x.id === trehun.diff) : null;
-        const p = trehun ? trehun.item : 0;
-        if (!d) return { n, error: '周回する難易度が決まっていません（トレハンタブで選べます）' };
-        if (!(p > 0)) return { n, diff: d, p, error: 'ドロップ率が 0% です（トレハンタブの設定を確かめてください）' };
-        const q = Math.min(p, 100) / 100;
-        const runsAvg = Math.ceil(n / q), runs90 = runsForCount(q, n, 0.9);
-        const runs = W.starMode === 'p90' ? runs90 : runsAvg;
-        const secPer = times[d.id] > 0 ? times[d.id] : null;
-        return { n, diff: d, p, runsAvg, runs90, runs, secPer, sec: secPer ? runs * secPer : null,
-                 meat: d.is250 ? 0 : runs * d.chunks, mat: d.is250 ? runs * d.chunks : 0, contrib: runs * d.contrib };
-    }
-
-    /** 極星器の周回を入れる日：使える日（終わっていない・×でない・解放済み）のうち、自動の○の日。なければ、使える日 */
-    function starPlacement(star, days, hoursOpt, core) {
-        if (!star || star.error || !(star.sec > 0)) return null;
-        const maxTier = (id) => core.PHASES.find((p) => p.id === id).maxTier;
-        const ok = days.filter((d) => !d.past && hoursOpt.hours[d.id] !== 0 && core.tierOf(star.diff) <= maxTier(d.id));
-        const autos = ok.filter((d) => hoursOpt.hours[d.id] == null);
-        const target = autos.length ? autos : ok;
-        if (!target.length) return { days: [], perDay: 0, perDayContrib: 0 };
-        return { days: target.map((d) => d.id), perDay: star.sec / target.length, perDayContrib: star.contrib / target.length };
-    }
-
-    /** 肉を集める速さ（個/時間）。「◯分で肉◯個」から */
-    function gatherRate(W) {
-        const min = num(W.gatherMin), meat = num(W.gatherMeat);
-        return min > 0 && meat > 0 ? meat * 60 / min : null;
-    }
-
-    /** 時間がなくてもできる逆算：目標までに、各難易度だけで回すと何回・肉（素材）いくつか */
-    function countsTable(core, need, times) {
-        return core.HELL_DIFFS.map((d) => {
-            const runs = Math.ceil(need / d.contrib);
-            return { id: d.id, name: d.name, runs, meat: d.is250 ? 0 : runs * d.chunks, mat: d.is250 ? runs * d.chunks : 0, sec: times[d.id] > 0 ? runs * times[d.id] : null };
-        });
-    }
-
-    /** 貢献度から、順位の目安（ボーダーの点を、対数で結ぶ）。pts: [{ rank, value }]（順位の昇順） */
-    function rankEstimate(value, pts) {
-        if (!pts.length || !(value > 0)) return null;
-        const fmt = (r) => {
-            const n = r < 1000 ? Math.round(r / 10) * 10 : r < 10000 ? Math.round(r / 100) * 100 : Math.round(r / 1000) * 1000;
-            return n >= 10000 ? `${(n / 10000).toLocaleString(undefined, { maximumFractionDigits: 1 })}万位` : `${Math.max(1, n).toLocaleString()}位`;
-        };
-        if (value >= pts[0].value) return { text: `${pts[0].rank.toLocaleString()}位以内`, rank: pts[0].rank };
-        const last = pts[pts.length - 1];
-        if (value < last.value) return { text: `${last.rank >= 10000 ? `${last.rank / 10000}万` : last.rank.toLocaleString()}位より下`, rank: last.rank * 1.5 };
-        for (let i = 0; i + 1 < pts.length; i++) {
-            const a = pts[i], b = pts[i + 1];
-            if (value <= a.value && value >= b.value) {
-                const t = a.value === b.value ? 0 : (Math.log(a.value) - Math.log(value)) / (Math.log(a.value) - Math.log(b.value));
-                const rank = Math.exp(Math.log(a.rank) + t * (Math.log(b.rank) - Math.log(a.rank)));
-                return { text: `約 ${fmt(rank)}`, rank };
-            }
-        }
-        return null;
-    }
-
-    /** 1つの優先の試算（scheduleScenario の結果）を、画面に出す形にまとめる */
-    function planView(sc, ctx) {
-        const core = ctx.core;
-        const solved = sc.solved, A = solved.actual, U = solved.unlimited;
-        const spec = sc.spec;
-        const hours = spec.map((s) => (s.fixed ? s.hours : (solved.hasAuto ? A.hours : 0)));
-        const plan = A.plan;
-        const days = [];
-        let cum = 0;
-        const checkpoints = [];
-        core.PHASES.forEach((ph, i) => {
-            if (ph.id === 'q') return;
-            const parts = [];
-            let meat = 0, mat = 0, gain = 0;
-            sc.diffsP.forEach((d) => {
-                const n = plan.runs[ph.id][d.id] || 0;
-                if (!n) return;
-                parts.push({ name: d.name, runs: n });
-                gain += n * d.contrib;
-                if (d.is250) mat += n * d.chunks; else meat += n * d.chunks;
-            });
-            cum += gain + (ctx.extra[ph.id] || 0);
-            if (hours[i] > 0 || (ctx.extra[ph.id] || 0) > 0) checkpoints.push({ id: ph.id, name: ph.name, total: ctx.cur + cum });
-            days.push({ id: ph.id, name: ph.name, hours: hours[i], fixed: spec[i].fixed, off: !!spec[i].off, noTier: !!spec[i].noTier, parts, gain, meat, mat });
-        });
-        const finalTotal = ctx.cur + cum;
-        let shortage = null;
-        if (sc.req && ctx.meatKnown) {
-            const matKnown = ctx.mat250 != null;
-            const haveMeat = ctx.stock + (matKnown ? 2 * Math.max(0, Math.min(500, ctx.mat250 - sc.req.mat)) : 0);
-            shortage = { meat: Math.max(0, sc.req.meat - haveMeat) + ctx.starDeficit, mat: matKnown ? Math.max(0, sc.req.mat - ctx.mat250) : 0 };
-        }
-        return {
-            priority: sc.priority, reachable: A.reachable, hasAuto: solved.hasAuto, autoHours: solved.hasAuto ? A.hours : null,
-            idealReach: U.reachable, idealHours: solved.hasAuto && U.reachable ? U.hours : null,
-            days, checkpoints, finalTotal, bd: core.hoursByDiff(plan, sc.diffsP), req: sc.req, shortage,
-        };
-    }
-
-    /** 入力から、画面に出す結果をすべて計算する */
-    function compute(W, env) {
-        const core = env.core;
-        const R = { W };
-        const ti = effectiveTimes(W, core);
-        const diffs = core.planDiffsFrom(ti.times, ti.estimated);
-        Object.assign(R, { ti, diffs, hasTime: diffs.some((d) => d.time > 0) });
-        const goal = resolveGoal(W, core, env.rows);
-        const cur = core.parseGoal(W.curText) || 0;
-        const meatKnown = !blank(W.meatText), matKnown = !blank(W.matText);
-        const meat0 = int0(W.meatText), collect = int0(W.collectText);
-        const mat250 = matKnown ? int0(W.matText) : null;
-        const days = dayStates(W);
-        const hoursOpt = hoursOptFrom(W, goal.value > 0, days);
-        const star = starInfo(W, core, env.trehun, ti.times);
-        const starOk = star && !star.error ? star : null;
-        const placement = starPlacement(starOk, days, hoursOpt, core);
-        const extra = {};
-        if (placement) placement.days.forEach((id) => { extra[id] = placement.perDayContrib; });
-        Object.assign(R, { goal, cur, meatKnown, matKnown, meat: meat0, collect, mat250, days, hoursOpt, star, placement, gatherPerHour: gatherRate(W), views: null, forward: null });
-
-        if (goal.value > 0) {
-            R.need0 = Math.max(0, goal.value - cur);
-            R.counts = countsTable(core, R.need0, ti.times);
-            if (R.need0 <= 0) { R.done = true; return R; }
-            R.needLeft = R.need0 - (starOk ? starOk.contrib : 0);
-            if (R.needLeft <= 0) { R.starCovers = true; return R; }
-            if (!R.hasTime) return R;
-            const have = meat0 + collect;
-            const stock = meatKnown ? Math.max(0, have - (starOk ? starOk.meat : 0)) : 1e9;     // 肉が未入力のときは、足りる前提で、必要な数を出す
-            const ctx = { core, stock, mat250, cur, extra, meatKnown, starDeficit: meatKnown && starOk ? Math.max(0, starOk.meat - have) : 0 };
-            R.views = {};
-            ['time', 'meat'].forEach((pr) => {
-                R.views[pr] = planView(core.scheduleScenario(pr, { diffs, stock, mat250, need: R.needLeft, hoursOpt }), ctx);
-            });
-        } else if (goal.kind === 'none' && R.hasTime) {
-            const have = meat0 + collect;
-            const stock = meatKnown ? Math.max(0, have - (starOk ? starOk.meat : 0)) : 1e9;
-            const ctx = { core, stock, mat250, cur, extra, meatKnown, starDeficit: 0 };
-            R.forward = {};
-            ['time', 'meat'].forEach((pr) => {
-                const diffsP = core.allowedDiffs(diffs, pr);
-                const spec = core.scheduleHoursSpec(diffsP, hoursOpt);
-                const phases = core.PHASES.map((ph, i) => ({ id: ph.id, maxTier: ph.maxTier, hours: spec[i].fixed ? spec[i].hours : 0 }));
-                const plan = core.planSchedule({ stock, mat250, phases, diffs: diffsP });
-                const sc = { priority: pr, diffsP, spec, req: null, solved: { hasAuto: false, actual: { reachable: true, hours: 0, plan }, unlimited: { reachable: true, hours: 0, plan } } };
-                const v = planView(sc, ctx);
-                const use = core.scheduleUsage(plan, diffsP, stock, mat250);
-                v.use = { meat: use.meat + (starOk ? starOk.meat : 0), mat: use.mat };
-                v.rank = rankEstimate(v.finalTotal, env.points);
-                R.forward[pr] = v;
-            });
-        }
-        return R;
-    }
 
     const W_TAB = (cur, k) => (cur === k ? '▶ ' : '　');
 
@@ -288,8 +51,11 @@
             this.core = core;
             this.opts = opts || {};
             this.state = this.load();
+            this.seq = 0; this.inflight = 0; this.pending = null;
             this.injectStyle();
-            this.render();
+            this.build();
+            this.worker = this.makeWorker();
+            this.update();
         }
 
         freshState() {
@@ -308,10 +74,11 @@
                 if (s.rough && typeof s.rough === 'object') Object.keys(s.rough).forEach((id) => { const r = s.rough[id]; if (r && typeof r === 'object') W.rough[id] = { min: String(r.min == null ? '' : r.min), runs: String(r.runs == null ? '' : r.runs) }; });
                 if (s.skipped && typeof s.skipped === 'object') Object.keys(s.skipped).forEach((k) => { if (s.skipped[k] === true) W.skipped[k] = true; });
             }
+            if (s && typeof s === 'object' && typeof s.starCollect !== 'string' && (num(s.starText) || 0) > 0) W.starCollect = 'yes';     // 古い保存：欲しい本数が入っていたら、「集める」
             if (W.open !== '' && !STEPS.some((st) => st.id === W.open)) W.open = 'goal';
             const pick = (k, list) => { if (!list.includes(W[k])) W[k] = DEFAULTS[k]; };
             pick('goalKind', ['number', 'rank', 'none']); pick('where', WHERE.map((x) => x[0])); pick('timeMode', ['full', 'one', 'rough']);
-            pick('tab', ['time', 'meat']); pick('starMode', ['avg', 'p90']); pick('oneId', this.core.HELL_DIFFS.map((d) => d.id));
+            pick('tab', ['time', 'meat']); pick('starMode', ['avg', 'p90']); pick('starCollect', ['no', 'yes']); pick('starDiff', ['', 'auto', ...this.core.HELL_DIFFS.map((d) => d.id)]); pick('oneId', this.core.HELL_DIFFS.map((d) => d.id));
             if (!Number.isFinite(W.goalRank)) W.goalRank = 0;
             return W;
         }
@@ -395,12 +162,15 @@
 .pl-marks button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
 .pl-day-past { opacity:0.5; }
 .pl-res .pl-rt { display:flex; gap:6px; margin-bottom:10px; }
+.pl-res[data-busy] [data-resbody] { opacity:0.55; transition:opacity 0.15s; }
 .pl-head-line { font-size:1.12em; font-weight:700; color:var(--accent); line-height:1.5; }
 .pl-head-line.ng { color:#e07070; }
 .pl-head-line.ok { color:#4caf50; }
 .pl-ok { color:#4caf50; font-weight:700; padding:12px; text-align:center; }
 .pl-line { font-size:0.84em; color:var(--text-2); line-height:1.8; }
 .pl-line b { color:var(--text); }
+.pl-line a, .pl-calc a { color:var(--accent); }
+.pl-line.pl-calc { color:var(--text-3); font-size:0.8em; }
 .pl-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px; margin:10px 0; }
 .pl-box { border:1px solid var(--border); background:var(--bg); padding:8px 10px; }
 .pl-box .k { font-size:0.74em; color:var(--text-3); }
@@ -442,7 +212,8 @@
 </section>`;
         }
 
-        render() {
+        /** 画面の骨組みを作る（入力欄・ボタンなど。結果の中身は、render(R, env)） */
+        build() {
             const core = this.core;
             const HELL = core.HELL_DIFFS;
             const contribList = (() => { const v = []; for (let x = 5; x <= 200; x += 5) v.push(x); v.push(300, 400, 500, 700, 1000); return v.map((x) => `<option value="${x}億"></option>`).join(''); })();
@@ -480,8 +251,14 @@ ${this.seg('where', WHERE)}
 </div>
 <div class="pl-notice" data-importnow hidden></div>`,
                 star: `
-<div class="pl-row"><span class="pl-k">欲しい本数</span><input type="number" min="0" data-f="starText" inputmode="numeric" placeholder="0"><span class="pl-u">本</span></div>
-<div class="pl-row"><span class="pl-k">見積り</span><select data-f="starMode"><option value="avg">平均の周回数で</option><option value="p90">90%の確率で届く周回数で</option></select></div>
+<div class="pl-sub" style="margin-top:6px">たくさん集める？</div>
+${this.seg('starCollect', [['no', '集めない'], ['yes', '集める']])}
+<div class="pl-notice">目標のために周回すれば、極星器は、そのぶん落ちます。結果に、計画の周回で落ちる本数の目安を出します。たくさん欲しいときだけ「集める」を選ぶと、その本数に届くための追加の周回も、計画に入れます。</div>
+<div data-box="star-yes" hidden>
+  <div class="pl-row"><span class="pl-k">欲しい本数</span><input type="number" min="0" data-f="starText" inputmode="numeric" placeholder="0"><span class="pl-u">本</span></div>
+  <div class="pl-row"><span class="pl-k">見積り</span><select data-f="starMode"><option value="avg">平均で</option><option value="p90">90%の確率で届くように</option></select></div>
+  <div class="pl-row"><span class="pl-k">追加で回す難易度</span><select data-f="starDiff"><option value="">おまかせ（いちばん得な増やし方）</option>${HELL.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('')}</select></div>
+</div>
 <div class="pl-notice" data-starinfo></div>`,
                 time: `
 ${this.seg('timeMode', [['full', 'しっかり入力'], ['one', '1つだけ入力（ほかは同じ効率で推定）'], ['rough', 'ざっくり（◯分で何回）']])}
@@ -518,7 +295,6 @@ ${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<di
 </div>`;
             this.bind();
             this.syncInputs();
-            this.update();
         }
 
         // ───── 入力の反映 ─────
@@ -568,7 +344,7 @@ ${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<di
                 if (t.dataset.rt) { W.tab = t.dataset.rt; return change(); }
                 if (t.dataset.mark) { W.marks[t.dataset.day] = t.dataset.mark; return change(); }
                 const seg = t.closest('[data-seg]');
-                if (seg && t.dataset.v != null) { W[seg.dataset.seg] = t.dataset.v; delete W.skipped[{ goalKind: 'goal', where: 'now', timeMode: 'time' }[seg.dataset.seg]]; return change(); }
+                if (seg && t.dataset.v != null) { W[seg.dataset.seg] = t.dataset.v; delete W.skipped[{ goalKind: 'goal', where: 'now', timeMode: 'time', starCollect: 'star' }[seg.dataset.seg]]; return change(); }
             });
             root.addEventListener('input', (e) => this.onInput(e));
             root.addEventListener('change', (e) => this.onInput(e));
@@ -614,15 +390,75 @@ ${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<di
         env() {
             const rows = (this.opts.getBorderRows ? this.opts.getBorderRows() : []).filter((r) => r.rank > 0 && (r.final != null || r.current != null) && (r.final ?? r.current) > 0);
             const points = rows.map((r) => ({ rank: r.rank, value: r.final != null ? r.final : r.current })).sort((a, b) => a.rank - b.rank);
-            return { core: this.core, rows, points, trehun: this.opts.getTrehun ? this.opts.getTrehun() : null };
+            return { rows, points, trehun: this.opts.getTrehun ? this.opts.getTrehun() : null, killTimes: this.core.getKillTimes() };
         }
 
+        /**
+         * 入力が変わったときに呼ぶ。計算は、Worker（別のスレッド）に任せ、結果が届いたら画面に出す（render）。
+         * 計算中の入力は、最新の1つだけ取っておく。古い入力の結果は、捨てる。Worker が使えないときは、その場で計算する
+         */
         update() {
-            const W = this.state, core = this.core;
+            const W = this.state;
             const env = this.env();
             this._env = env;
-            const R = compute(W, env);
-            this.R = R;
+            this.renderInputs(W, env);                                  // 入力のまわり（計算に頼らない部分）は、すぐ更新する
+            const payload = { id: ++this.seq, W: JSON.parse(JSON.stringify(W)), env };
+            if (!this.worker) { this.render(compute(payload.W, env), env); return; }
+            this.root.querySelector('[data-res]').dataset.busy = '1';               // 計算中（前の結果を、うすく出しておく）
+            if (this.inflight) { this.pending = payload; return; }
+            this.send(payload);
+        }
+
+        send(payload) {
+            this.inflight = payload.id;
+            this.worker.postMessage(payload);
+        }
+
+        /** Worker から結果が届いた */
+        onResult(msg) {
+            this.inflight = 0;
+            if (msg.error) { this.giveUpWorker(msg.error); return; }
+            if (msg.id === this.seq) {                                   // 最新の入力の結果だけを出す
+                this.pending = null;
+                delete this.root.querySelector('[data-res]').dataset.busy;
+                this.render(msg.R, this._env);
+            } else if (this.pending) {
+                const next = this.pending; this.pending = null; this.send(next);
+            }
+        }
+
+        /** Worker が使えなかった（読み込めない・計算で例外）：以後は、ページの中で計算する */
+        giveUpWorker(reason) {
+            try { if (this.worker) this.worker.terminate(); } catch (e) { /* 何もしない */ }
+            this.worker = null; this.inflight = 0; this.pending = null;
+            this.workerError = reason;
+            delete this.root.querySelector('[data-res]').dataset.busy;
+            this.update();
+        }
+
+        /** 計算が終わっている（待っている入力がない）ときに解決する。テストや、続けて何かをしたいときに使う */
+        whenIdle() {
+            return new Promise((resolve) => {
+                const check = () => { if (!this.worker || (!this.inflight && !this.pending)) resolve(); else setTimeout(check, 5); };
+                check();
+            });
+        }
+
+        makeWorker() {
+            if (global.KJ_NO_WORKER || typeof global.Worker === 'undefined') return null;
+            try {
+                const w = new global.Worker(this.opts.workerUrl || 'kosenjou-worker.js');
+                w.onmessage = (e) => this.onResult(e.data);
+                w.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); this.giveUpWorker(String((e && e.message) || 'Worker のエラー')); };
+                return w;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        /** 入力のまわり（切り替えボタン・枠の出し入れ・入力のとなりの表示など。計算の結果に頼らない部分） */
+        renderInputs(W, env) {
+            const core = this.core;
             const root = this.root;
             const $ = (sel) => root.querySelector(sel);
             const fmtC = core.fmtC;
@@ -649,8 +485,6 @@ ${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<di
                 if (!opts.some((r) => r.rank === W.goalRank) && opts.length) { W.goalRank = (opts.find((r) => r.rank === 2000) || opts[0]).rank; this.save(); }
                 sel.value = String(W.goalRank);
             }
-            const rankInfo = $('[data-rankinfo]');
-            if (rankInfo) rankInfo.innerHTML = R.goal.kind === 'rank' && R.goal.value ? `${esc(R.goal.label)}の${R.goal.basis === 'final' ? '最終予想' : '現在のボーダー'}：<b>${fmtC(R.goal.value)}</b>` : (env.rows.length ? '' : 'ボーダータブに値がありません。<a href="#border">ボーダータブ</a>で「最新を取得」を押すか、値を入れてください。');
 
             // 入力のとなりの表示
             const echo = (k, text) => { const el = $(`[data-echo="${k}"]`); if (el) el.textContent = text; };
@@ -668,6 +502,17 @@ ${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<di
             if (o.mat && o.mat !== String(int0(W.matText))) nowDiffs.push(`250専用素材 ${Number(o.mat).toLocaleString()}個`);
             const impN = $('[data-importnow]');
             if (impN) { impN.hidden = !nowDiffs.length; if (nowDiffs.length) impN.innerHTML = `ほかのタブには「${nowDiffs.join('・')}」が入っています。<button type="button" class="base-btn" data-import="now">これを使う</button>`; }
+        }
+
+        /** 計算の結果（R）を、画面に出す */
+        render(R, env) {
+            const W = this.state, core = this.core;
+            this.R = R;
+            const root = this.root;
+            const $ = (sel) => root.querySelector(sel);
+            const fmtC = core.fmtC;
+            const rankInfo = $('[data-rankinfo]');
+            if (rankInfo) rankInfo.innerHTML = R.goal.kind === 'rank' && R.goal.value ? `${esc(R.goal.label)}の${R.goal.basis === 'final' ? '最終予想' : '現在のボーダー'}：<b>${fmtC(R.goal.value)}</b>` : (env.rows.length ? '' : 'ボーダータブに値がありません。<a href="#border">ボーダータブ</a>で「最新を取得」を押すか、値を入れてください。');
             this.updateStarInfo(R, env);
             this.updateTimeInfo(R);
             this.updateDayList(R);
@@ -696,8 +541,8 @@ ${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<di
                 const where = (WHERE.find((x) => x[0] === W.where) || WHERE[0])[1].replace('（予選前・予選中）', '');
                 summary = `${where}・肉 ${blank(W.meatText) ? '―' : int0(W.meatText).toLocaleString()}`;
             } else if (id === 'star') {
-                done = !!(R.star && !R.star.error);
-                summary = R.star ? (R.star.error ? 'エラー' : `${R.star.n}本（約 ${R.star.runs.toLocaleString()}周）`) : 'なし';
+                done = W.starCollect === 'yes' && R.star.n > 0;
+                summary = W.starCollect === 'yes' ? (R.star.n > 0 ? `${R.star.n}本集める` : '本数を入れてください') : '集めない';
             } else if (id === 'time') {
                 const n = Object.keys(R.ti.times).length - R.ti.estimated.length;
                 done = n > 0;
@@ -706,21 +551,21 @@ ${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<di
                 done = DAYS.some((d) => W.marks[d] !== 'o' || (W.detail && !blank(W.hours[d]))) || W.where !== 'pre';
                 summary = R.days.filter((d) => !d.past).map((d) => ({ o: '○', t: '△', x: '×' }[d.mark])).join('') || '―';
             }
-            return { label: skipped && !done ? 'スキップ' : (done ? '入力済み' : (id === 'days' ? '初期値' : '未入力')), cls: done ? 'done' : (skipped ? 'skip' : ''), summary, done };
+            return { label: skipped && !done ? 'スキップ' : (done ? '入力済み' : (id === 'days' || id === 'star' ? '初期値' : '未入力')), cls: done ? 'done' : (skipped ? 'skip' : ''), summary, done };
         }
 
         updateStarInfo(R, env) {
-            const el = this.root.querySelector('[data-starinfo]');
+            const root = this.root, W = this.state, core = this.core, st = R.star;
+            const box = root.querySelector('[data-box="star-yes"]'); if (box) box.hidden = W.starCollect !== 'yes';
+            const sel = root.querySelector('select[data-f="starDiff"]');
+            if (sel) [...sel.options].forEach((o) => { const u = o.value && st.unknown.some((x) => x.id === o.value); o.disabled = !!u; if (o.value) o.textContent = `${(core.HELL_DIFFS.find((d) => d.id === o.value) || {}).name || o.value}${u ? '（確率不明）' : ''}`; });
+            const el = root.querySelector('[data-starinfo]');
             if (!el) return;
-            const t = env.trehun, core = this.core;
-            if (!t) { el.textContent = ''; return; }
-            const d = core.HELL_DIFFS.find((x) => x.id === t.diff);
-            const p = t.item;
-            let html = `周回する難易度：<b>${d ? esc(d.name) : '―'}</b>、1周でアイテムが落ちる確率：<b>${(Math.round(p * 1000) / 1000)}%</b>（箱 ${Math.round(t.box * 1000) / 1000}% × アイテム ${t.itemRate}%。<a href="#trehun">トレハンタブ</a>の設定です。ドロップ率アップや、アイテムの確率を入れると変わります）。`;
-            if (R.star && !R.star.error) {
-                const s = R.star;
-                html += `<br>${s.n}本なら、平均で <b>約 ${s.runsAvg.toLocaleString()}周</b>、90%の確率で届くのは <b>${s.runs90.toLocaleString()}周</b>。${s.secPer ? `（時間 約 ${core.fmtHM(s.sec)}・肉 ${s.meat.toLocaleString()}個・貢献度 +${core.fmtC(s.contrib)}）` : '（④で、この難易度の討伐タイムを入れると、時間も出ます）'}`;
-            } else if (R.star && R.star.error) html += `<br><span class="pl-bad">${esc(R.star.error)}</span>`;
+            const p = (x) => `${Math.round(x * 1000) / 1000}%`;
+            const known = core.HELL_DIFFS.filter((d) => st.rates[d.id]).map((d) => `${esc(d.name)} ${p(st.rates[d.id].item)}`);
+            let html = `1周で極星器が落ちる確率（<a href="#trehun">トレハンタブ</a>の設定。ドロップ率アップやアイテムの確率を入れると変わります）：<br>${known.length ? known.join('・') : '―'}`;
+            if (st.unknown.length) html += `<br><span class="pl-calc">${esc(st.unknown.map((x) => x.name).join('・'))} は、確率がわからない（箱の基本率のデータがない）ので、極星器の本数には数えません。</span>`;
+            if (W.starCollect === 'yes' && !st.anyKnown) html += '<br><span class="pl-bad">確率がわかる難易度がありません。本数の目安を出せません。</span>';
             el.innerHTML = html;
         }
 
@@ -767,7 +612,6 @@ ${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<di
         summaryHtml(R) {
             const core = this.core, fmtC = core.fmtC, W = this.state;
             if (R.done) return '🎉 今の貢献度で、すでに目標を超えています';
-            if (R.starCovers) return `極星器の周回だけで、目標に届きます（貢献度 +${fmtC(R.star.contrib)}）`;
             const v = R.views && R.views[W.tab];
             if (v) {
                 const meat = v.req ? `必要な通常肉 ${v.req.meat.toLocaleString()}個${v.shortage ? (v.shortage.meat > 0 ? `（<span class="pl-bad">あと ${v.shortage.meat.toLocaleString()}個</span>）` : '（足ります）') : ''}` : '';
@@ -810,13 +654,11 @@ ${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<di
             if (R.views) parts.push(this.compareHtml(R));
             this.notices(R).forEach((t) => parts.push(`<div class="pl-notice">${t}</div>`));
             if (R.done) parts.push('<div class="pl-ok">🎉 今の貢献度で、すでに目標を超えています</div>');
-            if (R.star) parts.push(this.starHtml(R));
-            if (R.starCovers) parts.push(`<div class="pl-ok">極星器の周回だけで、目標に届きます（貢献度 +${fmtC(R.star.contrib)}）</div>`);
             const v = R.views && R.views[W.tab];
             if (v) parts.push(this.planHtml(v, R));
             const f = R.forward && R.forward[W.tab];
             if (f) parts.push(this.forwardHtml(f, R));
-            if (!v && !f && R.counts && !R.done && !R.starCovers) parts.push(this.countsHtml(R));
+            if (!v && !f && R.counts && !R.done) parts.push(this.countsHtml(R));
             if (!parts.length) parts.push('<div class="no-data">①から順に入れると、ここに結果が出ます</div>');
             return parts.join('');
         }
@@ -831,31 +673,59 @@ ${STEPS.map((st, i) => this.step(st, body[st.id]) + (i < STEPS.length - 1 ? '<di
             return `<div class="pl-line" style="margin-bottom:8px;">${line('time', '時間優先')}${line('meat', '肉優先')}</div>`;
         }
 
-        starHtml(R) {
-            const core = this.core, s = R.star;
-            if (s.error) return `<div class="pl-star"><div class="pl-bad">極星器：${esc(s.error)}</div></div>`;
-            const pl = R.placement;
-            return `<div class="pl-star"><div class="pl-line"><b>極星器 ${s.n}本</b>：${esc(s.diff.name)} を <b>約 ${s.runs.toLocaleString()}周</b>（${this.state.starMode === 'p90' ? '90%の確率で届く周回数' : '平均'}。平均 ${s.runsAvg.toLocaleString()}周・90%で ${s.runs90.toLocaleString()}周）</div>
-<div class="pl-line">${s.secPer ? `時間 約 <b>${core.fmtHM(s.sec)}</b>・` : ''}${s.diff.is250 ? '' : `肉 <b>${s.meat.toLocaleString()}個</b>・`}貢献度 <b>+${core.fmtC(s.contrib)}</b>（目標から引いて、残りを計画します）</div>
-${pl && pl.days.length ? `<div class="pl-line">${pl.days.map((id) => this.dayName(id)).join('・')}に、1日 約 <b>${core.fmtHM(pl.perDay)}</b>ずつ回すと考えます。${pl.perDay / 3600 > core.DAY_MAX_HOURS ? `<span class="pl-bad">1日 ${core.DAY_MAX_HOURS}時間を超えます。欲しい本数を減らすか、走れる日を増やしてください。</span>` : ''}</div>` : (s.secPer ? '<div class="pl-line pl-bad">周回できる日がありません（走れる日と、難易度の解放日を確かめてください）。</div>' : '')}</div>`;
+        /** 極星器の欄（見込みの本数・追加の周回）。v … 結果の1つ（目標があるとき planView、ないとき forward） */
+        starHtml(R, v) {
+            const core = this.core, st = R.star, s = v.stars;
+            if (!s) return '';
+            const f2 = (x) => (Math.round(x * 100) / 100).toLocaleString();
+            const pct = (q) => `${Math.round(q * 100000) / 1000}%`;
+            const lines = [];
+            if (!st.anyKnown) return '<div class="pl-star"><div class="pl-bad">極星器：確率がわかる難易度がないので、本数は出せません（<a href="#trehun">トレハンタブ</a>の設定を確かめてください）。</div></div>';
+            lines.push(`<div class="pl-line"><b>極星器</b>：この計画の周回で、<b>期待 約 ${f2(s.mean)}本</b>（90%の確率で <b>${s.n90}本以上</b>）落ちます。</div>`);
+            const used = s.byDiff.filter((x) => x.q != null);
+            lines.push(`<div class="pl-line pl-calc" data-starbasis>${used.length ? `${used.map((x) => `${esc(x.name)}・1周 ${pct(x.q)}`).join('、')} で計算` : '極星器が落ちる難易度を、周回しません'}（<a href="#trehun">トレハンタブ</a>の設定。周回数：${used.map((x) => `${esc(x.name)} ${x.runs.toLocaleString()}周`).join('・') || '―'}）${s.unknownUsed.length ? `。${esc(s.unknownUsed.join('・'))} は確率不明なので、数えていません` : ''}</div>`);
+            if (st.collect && st.n > 0) {
+                if (v.starBlocked || v.starUnmet) lines.push(`<div class="pl-line pl-bad">${st.n}本は、${v.starUnmet ? 'いまの走れる時間では' : `1日 ${core.DAY_MAX_HOURS}時間（本戦の1日に遊べる上限）でも`}集められません。極星器の本数を決めない計画を出しています。</div>`);
+                else if (v.base) {
+                    const b = v.base.stars;
+                    if (b.mean >= st.n - 1e-9) lines.push(`<div class="pl-line pl-good">追加の周回はいりません（計画どおりで、期待 約 ${f2(b.mean)}本）。</div>`);
+                    else {
+                        const up = [], down = [];
+                        const ids = [...new Set([...s.byDiff.map((x) => x.id), ...b.byDiff.map((x) => x.id)])];
+                        ids.forEach((id) => {
+                            const name = (s.byDiff.find((x) => x.id === id) || b.byDiff.find((x) => x.id === id)).name;
+                            const d = ((s.runsById[id]) || 0) - ((b.runsById[id]) || 0);
+                            if (d > 0) up.push(`${esc(name)} を ${d.toLocaleString()}回`); else if (d < 0) down.push(`${esc(name)} ${(-d).toLocaleString()}回`);
+                        });
+                        const dm = v.hasAuto && v.reachable && v.base.reachable && v.base.autoHours != null ? Math.round((v.autoHours - v.base.autoHours) * 60) : null;
+                        const dmeat = v.req && v.base.reqMeat != null ? v.req.meat - v.base.reqMeat : null;
+                        const extra = [dm != null ? `毎日 ${dm >= 0 ? '+' : '−'}${Math.abs(dm).toLocaleString()}分` : '', dmeat != null ? `肉 ${dmeat >= 0 ? '+' : '−'}${Math.abs(dmeat).toLocaleString()}個` : ''].filter(Boolean).join('、');
+                        lines.push(`<div class="pl-line" data-starextra>計画どおりだと期待 約 ${f2(b.mean)}本 → <b>${st.n}本</b>欲しいなら、<b>追加で ${up.join('・') || '（周回の組み直しだけ）'}</b>${extra ? `（${extra}）` : ''}。${down.length ? `<br><span class="pl-calc">そのぶん、組み直した周回：${down.join('・')} 減</span>` : ''}</div>`);
+                        if (v.p90Unmet) lines.push(`<div class="pl-line pl-bad">90%の確率で ${st.n}本に届く平均には、1日 ${core.DAY_MAX_HOURS}時間でも届かないので、平均で ${st.n}本の計画を出しています（${st.n}本以上になる確率は ${Math.round((s.pAtLeast || 0) * 100)}%）。</div>`);
+                        else if (st.mode === 'p90') lines.push(`<div class="pl-line pl-calc">${st.n}本以上になる確率は ${Math.round((s.pAtLeast || 0) * 1000) / 10}%（90%以上になるように、平均の目標を上げて解き直しています）。</div>`);
+                        else lines.push(`<div class="pl-line pl-calc">平均で ${st.n}本の計画です（${st.n}本以上になる確率は ${Math.round((s.pAtLeast || 0) * 100)}% くらい。確実にしたいときは、③で「90%の確率で届くように」を選んでください）。</div>`);
+                    }
+                }
+            }
+            return `<div class="pl-star">${lines.join('')}</div>`;
         }
 
         planHtml(v, R) {
             const core = this.core, fmtC = core.fmtC, W = this.state;
             const future = v.days.filter((d) => !R.days.find((x) => x.id === d.id).past);
             const total = future.reduce((a, d) => a + d.hours, 0);
-            const star = R.star && !R.star.error ? R.star : null;
             const goal = R.goal.value;
             const lines = [];
             lines.push(`<div class="pl-head-line ${v.reachable ? '' : 'ng'}">${this.headline(v, R)}</div>`);
             if (!v.reachable) lines.push(`<div class="pl-line">そのときの見込みは <b>${fmtC(v.finalTotal)}</b>（あと ${fmtC(Math.max(0, goal - v.finalTotal))}）。</div>`);
-            lines.push(`<div class="pl-line">使う時間は、合計 <b>${this.hhmm(total)}</b>${star && star.sec ? `（＋極星器の周回 ${core.fmtHM(star.sec)}）` : ''}。${v.bd.length ? `<br>難易度ごとの時間：${esc(core.hoursText(v.bd, '・'))}` : ''}</div>`);
+            lines.push(`<div class="pl-line">使う時間は、合計 <b>${this.hhmm(total)}</b>。${v.bd.length ? `<br>難易度ごとの時間：${esc(core.hoursText(v.bd, '・'))}` : ''}</div>`);
+            lines.push(this.starHtml(R, v));                                    // 極星器の見込み・追加の周回
             // 必要な肉・素材
             const sh = v.shortage;
             const matKnown = R.mat250 != null;
             const boxes = [];
             if (v.req) {
-                boxes.push(`<div class="pl-box"><div class="k">必要な通常肉</div><div class="v">${v.req.meat.toLocaleString()}個</div><div class="s">${sh ? (sh.meat > 0 ? `<span class="pl-bad">いま ${(R.meat + R.collect).toLocaleString()}個 → あと ${sh.meat.toLocaleString()}個 足りません</span>（200HELL なら約 ${Math.ceil(sh.meat / 20).toLocaleString()}回ぶん）` : `<span class="pl-good">いま ${(R.meat + R.collect).toLocaleString()}個で足ります</span>`) : '（いまの肉が未入力）'}${star && star.meat ? `<br>極星器の周回の肉 ${star.meat.toLocaleString()}個は、別です` : ''}</div></div>`);
+                boxes.push(`<div class="pl-box"><div class="k">必要な通常肉</div><div class="v">${v.req.meat.toLocaleString()}個</div><div class="s">${sh ? (sh.meat > 0 ? `<span class="pl-bad">いま ${(R.meat + R.collect).toLocaleString()}個 → あと ${sh.meat.toLocaleString()}個 足りません</span>（200HELL なら約 ${Math.ceil(sh.meat / 20).toLocaleString()}回ぶん）` : `<span class="pl-good">いま ${(R.meat + R.collect).toLocaleString()}個で足ります</span>`) : '（いまの肉が未入力）'}</div></div>`);
                 boxes.push(`<div class="pl-box"><div class="k">必要な250専用素材</div><div class="v">${v.req.mat > 0 ? `${v.req.mat.toLocaleString()}個` : '使いません'}</div><div class="s">${v.req.mat > 0 ? `250HELL ${Math.ceil(v.req.mat / 20).toLocaleString()}回` : ''}${matKnown && v.req.mat > 0 ? (sh && sh.mat > 0 ? `<br><span class="pl-bad">いま ${R.mat250.toLocaleString()}個 → あと ${sh.mat.toLocaleString()}個 足りません</span>` : `<br><span class="pl-good">いま ${R.mat250.toLocaleString()}個で足ります</span>`) : (v.req.mat > 0 ? '<br>（いまの素材は未入力）' : '')}</div></div>`);
             }
             boxes.push(`<div class="pl-box"><div class="k">見込みの貢献度</div><div class="v">${fmtC(v.finalTotal)}</div><div class="s">目標 ${fmtC(goal)}（${Math.round(v.finalTotal / goal * 100)}%）${this.rankText(v.finalTotal, R) ? `<br>順位の目安：${this.rankText(v.finalTotal, R)}` : ''}</div></div>`);
@@ -869,11 +739,6 @@ ${pl && pl.days.length ? `<div class="pl-line">${pl.days.map((id) => this.dayNam
                 const saveH = v.hasAuto && v.idealReach && v.reachable ? Math.max(0, v.autoHours - v.idealHours) * autoDays : 0;
                 adv.push(`通常肉があと ${sh.meat.toLocaleString()}個 足りません。${g ? `肉集めが「${esc(W.gatherMin)}分で ${esc(W.gatherMeat)}個」なら、あと <b>約 ${core.fmtHM(gatherH * 3600)}</b> 集めると足ります（予選などで）。` : '④で「◯分で肉◯個」を入れると、あと何時間集めればよいかも出ます。'}②の「集める予定の肉」に入れると、計画に反映されます。`);
                 if (saveH > 0) adv.push(`肉が足りれば、毎日 約 ${this.hhmm(v.idealHours)}で届きます（いまは 約 ${this.hhmm(v.autoHours)}）。本戦で、合計 <b>約 ${core.fmtHM(saveH * 3600)}</b> 節約できます${gatherH ? (gatherH < saveH ? `。集める時間（約 ${core.fmtHM(gatherH * 3600)}）より長いので、集める価値があります。` : `。ただし、集める時間（約 ${core.fmtHM(gatherH * 3600)}）のほうが長いので、無理に集めなくてもかまいません。`) : '。'}`);
-            }
-            const pl = R.placement;
-            if (pl && pl.days.length) {
-                const over = v.days.filter((d) => pl.days.includes(d.id) && d.hours + pl.perDay / 3600 > core.DAY_MAX_HOURS + 1e-9);
-                if (over.length) adv.push(`極星器の周回を入れると、${over.map((d) => esc(d.name)).join('・')}は、1日 ${core.DAY_MAX_HOURS}時間（本戦の1日に遊べる上限）を超えます。走れる日を増やすか、欲しい本数を減らしてください。`);
             }
             if (sh && sh.mat > 0) adv.push(`250専用素材があと ${sh.mat.toLocaleString()}個（250HELL ${Math.ceil(sh.mat / 20).toLocaleString()}回ぶん）足りません。足りないぶんは、ほかの難易度で回すので、いまの計画は時間が増えています。`);
             if (!v.reachable && v.idealReach && v.hasAuto) adv.push(`肉と素材が足りれば、${this.headline({ ...v, reachable: true, autoHours: v.idealHours }, R)}。`);
@@ -894,19 +759,16 @@ ${pl && pl.days.length ? `<div class="pl-line">${pl.days.map((id) => this.dayNam
         dayCard(d, R, v) {
             const core = this.core, fmtC = core.fmtC;
             const st = R.days.find((x) => x.id === d.id);
-            const pl = R.placement;
-            const starT = pl && pl.days.includes(d.id) ? pl.perDay : 0;
             let title, body = '';
             if (st.past) { title = '終わりました'; }
             else if (d.noTier) title = '使える難易度なし';
-            else if (d.hours <= 0 && !starT) title = '走らない';
+            else if (d.hours <= 0) title = '走らない';
             else title = `${this.hhmm(d.hours)}${d.fixed ? '' : '（自動）'}`;
             if (!st.past) {
                 body = d.parts.length ? d.parts.map((p) => `${esc(p.name)} ${p.runs.toLocaleString()}回`).join('<br>') : (d.hours > 0 && !d.noTier ? '<span class="pl-card-f">回数なし（いまの肉は、ほかの日に回すほうが、貢献度が高いため）</span>' : '');
-                if (starT > 0) body += `${body ? '<br>' : ''}＋極星器 ${core.fmtHM(starT)}（${esc(R.star.diff.name)}）`;
             }
             const marks = st.past ? '' : `<span class="pl-marks">${MARKS.map(([m, t]) => `<button type="button" data-mark="${m}" data-day="${d.id}" class="${st.mark === m ? 'on' : ''}">${t}</button>`).join('')}</span>`;
-            return `<div class="pl-card${st.past ? ' past' : ''}"><div class="pl-card-h"><b>${esc(d.name)}</b>${marks}</div><div class="pl-card-t">${title}</div><div>${body}</div>${st.past || !d.gain ? '' : `<div class="pl-card-f">獲得 ${fmtC(d.gain)}${d.meat ? `・肉 ${d.meat.toLocaleString()}` : ''}${d.mat ? `・素材 ${d.mat.toLocaleString()}` : ''}</div>`}</div>`;
+            return `<div class="pl-card${st.past ? ' past' : ''}"><div class="pl-card-h"><b>${esc(d.name)}</b>${marks}</div><div class="pl-card-t">${title}</div><div>${body}</div>${st.past || !d.gain ? '' : `<div class="pl-card-f">獲得 ${fmtC(d.gain)}${d.meat ? `・肉 ${d.meat.toLocaleString()}` : ''}${d.mat ? `・素材 ${d.mat.toLocaleString()}` : ''}</div>`}${!st.past && v.showIdle && d.hours > 0 && d.parts.length ? `<div class="pl-card-f" data-idle>余裕 ${Math.floor(d.idleSec / 60).toLocaleString()}分</div>` : ''}</div>`;
         }
 
         forwardHtml(f, R) {
@@ -914,6 +776,7 @@ ${pl && pl.days.length ? `<div class="pl-line">${pl.days.map((id) => this.dayNam
             const lines = [];
             lines.push(`<div class="pl-head-line">この条件だと、貢献度 約 ${fmtC(f.finalTotal)}${f.rank ? `（順位の目安：${f.rank.text}）` : ''}</div>`);
             lines.push(`<div class="pl-line">使う時間は、合計 <b>${this.hhmm(f.days.reduce((a, d) => a + d.hours, 0))}</b>。${f.bd.length ? `<br>難易度ごとの時間：${esc(core.hoursText(f.bd, '・'))}` : ''}<br>使う通常肉 <b>${f.use.meat.toLocaleString()}個</b>${f.use.mat ? `・250専用素材 <b>${f.use.mat.toLocaleString()}個</b>` : ''}${R.meatKnown ? '' : '（いまの肉が未入力なので、肉は足りる前提です）'}</div>`);
+            lines.push(this.starHtml(R, f));
             lines.push(`<div class="pl-days">${f.days.map((d) => this.dayCard(d, R, f)).join('')}</div>`);
             if (f.checkpoints.length) lines.push(`<div class="pl-line"><b>各日の終了時の見込み</b><br>${f.checkpoints.map((c) => `${esc(c.name)}終了時：<b>${fmtC(c.total)}</b>`).join('<br>')}</div>`);
             lines.push('<div class="pl-notice">目標を入れると、そこに届くのに必要な時間・肉が出ます（①）。</div>');
@@ -922,9 +785,9 @@ ${pl && pl.days.length ? `<div class="pl-line">${pl.days.map((id) => this.dayNam
 
         countsHtml(R) {
             const core = this.core, fmtC = core.fmtC;
-            const rows = R.counts.map((c) => `<tr><td>${esc(c.name)}</td><td>${c.runs.toLocaleString()}回</td><td>${c.sec ? core.fmtTime(Math.round(c.sec)) : '―'}</td><td>${c.meat ? `${c.meat.toLocaleString()}個` : (c.mat ? `${c.mat.toLocaleString()}個（素材）` : '―')}</td></tr>`).join('');
+            const rows = R.counts.map((c) => `<tr><td>${esc(c.name)}</td><td>${c.runs.toLocaleString()}回</td><td>${c.sec ? core.fmtTime(Math.round(c.sec)) : '―'}</td><td>${c.meat ? `${c.meat.toLocaleString()}個` : (c.mat ? `${c.mat.toLocaleString()}個（素材）` : '―')}</td><td>${c.stars != null ? `約 ${(Math.round(c.stars * 100) / 100).toLocaleString()}本` : '確率不明'}</td></tr>`).join('');
             return `<div class="pl-notice">討伐タイムがないので、<b>各難易度だけで回したとき</b>の回数の目安を出しています（あと ${fmtC(R.need0)}）。④で討伐タイムを1つでも入れると、毎日の時間と、肉の計画が出ます。</div>
-<div style="overflow-x:auto"><table class="data-table"><thead><tr><th>難易度</th><th>必要回数</th><th>所要時間</th><th>必要な肉（素材）</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+<div style="overflow-x:auto"><table class="data-table"><thead><tr><th>難易度</th><th>必要回数</th><th>所要時間</th><th>必要な肉（素材）</th><th>極星器（期待）</th></tr></thead><tbody>${rows}</tbody></table></div>`;
         }
     }
 
@@ -933,7 +796,7 @@ ${pl && pl.days.length ? `<div class="pl-line">${pl.days.map((id) => this.dayNam
     PlanPanel.rankEstimate = rankEstimate;
     PlanPanel.hoursOptFrom = hoursOptFrom;
     PlanPanel.dayStates = dayStates;
-    PlanPanel.starInfo = starInfo;
+    PlanPanel.starStats = starStats;
     PlanPanel.compute = compute;
     PlanPanel.DEFAULTS = DEFAULTS;
     global.PlanPanel = PlanPanel;
