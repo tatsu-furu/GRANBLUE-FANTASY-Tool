@@ -375,6 +375,14 @@
         <ul class="update-list">
             <li class="update-item">
                 <span class="update-date">2026-11</span>
+                <span class="update-tag tag-improve">IMPROVE</span>
+                <div class="update-body">
+                    <strong>古戦場ツール: かんたん計画の極星器を作り直し。日ごとの計画を「肉が最小の計画」に。入力中に画面が止まらないように</strong><br>
+                    極星器は、目標のために周回すれば落ちる本数の見込み（期待 約◯本・90%の確率で◯本以上）を、欲しい本数を入れなくても出します。たくさん欲しいときは「集める」を選ぶと、その本数に届くための追加の周回（難易度は、おまかせか指定）を、時間・肉・1日17時間といっしょに、計画の中で決めます。難易度ごとの確率は、トレハンタブの設定から出します（箱の基本率のデータがない難易度は「確率不明」にして、数えません）。日ごとのカードは、肉が足りるとき、必要な通常肉と同じ計画（目標に届く中で肉が最小）になり、日ごとの「余裕」も出ます。計算は、別のスレッド（Web Worker）で行うので、入力中に画面が止まりません。計算の打ち切りを、時間でなく調べた枝の数にしたので、同じ入力なら、どの端末でも、同じ答えになります。
+                </div>
+            </li>
+            <li class="update-item">
+                <span class="update-date">2026-11</span>
                 <span class="update-tag tag-new">NEW</span>
                 <div class="update-body">
                     <strong>古戦場ツール: 「かんたん計画」タブを追加（順番に入れると、目標までの計画が出る）</strong><br>
